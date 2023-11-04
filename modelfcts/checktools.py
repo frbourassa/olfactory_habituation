@@ -1,0 +1,251 @@
+""" Module with functions to check steady-state distributions,
+detection of new odors, etc. for various background processes.
+Collection of functions previously scattered across notebooks.
+
+@author: frbourassa
+June 2022
+"""
+import numpy as np
+import matplotlib.pyplot as plt
+
+from modelfcts.distribs import truncexp1_density
+from utils.metrics import subspace_align_error
+
+
+# Function to check the s.s. distribution of the power-law and exp1 process
+def check_conc_samples_powerlaw_exp1(conc_samples, twlo, twhi, tblo, tbhi, c0s, alphas):
+    """ Check that the turbulent background simulated over time
+    obeys the right concentration statistics, with a fraction chi of samples
+    where c > 0 (whiffs) and a fraction 1 - chi where c = 0 (blanks),
+    and samples in whiffs (c > 0) obeying the exp1 integrand distribution.
+
+    Args:
+        conc_samples (np.ndarray): concentration samples (zero or non-zero),
+            indexed [odor, sample]
+        twlo, twhi, tblo, tbhi, c0s, alphas: see the params_bk (list) argument
+            of the function modelfcts.backgrounds.update_powerlaw_times_concs
+    Returns:
+        fig, axes: histograms of the concentration samples overlaid with
+            the analytical distribution based on t_w, t_b, and c parameters.
+    """
+    chis = 1.0 / (1.0 + np.sqrt(tblo*tbhi/twlo/twhi))
+    cmyk_blue = "#3E529F"
+    cmyk_red = "#DA3833"
+    cmyk_green = "#307F54"
+    fig, axes = plt.subplots(1, conc_samples.shape[0])
+    axes = axes.flatten()
+    fig.set_size_inches(2.75*len(axes), 2.75)
+    for i in range(len(axes)):
+        ax = axes[i]
+        # First, histogram of nonzero samples
+        nonzero_samples = conc_samples[i]
+        nonzero_samples = nonzero_samples[nonzero_samples > 0.0]
+        # Note: this pdf is better seen with linear x scale, y log scale.
+        counts, binseps = np.histogram(nonzero_samples, bins="doane")
+        binwidths = np.diff(binseps)
+        # Center of bins on a log scale, but given in linear coordinates
+        bin_centers = (binseps[1:] + binseps[:-1])/2
+        pdf = counts / binwidths / conc_samples[i].size
+        cdf = np.cumsum(pdf)
+        ax.bar(x=binseps[:-1], align="edge", height=pdf, width=binwidths,
+                color=cmyk_blue, label="Samples")
+        ax.set(xlabel=r"$c$", ylabel=r"$p_c(c)$", yscale="log")
+
+        # Add a point for zero samples, compare to analytical
+        ax.plot(0.0, np.sum((conc_samples[i] == 0.0)) / conc_samples[i].size,
+                color=cmyk_blue, marker="o", ls="none", mec="k", ms=8)
+
+        bin_axis = np.linspace(binseps[0], binseps[-1], 201)
+        conc0, alpha = c0s[i], alphas[i]
+        dens = chis[i]*truncexp1_density(bin_axis, conc0, alpha)
+        ax.plot(bin_axis, dens, color=cmyk_red, lw=3.,
+            label=r"$p_c(c) \sim \frac{e^{-c/c_0}}{Ac}$")
+        ax.plot(0.0, 1.0 - chis[i], marker="*", color=cmyk_red, ls="none",
+                mec=cmyk_red, ms=4.5)
+        ax.legend()
+    fig.tight_layout()
+    return fig, axes
+
+
+def compute_ibcm_second_derivative(m_fix, theta_fix, ibcm_params, back_moments):
+    """ Function to compute the second time derivative of the IBCM model
+    (which serves to compute the error term of the Euler integration method)
+    for the equations of a single neuron responding to a background
+    characterized by its first three moments.
+    More precisely, for X a concatenation of \vec{m} and \Theta, compute
+    \frac12 \Deta t ||d^2 X/dt^2||, which by the chain rule is
+    obtained from the jacobian matrix (Df)_{ij} = df_i / dX_j,
+    where \vec{f} = dX/dt:
+
+        d^2 X/dt^2 = Df \cdot \vec{f}
+
+    We average Df and \vec{f} over the background and evaluate for a fixed
+    value of \vec{m} and \Theta. Make sure not to set \Theta = average c^2 for
+    the current m, else many terms will falsely be zero due to \vec{f} being
+    averaged separately.
+
+    Args:
+        m_fix (np.ndarray): m vector at which to evaluate the error term
+        theta_fix (np.ndarray): theta threshold at which to evaluate the error
+        ibcm_params (list of floats): learning rate mu, averaging time tau_theta
+        back_moments (list of np.ndarrays): moments of the background \vec{x}
+            x_avg (1darray): average of each ORN activity in the background
+            x_cov (2darray): noncentered covariances <x_i x_j>
+            x_ijk (3darray): noncentered third moments <x_i x_j x_k>
+
+    Return:
+        first_deriv (np.ndarray): first time derivative of m, Theta,
+            averaged over the background. We will need to compute
+            the derivative of the background separately to compute Df.f after.
+        second_deriv (np.ndarray): second time derivative
+            of \vec{m} and \Theta concatenated in a vector,
+            computed as Df \cdot \vec{f}, where dX/dt = f(X)
+    """
+    # Extract vector dimensions for convenience
+    x_avg, x_cov, x_ijk = back_moments
+    n_r = x_avg.shape[0]
+
+    # Extract other parameters
+    learnrate, tau_theta = ibcm_params
+
+    # Compute the average RHS of the ODEs (easy part)
+    f_vec = np.zeros(n_r + 1)
+    f_vec[:n_r] = learnrate * (x_ijk.dot(m_fix).dot(m_fix)
+                               - x_cov.dot(m_fix)*theta_fix)
+    f_vec[-1] = (m_fix.dot(x_cov).dot(m_fix) - theta_fix) / tau_theta
+
+    # Compute the average jacobian, including x in its columns but not its rows
+    # because we are not interested in the background's second derivative
+    # but we want the contribution of x to the second derivative of m, \Theta
+    df = np.zeros([n_r+1, 2*n_r+1])
+
+    # dm/dm block (n_r x n_r)
+    df[:n_r, :n_r] = learnrate * (2.0*x_ijk.dot(m_fix) - theta_fix*x_cov)
+
+    # d\dot{m}/dTheta block (n_r x 1) next to dm/dm block
+    df[:n_r, n_r] = -learnrate * x_cov.dot(m_fix)
+
+    # d\dot{m}/dx block  (n_r x n_r) next to previous block
+    df[:n_r, n_r+1:] = learnrate*m_fix[np.newaxis, :]*(2.0*x_cov.dot(m_fix[:, np.newaxis])
+                                                       - x_avg[:, np.newaxis]*theta_fix)
+    df[:n_r, n_r+1:] += np.eye(n_r)*learnrate*(m_fix.dot(x_cov).dot(m_fix) - m_fix.dot(x_avg))
+
+    # d\dot{Theta}/dm block  (1 x n_r) last row
+    df[n_r, :n_r] = 2.0/tau_theta*x_cov.dot(m_fix)
+
+    # d\dot{Theta}/dTheta block  (1 x 1) last row next to previous
+    df[n_r, n_r] = - 1.0 / tau_theta
+
+    # d\dot{Theta}/dx block (1 x n_r)  end of last row
+    df[n_r, n_r+1:] = 2.0 * m_fix / tau_theta * m_fix.dot(x_avg)
+
+    # Return f and Df
+    return f_vec, df
+
+
+### Functions to analyze biologically plausible online PCA results
+# Compute the real PCA (without subtracting the mean)
+# and compare it to the algorithm results.
+def compute_pca_meankept(samp, do_proj=False, vari_thresh=1.0, force_svd=False, demean=False):
+    """ Given an array of samples, compute the empirical covariance and
+    diagonalize it to obtain the principal components and principal values,
+    which are what is returned.
+
+    If less than 10*d samples, take SVD of the sample matrix directly
+    divided by 1/sqrt(N-1), because this amounts to eigendecomposition of
+    the covariance matrix, but with better numerical stability and accuracy
+    (but it's a lot slower).
+
+    Args:
+        samp (np.array): nxp matrix for n samples of p dimensions each.
+            Pass the values of a dataframe for proper slicing.
+        do_proj (bool): if True, also project the sample points
+        vari_thresh (float in [0., 1.]): include principal components until
+            a fraction vari_thresh of the total variance is explained.
+        force_svd (bool): if True, use SVD of the data matrix directly.
+        demean (bool): if True, subtract the mean before computing SVD,
+            i.e., compute true covariance PCA.
+    Returns:
+        p_values (np.ndarray): 1d array of principal values, descending order.
+        p_components (np.ndarray): 2d array of principal components.
+            p_components[:, i] is the vector for p_values[i]
+        samp_proj (np.ndarray): of shape (samp.shape[0], n_comp) where n_comp
+            is the number of principal components needed to explain
+            vari_thresh of the total variance.
+    """
+    if demean:
+        samp_loc = samp - np.mean(samp, axis=0)
+    else:
+        samp_loc = samp
+    # Few samples: use SVD on the de-meaned data directly.
+    if force_svd or samp_loc.shape[0] <= 10*samp_loc.shape[1]:
+        svd_res = np.linalg.svd(samp_loc.T / np.sqrt(samp_loc.shape[0] - 1))
+        # U, Sigma, V. Better use transpose so small first dimension,
+        # because higher accuracy in eigenvectors in U
+        # Each column of U is an eigenvector of samp^T*samp/(N-1)
+        p_components = svd_res[0]
+        p_values = svd_res[1]**2  # Singular values are sqrt of eigenvalues
+
+    # Many samples are available; use covariance then eigen decomposition
+    else:
+        covmat = np.dot(samp_loc.T, samp_loc) / (samp_loc.shape[0] - 1)
+        p_values, p_components = np.linalg.eigh(covmat)
+        # Sort in decreasing order; eigh returns increasing order
+        p_components = p_components[:, ::-1]
+        p_values = p_values[::-1]
+
+    if do_proj:
+        vari_explained = 0.
+        total_variance = np.sum(p_values)
+        n_comp = 0
+        while vari_explained < total_variance*vari_thresh:
+            vari_explained += p_values[n_comp]
+            n_comp += 1
+            if n_comp > p_values.shape[0]: break
+        samp_proj = samp_loc.dot(p_components[:, :n_comp])
+
+    else:
+        samp_proj = None
+
+    return p_values, p_components, samp_proj
+
+
+def compute_projector_series(mser, lser):
+    nt = mser.shape[0]
+    nk = lser.shape[1]
+    linvdiag = 1.0 / np.diagonal(lser, axis1=1, axis2=2)
+    loffd = lser.copy()
+    loffd[:, np.arange(nk), np.arange(nk)] = 0.0
+
+    linvser = linvdiag[:, :, None] * (np.tile(np.eye(nk), (nt, 1, 1)) - loffd * linvdiag[:, None, :])
+    fser = np.einsum("...ij,...jk", linvser, mser)  # ... allows broadcasting
+    return fser
+
+
+def analyze_pca_learning(xser, mser, lser, lambda_diag, demean=False):
+    # Exact PCA: eigenvalue decomposition of xx^T / (n_samples-1)
+    nk = lser.shape[1]
+    nt = xser.shape[0]
+    eigvals, eigvecs, _ = compute_pca_meankept(xser, do_proj=False, demean=demean)
+
+    # Determine basis learnt by algorithm and return
+    fser = compute_projector_series(mser, lser)
+    learntvecs = ((1.0/lambda_diag[None, :, None]) * fser)
+    # Each row of learntvecs[t] is an eigenvector learnt at time t
+
+    # Values on the diagonal of L are supposed to be eigenvalues
+    learntvals = np.diagonal(lser, axis1=1, axis2=2)
+    # Sort them in decreasing order
+    sort_arg = np.argsort(np.mean(learntvals[nt//2:], axis=0))[::-1]
+    learntvals = learntvals[:, sort_arg]
+
+    # Off-diagonal values are supposed to tend to zero
+    loffd = lser.copy()
+    loffd[:, np.arange(nk), np.arange(nk)] = 0.0
+    offd_avg_abs = np.mean(np.abs(loffd), axis=(1, 2))
+
+    # Subspace alignment
+    learnt_pca_ser = [learntvecs[i].T for i in range(nt)]
+    error_series = np.asarray([subspace_align_error(eigvecs[:, :nk], v) for v in learnt_pca_ser])
+
+    return [eigvals, eigvecs], [learntvals, learntvecs], fser, offd_avg_abs, error_series

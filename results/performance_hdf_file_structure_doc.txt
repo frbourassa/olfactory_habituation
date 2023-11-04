@@ -1,0 +1,87 @@
+HDF file structure
+    .attrs: descriptive metadata
+        "model" (str): IBCM, PCA, or AVG
+        "background" (str): type of background, choice of "turbulent",
+                "log-normal", "third_moment",  "gaussian", "alternating"
+        "main_seed" (int): 128-bit integer main seed
+
+    parameters (group): parameters that are the same for all runs
+        .attrs: model options, passed as kwargs to the integration function
+        dimensions (dataset of 4 ints): [n_r, n_b, n_i, n_k]
+            n_i = number of inhibitory neurons
+            n_k = number of Kenyon cells = size of neural tags
+            This repeats some metadata from the attributes, but is useful.
+        repeats (dataset of 6 ints): the number of repeats of each kind
+            [n_runs, n_test_times, n_back_samples, n_new_odors,
+            n_new_concs, skp]
+        m_rates (dataset of 0-5 floats): M model rates,
+            e.g. learnrate, tavg, coupling, sat, ktheta for Law-IBCM.
+            Nothing here for average subtraction as M weights are not used.
+        w_rates (dataset of 2 floats): W weights rates, i.e., [alpha, beta]
+        time_params (dataset of 2 floats): tmax (final t), dt (time step=1.0)
+        back_params (dataset of floats): parameters of the stochastic process
+            for the background concentrations. For turbulent backgrounds,
+            this is a 6 x n_b array; axis 0 indices are for parameters
+                whiff_tmin, whiff_tmax, blank_tmin, blank_tmax, c0, alpha
+        snap_times (dataset): times at which habituation is tested, in steps
+        new_concs (dataset): concentrations at which new odors are introduced
+            typically 0.2 and 0.5.
+
+    odors (group): background and new odors
+        back_odors (dataset of floats): background odors for each simulations,
+            shape [n_runs, n_b, n_r]
+        new_odors (dataset of floats): new odors tested in all simulations at
+            each test time, shape [n_new_odors, n_r]
+
+    proj_kwargs (group): with datasets for kc_sparsity=0.05,
+                adapt_kc=True, n_pn_per_kc=3, project_thresh_fact=0.1
+
+    sim0000 (group): one group per simulation, with all initial conditions
+    and results from that simulation. 0000 is replaced by the simulation id,
+    counting from 0. For instance, sim. #37 has results in group "sim0037".
+        .attrs: attributes of this run
+            id (int): simulation number, also present in the name of the group
+            spawn_key (int): spawn key of the SeedSequence of this simulation
+                The rng within this simulation is thus initialized with
+                SeedSequence(entropy=main_seed, spawn_key=[spawn_key,])
+        m_init (dataset): shape [n_i, n_r]: initial m weights.
+            None for average background subtraction.
+        l_init (dataset): initial coupling weights, only relevant for PCA
+            because for IBCM this entire matrix is based on the eta param.
+        bk_init (group):
+            bk_vari_init (dataset): initial value of background stochastic
+                variables, shape [n_b, n_var_per_odor]
+            bk_vec_init (dataset): initial background vector, shape [n_orn]
+        back_conc_snaps (dataset): snapshot of background concentration
+            series at snap times, shape [n_test_times, n_b, n_var_per_odor]
+        back_vec_snaps (dataset): snapshots of background vector at snap_times,
+            shape [n_test_times, n_b]
+        extra_test_backs (dataset): extra background vectors tested at each
+            snap time against each new odor, new for each time;
+            shape [n_test_times, n_back_samples-1, n_r].
+            Not recording individual background concentrations, these can be
+            recovered knowing these test background vectors are linear combi-
+            nations of the unique set of background components of that run.
+        m_snaps (dataset): snapshots of M weights at snap_times, if applicable,
+            shape [n_test_times, n_i, n_r]
+        l_snaps (dataset): snapshots of L weights at snap times, if applicable,
+            shape [n_test_times, n_i, n_i]
+        cbar_snaps (dataset): snapshots of inhibitory neurons' coupled
+            activities, cbars, at snap_times; shape [n_test_times, n_i]
+        w_snaps (dataset): snapshots of inhibitory weights at test times,
+            shape [n_test_times, n_r, n_i]
+        s_snaps (dataset): snapshots of PN neuron activities at test times,
+            in presence of the simulated background (no new odors, no extra
+            test background concentrations); shape [n_test_times, n_r].
+        kc_proj_mat (group): data, indices, indptr, shape of the sparse projection
+            matrix from PNs to KCs used to generate neural tags
+        test_results (group):
+            conc_samples (dataset): shape [n_times, n_back_samples, n_b]
+            back_samples (dataset): shape [n_times, n_back_samples, n_r]
+            new_odor_tags (dataset): shape [n_new_odors, tag_length]
+            mixture_svecs (dataset): shape [n_new_odors, n_times, n_new_concs,
+                                            n_back_samples, n_r]
+            mixture_tags (group): data to reconstruct a SparseNDArray shaped
+                [n_new_odors, n_times, n_new_concs, n_back_samples, n_kc]
+            jaccard_scores (dataset): shape [n_new_odors, n_times,
+                                            n_new_concs, n_back_samples]
