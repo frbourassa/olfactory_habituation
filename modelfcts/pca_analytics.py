@@ -47,4 +47,4 @@ def pca_fixedpoint_s_2vectors_variance(components, sigma2, ab_rates):
     x_d = np.sum(components, axis=0)/2.0
     x_s = np.diff(components, axis=0)
     pc = sigma2 * l2_norm(x_s)
-    return ba_ratio / (ba_ratio + pc) * pc
+    return (ba_ratio / (ba_ratio + pc))**2 * pc

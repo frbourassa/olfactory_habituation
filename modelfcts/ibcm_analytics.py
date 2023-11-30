@@ -5,6 +5,7 @@ that were previously in Jupyter notebooks.
 """
 import numpy as np
 from utils.metrics import l2_norm
+from modelfcts.ideal import relu_inplace
 
 ### Special solution for toy background with 2 odors, 1 varying proportion ###
 def fixedpoints_m_2vectors(components, sigma, eta, n_r=2):
@@ -127,14 +128,24 @@ def fixedpoints_w_2vectors(rates, fixed_mbar, bk_components, sigma2):
     return fixed_wvecs
 
 
-def fixedpoint_s_2vectors_instant(rates, x_instant):
+def fixedpoint_s_2vectors_instant(rates, x_instant, options={}):
+    activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     alph, bet = rates
-    return relu_inplace(bet / (2*alph + bet) * x_instant)
+    if activ_fct == "relu":
+        return relu_inplace(bet / (2*alph + bet) * x_instant)
+    else:
+        return bet / (2*alph + bet) * x_instant
 
-def fixedpoint_s_2vectors_mean(rates, bk_components):
+
+def fixedpoint_s_2vectors_mean(rates, bk_components, options={}):
+    activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     x_d = 0.5 * (bk_components[0] + bk_components[1])
     alph, bet = rates
-    return relu_inplace(bet / (2*alph + bet) * x_d)
+    if activ_fct == "relu":
+        return relu_inplace(bet / (2*alph + bet) * x_d)
+    else:
+        return bet / (2*alph + bet) * x_d
+
 
 def fixedpoint_s_2vectors_norm2(rates, bk_components, sigm2):
     x_d = 0.5 * (bk_components[0] + bk_components[1])
@@ -319,6 +330,68 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False):
     return y1, y2, cd, u2
 
 
+# Exact W fixed points for general distribution of neurons across odors
+def ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, specif_gammas):
+    """ Exact analytical steady-state solution for the matrix W,
+    given the specificity of each neuron, and the values of c_n and c_s.
+    The latter can be either from the analytical M solution, or from
+    numerical solution -- allowing to compare W simulations to prediction
+    even when the M predition fails due to large correlations.
+
+    This assumes each IBCM neuron is specific to one odor, which are the only
+    fixed point that are stable, based on all simulations.
+
+    Args:
+        inhib_rates (list of 2 floats): alpha, beta
+        moments_nu (list of 3 floats): <nu>, sigma^2, m_3, only the first 2
+            are used.
+        back_vecs (np.ndarray): background odor vectors, one per row,
+            thus shaped n_B x n_R, indexed [odor, orn dimension].
+        cs_cn (list of 2 floats): values of y_1 and y_2, the specific
+            and non-specific dot product values, respectively.
+        specif_gammas (np.ndarray of ints): vector giving \gamma_j of
+            each neuron j, that is, the background odor to which each neuron
+            is specific. 1d array of ints with length n_I.
+
+    Returns:
+        W (np.2darray): the W matrix, indexed [orn dimension, IBCM neuron],
+            i.e. each column contains weights stemming from IBCM neuron j.
+    """
+    # Extract parameters
+    alpha, beta = inhib_rates
+    avgnu, sigma2, _ = moments_nu
+    c_s, c_n = cs_cn
+    cdiff = c_s - c_n
+    n_B = back_vecs.shape[0]
+    n_I = specif_gammas.shape[0]
+
+    # 1. Compute the number of neurons specific to each odor, n_gammas
+    specif_gammas = specif_gammas.astype(int)
+    n_gammas = np.bincount(specif_gammas)
+
+    # 2. Compute a few terms that appear often.
+    x_d = avgnu * np.sum(back_vecs, axis=0)
+    c_d = avgnu * (c_s + (n_B - 1)*c_n)
+    cst_A = c_d**2 + sigma2*c_d*c_n / avgnu + sigma2*c_n*cdiff
+    b_gammas = beta/alpha + n_gammas * sigma2 * cdiff**2
+    cst_K = np.sum(n_gammas / b_gammas)
+    denoms_bak = b_gammas * (1.0 + cst_A * cst_K)
+    # The 1d vectors n_gammas/b_gammas is aligned with columns,
+    # so transpose back_vecs to multiply one coef per x_gamma, then sum.
+    weighted_x = np.sum(n_gammas / b_gammas * back_vecs.T, axis=1)
+
+    # 3. Compute the w_{\gamma} vectors
+    # that is, the column in W for a neuron specific to odor \gamma
+    # Shape w_gammas: [n_orn, n_B], each column contains one w_{\gamma} vector
+    w_gammas = sigma2*cdiff / b_gammas * back_vecs.T
+    w_gammas += (c_d + sigma2/avgnu*c_n) / denoms_bak * x_d[:, None]
+    w_gammas -= cst_A * sigma2 * cdiff / denoms_bak * weighted_x[:, None]
+
+    # 4. Assemble the w_{gamma} columns according to the neurons' specificity
+    wmat = np.asarray(w_gammas[:, specif_gammas])
+    return wmat
+
+
 # Fixed point of a single neuron
 def jacobian_fixedpoint_thirdmoment(moments, ibcm_params, which_specif, back_comps, m3=1.0, order=1):
     """ which_specif: boolean array equal to True for specific gammas. """
@@ -362,3 +435,13 @@ def jacobian_fixedpoint_thirdmoment(moments, ibcm_params, which_specif, back_com
 
     # Build the complete matrix
     return jac
+
+# Test the function computing the W analytical prediction
+if __name__ == "__main__":
+    back_vecs = np.zeros([6, 25])
+    back_vecs[:6, :6] = np.eye(6)
+    inhib_rates = [1.0, 0.2]
+    moments_nu = (0.3, 0.09, 0.1)
+    cs_cn = (5.0, -1.0)
+    specif_gammas = np.asarray((0, 1, 2, 3, 4, 5, 0, 1))
+    print(ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, specif_gammas))
