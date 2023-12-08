@@ -298,11 +298,10 @@ def select_model_functions(attrs):
 
 def save_simul_results(id, res, attrs, gp, snap_i):
     result_items = {
-        "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps",
-                 "m_snaps", "cbar_snaps", "w_snaps", "s_snaps"],
-        "PCA": ["tser", "back_conc_snaps", "back_vec_snaps",
-                 "m_snaps", "l_snaps", "x_snaps", "cbar_snaps",
-                 "w_snaps", "s_snaps"],
+        "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
+                 "cbar_snaps", "theta_snaps", "w_snaps", "s_snaps"],
+        "PCA": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
+                 "l_snaps", "x_snaps", "cbar_snaps", "w_snaps", "s_snaps"],
         "AVG": ["tser", "back_conc_snaps", "back_vec_snaps",
                  "w_snaps", "s_snaps"]
     }

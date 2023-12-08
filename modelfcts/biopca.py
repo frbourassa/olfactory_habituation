@@ -82,7 +82,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
                 (inverse of tau in Minden 2018)
             lambda_range (float): lambda matrix range of diagonal elements
                 (between 0 and 1). Largest lambda element is 1, smallest is 0
-            xrate (float, optional): if remove_mean is True, learning
+            xrate (float): if remove_mean is True, learning
                 rate for the mean background.
         inhib_params (list): alpha, beta: list of parameters for the inhibitory
             neurons update. Should have alpha > beta here.
@@ -117,10 +117,8 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     bk_vari_init, bk_vec_init = bk_init
     assert n_orn == bk_vec_init.shape[0], "Mismatch between dimension of m and background"
     alpha, beta = inhib_params
-    if remove_mean:
-        mrate, lrate, lambda_range, xrate = biopca_params
-    else:
-        mrate, lrate, lambda_range = biopca_params
+    # xrate will be a dummy value if remove_mean == False
+    mrate, lrate, lambda_range, xrate = biopca_params
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
     lambda_diag = build_lambda_matrix(lambda_range, n_neu)
     rng = np.random.default_rng(seed=seed)
@@ -211,8 +209,8 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
 
         ### Online PCA weights
         # Synaptic plasticity: update mmat, lmat to k+1 based on cbar at k
-        mmat = mmat + dt * mrate * (cbar[:, newax].dot(bkvec[newax, :]) - mmat)
-        lmat = lmat + dt * mrate * lrate * (cbar[:, newax].dot(cbar[newax, :])
+        mmat += dt * mrate * (cbar[:, newax].dot(bkvec[newax, :]) - mmat)
+        lmat += dt * mrate * lrate * (cbar[:, newax].dot(cbar[newax, :])
                         - lambda_diag[:, newax] * lmat * lambda_diag)
         # Update too the variable saving the inverse of the diagonal of L
         inv_l_diag = 1.0 / lmat[diag_idx]

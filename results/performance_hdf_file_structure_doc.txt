@@ -68,6 +68,8 @@ HDF file structure
             shape [n_test_times, n_i, n_i]
         cbar_snaps (dataset): snapshots of inhibitory neurons' coupled
             activities, cbars, at snap_times; shape [n_test_times, n_i]
+        theta_snaps (dataset): snapshots of inhibitory neurons' internal
+            thresholds, $\bar{\Theta}$, shape [n_test_times, n_i]
         w_snaps (dataset): snapshots of inhibitory weights at test times,
             shape [n_test_times, n_r, n_i]
         s_snaps (dataset): snapshots of PN neuron activities at test times,

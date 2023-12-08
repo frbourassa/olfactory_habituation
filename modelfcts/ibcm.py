@@ -49,6 +49,7 @@ def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
     m_series = np.zeros([tseries.shape[0],n_orn])
     c_series = np.zeros([tseries.shape[0]])
     bkvec_series = np.zeros([tseries.shape[0], n_orn])  # Input vecs, convenient to compute inhibited output
+    theta_series = np.zeros(tseries.shape[0])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
     bk_vari = bk_vari_init.copy()
@@ -62,6 +63,7 @@ def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
     bk_series[0] = bk_vari
     m_series[0] = m_init
     bkvec_series[0] = bkvec
+    theta_series[0] = c2_avg
 
     # Generate N(0, 1) noise samples in advance
     if (tseries.shape[0]-1)*bk_vari.size > 1e7:
@@ -100,8 +102,9 @@ def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
         # Compute un-inhibited activity of each neuron with current input (at time k)
         c = m.dot(bkvec)
         c_series[k+1] = c
+        theta_series[k+1] = c2_avg
 
-    return tseries, m_series, bk_series, c_series, bkvec_series
+    return tseries, m_series, bk_series, c_series, theta_series, bkvec_series
 
 
 ### IBCM NETWORK alone, no inhibition model for now
@@ -132,7 +135,7 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
         coupling (float): eta, between 0 and 1
 
     Returns:
-        tseries, m_series, bk_series, c_series, cbar_series, w_series, bkvec_series
+        tseries, m_series, bk_series, c_series, cbar_series, theta_series, bkvec_series
     """
     n_neu = m_init.shape[0]  # Number of neurons
     n_orn = m_init.shape[1]
@@ -148,6 +151,7 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
     cbar_series = np.zeros([tseries.shape[0], n_neu])
     c_series = np.zeros([tseries.shape[0], n_neu])
     bkvec_series = np.zeros([tseries.shape[0], n_orn])  # Input vecs, convenient to compute inhibited output
+    theta_series = np.zeros([tseries.shape[0], n_neu])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
     c = np.zeros(n_neu)  # un-inhibited neuron activities
@@ -168,6 +172,7 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
     bk_series[0] = bk_vari
     m_series[0] = m_init
     bkvec_series[0] = bkvec
+    theta_series[0] = cbar2_avg
 
     # Generate N(0, 1) noise samples in advance
     if (tseries.shape[0]-1)*bk_vari.size > 1e7:
@@ -216,14 +221,15 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
         cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
         # np.sum(c) is a scalar and c a vector, so it broadcasts properly.
         cbar_series[k+1] = cbar  # Save activity of neurons at time k+1
+        theta_series[k+1] = cbar2_avg
 
-    return tseries, m_series, bk_series, c_series, cbar_series, bkvec_series
+    return tseries, m_series, bk_series, c_series, cbar_series, theta_series, bkvec_series
 
 
 ### NETWORK OF IBCM NEURONS WITH OPTIMAL INHIBITORY WEIGHTS
 # One main function instead of multiple variants
 # Only marginal performance sacrifices by checking the various options.
-def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
+def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     ibcm_params, inhib_params, bk_params, tmax, dt,
     seed=None, noisetype="normal", skp=1, **options):
     """ Integrate the IBCM equation when the input updated by the derivative
@@ -249,9 +255,14 @@ def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
     Option "activ_fct": either "ReLU" or "identity"
 
     Args:
-        m_init (np.ndarray): 2d array, shape (number neurons, number dimensions)
-            The transpose of the M matrix where each column is an m vector, ie
-            synaptic weights connecting one inhibitory neuron to input neurons.
+        vari_inits (list of np.ndarrays):
+            m_init (np.ndarray): 2d array, shape (number neurons, number dim.)
+                The transpose of the M matrix where each column is an m vector,
+                synaptic weights connecting one inhibitory neuron to inputs.
+            theta_init (np.ndarray): initial thresholds Theta.
+            w_init (np.ndarray): initial w
+
+
         update_bk (callable): function that updates the background variables and
             the background vector
         bk_init (list of two 1d np.ndarrays): [bk_vari_init, bk_vec_init]
@@ -284,7 +295,8 @@ def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
         decay (bool): if True, add small decay
 
     Returns:
-        tseries, bk_series, bkvec_series, m_series, cbar_series, w_series, s_series
+        [tseries, bk_series, bkvec_series, m_series,
+        cbar_series, theta_series, w_series, s_series]
     """
     # Get some of the keyword arguments
     saturation = options.get("saturation", "linear")
@@ -292,8 +304,24 @@ def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     decay = options.get("decay", False)
 
-    n_neu = m_init.shape[0]  # Number of neurons
-    n_orn = m_init.shape[1]
+    # Legacy option to just pass initial M
+    if isinstance(vari_inits, np.ndarray):
+        m_init = vari_inits
+        n_neu = m_init.shape[0]  # Number of neurons
+        n_orn = m_init.shape[1]
+        w_init = np.zeros([n_orn, n_neu])
+        theta_init = None
+    elif isinstance(vari_inits, list) and len(vari_inits) == 1:
+        m_init = np.asarray(vari_inits[0])
+        n_neu = m_init.shape[0]  # Number of neurons
+        n_orn = m_init.shape[1]
+        w_init = np.zeros([n_orn, n_neu])
+        theta_init = None
+    else:
+        m_init, theta_init, w_init = vari_inits
+        n_neu = m_init.shape[0]  # Number of neurons
+        n_orn = m_init.shape[1]
+
     bk_vari_init, bk_vec_init = bk_init
     assert n_orn == bk_vec_init.shape[0], "Mismatch between dimension of m and background"
     alpha, beta = inhib_params
@@ -309,16 +337,24 @@ def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
     w_series = np.zeros([tseries.shape[0], n_orn, n_neu])  # Inhibitory weights
     bkvec_series = np.zeros([tseries.shape[0], n_orn])  # Input vecs, convenient to compute inhibited output
     s_series = np.zeros([tseries.shape[0], n_orn])
+    theta_series = np.zeros([tseries.shape[0], n_neu])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
-    c = np.zeros(n_neu)  # un-inhibited neuron activities
-    cbar = np.zeros(n_neu)  # inhibited neuron activities
-    cbar2_avg = np.zeros(n_neu)  # Average inhibited neuron activities squared, initialized at zero
-    wmat = w_series[0].copy()  # Initialize with null inhibition
+    m = m_init.copy()
     bk_vari = bk_vari_init.copy()
     bkvec = bk_vec_init.copy()
-    m = m_init.copy()
-    svec = bk_vec_init.copy()
+    c = m.dot(bkvec)  # un-inhibited neuron activities
+    # Initialize neuron activity with m and background at time zero
+    cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
+    if saturation == "tanh":
+        cbar = sat * np.tanh(cbar / sat)
+    if theta_init is None:
+        # Important to initialize cbar2_avg to non-zero values, because we divide by this!
+        cbar2_avg = np.maximum(cbar*cbar, learnrate)
+    else:
+        cbar2_avg = theta_init.copy()
+    wmat = w_init.copy()
+    svec = bk_vec_init - wmat.dot(cbar)
     if activ_fct == "relu":
         relu_inplace(svec)
     elif activ_fct == "identity":
@@ -326,20 +362,14 @@ def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
     else:
         raise ValueError("Unknown activation fct: {}".format(activ_fct))
 
-    # Initialize neuron activity with m and background at time zero
-    c = m.dot(bkvec)
-    cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
-    if saturation == "tanh":
-        cbar = sat * np.tanh(cbar / sat)
-    # Important to initialize cbar2_avg to non-zero values, because we divide by this!
-    cbar2_avg = np.maximum(cbar*cbar, learnrate)
-
     # Store back some initial values in containers
     cbar_series[0] = cbar
     bk_series[0] = bk_vari
     m_series[0] = m_init
     bkvec_series[0] = bkvec
     s_series[0] = svec
+    theta_series[0] = cbar2_avg
+    w_series[0] = wmat
 
     # Generate N(0, 1) noise samples in advance
     if (tseries.shape[0]*skp-1)*bk_vari.size > 1e7:
@@ -418,8 +448,10 @@ def integrate_inhib_ibcm_network_options(m_init, update_bk, bk_init,
             bkvec_series[knext] = bkvec
             cbar_series[knext] = cbar  # Save activity of neurons at time k+1
             s_series[knext] = svec
+            theta_series[knext] = cbar2_avg
 
-    return tseries, bk_series, bkvec_series, m_series, cbar_series, w_series, s_series
+    return [tseries, bk_series, bkvec_series, m_series,
+            cbar_series, theta_series, w_series, s_series]
 
 
 # For legacy reasons, keep other versions with hard-coded options

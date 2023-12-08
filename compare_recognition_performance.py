@@ -57,7 +57,7 @@ if __name__ == "__main__":
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
-    w_alpha_beta = np.asarray([5e-5, 1e-5])
+    w_alpha_beta = np.asarray([25e-5, 5e-5])
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
@@ -67,9 +67,9 @@ if __name__ == "__main__":
     activ_fct_choice = "identity"
     turbulent_back_params = [
         np.asarray([1.0] * n_b),        # whiff_tmins
-        np.asarray([100.] * n_b),       # whiff_tmaxs
-        np.asarray([2.0] * n_b),        # blank_tmins
-        np.asarray([200.0] * n_b),      # blank_tmaxs
+        np.asarray([500.] * n_b),       # whiff_tmaxs
+        np.asarray([1.0] * n_b),        # blank_tmins
+        np.asarray([800.0] * n_b),      # blank_tmaxs
         np.asarray([0.6] * n_b),        # c0s
         np.asarray([0.5] * n_b),        # alphas
     ]
