@@ -154,6 +154,57 @@ def fixedpoint_s_2vectors_norm2(rates, bk_components, sigm2):
     return (bet / (2*alph + bet))**2 * (l2_norm(x_d) + sigm2*l2_norm(x_s))
 
 
+def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9):
+    """ Predict times for c_d and c_s to converge to fixed points.
+    Valid for small sigma^2, when we expect c_d to converge before c_s
+    If sigma^2 or the initial value of c_s are too large, the prediction
+    for td is still good probably, but for ts it will be bad,
+    because we assumed that c_d reaches its steady-state value of 1
+    to compute the time ts.
+    Args:
+        init_c_ds (list of 2 floats): initial value of m.x_d and m.x_s
+        norms2_x_ds (list of 2 floats): squared norm of x_d and x_s
+        mu (float): learning rate
+        sigm2 (float): variance of nu
+    Returns:
+        td (float): time for c_d to reach steady-state
+        ts (float): time for c_s to reach steady-state,
+            assuming c_d reached steady-state much faster.
+    """
+    td = (1.0/init_c_ds[0] - 1.0)
+    td += np.log(alph*(1.0 - init_c_ds[0]) / (1.0 - alph) / init_c_ds[0])
+    td /= mu * norms2_x_ds[0]
+    # Keeping c_s = epsilon_s when solving for t_d
+    #k = sigm2 * init_c_ds[1]**2
+    #td = np.log((1.0 - init_c_ds[0])/(1-alph))
+    #td += (np.arctan(alph/k) - np.arctan(init_c_ds[0]/k)) / k
+    #td += 0.5*np.log((alph**2 + k**2)/(init_c_ds[0]**2 + k**2))
+    #td /= (1 + k**2) * mu * norms2_x_ds[0]
+
+    # Time to converge to 90 %
+    #sig = np.sqrt(sigm2)
+    #td = np.log(alph*np.sqrt(1.0 - sigm2*init_m_sd[1]**2)/(sig*init_m_sd[1]*np.sqrt(1-alph**2)))
+    ts = np.log(alph / np.sqrt(sigm2) / init_c_ds[1])
+    ts = ts / (mu * norms2_x_ds[1]*sigm2) + td
+    return td, ts
+
+
+# To analyze a simulation of 1 IBCM neuron and find convergence time
+def find_convergence_time(tpts, mdd, mds, sigm2, alph=0.9):
+    """
+    Args:
+        tpts (np.ndarray): time points
+        mdd (np.ndarray): time series of m \cdot \vec{x}_d
+        mds (np.ndarray): time series of m \cdot \vec{x}_s
+        sigm2 (float): variance of nu
+    """
+    # Check when mds reaches close to 1 (analytical ss value)
+    # and when mdd reaches close to \pm 1 / sigma
+    td = tpts[np.argmax(mdd > alph)]
+    ts = tpts[np.argmax(np.abs(mds) > alph / np.sqrt(sigm2))]
+    return td, ts
+
+
 ### Fixed points of the IBCM model for a linear combination ###
 ### of odors with non-zero third moment                     ###
 def fixedpoint_thirdmoment_onecval(avgnu, variance, epsilon, nb, m3=1.0):
