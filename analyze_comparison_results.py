@@ -15,7 +15,7 @@ def concat_jaccards(f):
     return all_jacs
 
 
-if __name__ == "__main__":
+def main_plot_histograms():
     # Compare all algorithms
     folder = os.path.join("results", "performance")
     models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
@@ -41,7 +41,6 @@ if __name__ == "__main__":
     }
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
-    # TODO: check it is indeed the same
     with h5py.File(model_file_choices["ibcm"], "r") as f:
         n_new_concs = f.get("parameters").get("repeats")[4]
         new_concs = f.get("parameters").get("new_concs")[()]
@@ -77,3 +76,42 @@ if __name__ == "__main__":
 
     plt.show()
     plt.close()
+    return None
+
+
+def main_export_jaccards(dest_name):
+    # Compare all algorithms
+    folder = os.path.join("results", "performance")
+    models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
+    model_file_choices = {
+        a:os.path.join(folder, a+"_performance_results.h5")
+        for a in models
+    }
+    # Get new odor concentrations
+    # Assume it's the same for all models: it should!
+    # TODO: check it is indeed the same
+    with h5py.File(model_file_choices["ibcm"], "r") as f:
+        n_new_concs = f.get("parameters").get("repeats")[4]
+        new_concs = f.get("parameters").get("new_concs")[()]
+        activ_fct = f.get("parameters").attrs.get("activ_fct")
+    # For each model, extract the matrix of Jaccard similarities,
+    # then save them all to one npz archive file.
+    jac_file = {"new_concs": new_concs}
+    for m in models[::-1]:  # Plot IBCM last
+        f = h5py.File(model_file_choices[m], "r")
+        all_jacs = concat_jaccards(f)
+        f.close()
+        jac_file[m] = all_jacs
+    # Save
+    np.savez_compressed(
+        dest_name + "_" + activ_fct + ".npz",
+        **jac_file
+    )
+    return None
+
+
+if __name__ == "__main__":
+    main_plot_histograms()
+    main_export_jaccards(
+        os.path.join("results", "for_plots", "jaccard_similarities")
+    )

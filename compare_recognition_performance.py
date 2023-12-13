@@ -15,6 +15,7 @@ from simulfcts.habituation_recognition import (
 )
 from simulfcts.idealized_recognition import idealized_recognition_from_runs
 from modelfcts.distribs import truncexp1_average
+from modelfcts.backgrounds import sample_ss_conc_powerlaw
 
 if __name__ == "__main__":
     # Results folder
@@ -78,6 +79,19 @@ if __name__ == "__main__":
     print("Average whiff concentration: {:.4f}".format(avg_whiff_conc))
     new_test_concs *= avg_whiff_conc
 
+    # Compute moments of the background concentration process
+    dummy_rgen = np.random.default_rng(0x51bf7feb1fd2a3f61e1b1b59679f62c6)
+    conc_samples = sample_ss_conc_powerlaw(
+                        *turbulent_back_params, size=int(1e5), rgen=dummy_rgen
+                    )
+    mean_conc = np.mean(conc_samples)
+    moments_conc = np.asarray([
+        mean_conc,
+        np.var(conc_samples),
+        np.mean((conc_samples - mean_conc)**3)
+    ])
+    print("Computed numerically the concentration moments:", moments_conc)
+
     ### IBCM RUNS ###
     ibcm_file_name = os.path.join(folder, "ibcm_performance_results.h5")
     ibcm_attrs = {
@@ -96,6 +110,7 @@ if __name__ == "__main__":
         "back_params": turbulent_back_params,
         "snap_times": snapshot_times,
         "new_concs": new_test_concs,
+        "moments_conc": moments_conc
     }
     ibcm_options = {
         "activ_fct": activ_fct_choice,
@@ -121,7 +136,7 @@ if __name__ == "__main__":
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seed)
     }
-    biopca_rates = np.asarray([1e-4, 2.0, 0.5])
+    biopca_rates = np.asarray([1e-4, 2.0, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,
         "repeats": repeats_array,
@@ -131,15 +146,13 @@ if __name__ == "__main__":
         "back_params": turbulent_back_params,
         "snap_times": snapshot_times,
         "new_concs": new_test_concs,
+        "moments_conc": moments_conc
     }
     biopca_options = {
         "activ_fct": activ_fct_choice,
         "remove_mean": True,
         "remove_lambda": False
     }
-    if biopca_options["remove_mean"]:
-        biopca_rates = np.concatenate([biopca_rates, biopca_rates[0:1]])
-        biopca_params["m_rates"] = biopca_rates
     print("Starting BioPCA simulations")
     main_habituation_runs(pca_file_name, biopca_attrs,
                           biopca_params, biopca_options)
@@ -167,6 +180,7 @@ if __name__ == "__main__":
         "back_params": turbulent_back_params,
         "snap_times": snapshot_times,
         "new_concs": new_test_concs,
+        "moments_conc": moments_conc
     }
     avg_options = {
         "activ_fct": activ_fct_choice

@@ -36,6 +36,7 @@ from simulfcts.habituation_recognition import (
     error_callback,
     id_to_simkey
 )
+from modelfcts.backgrounds import generate_odorant
 
 
 def no_habituation_one_sim(sim_id, filename_ref):
@@ -193,7 +194,7 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
     """ Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
     after ideal habituation where the background and parallel
-    component are reduced by a factor beta / (2*alpha + beta).
+    component are reduced by the optimal factor.
 
     This is not the simplest idealized inhibition, but probably the best,
     especially at low concentrations where KC thresholds can be a problem.
@@ -204,8 +205,10 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
     new_odors = ref_file.get("odors").get("new_odors")[()]
     back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
     new_concs = ref_file.get("parameters").get("new_concs")[()]
+    moments_conc = ref_file.get("parameters").get("moments_conc")[()]
     w_rates = ref_file.get("parameters").get("w_rates")
-    factor = w_rates[1] / (2*w_rates[0] + w_rates[1])
+    # IBCM factor: this can be too much reduction compared to the optimum.
+    #factor = w_rates[1] / (2*w_rates[0] + w_rates[1])
 
     # Dimensions, etc.
     n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
@@ -219,6 +222,11 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
 
     # Projector to subtract the parallel component
     projector = find_projector(back_odors.T)
+
+    # Compute optimal factor for each new concentration
+    dummy_rgen = np.random.default_rng(0x6e3e2886c30163741daaaf7c8b8a00e6)
+    factors = [compute_optimal_factor(c, moments_conc[:2], [n_b, n_r],
+                    generate_odorant, (dummy_rgen,)) for c in new_concs]
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
@@ -238,8 +246,8 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
         new_odor_tags[i, list(new_tag)] = True
         for k in range(n_new_concs):
             mixtures = back_samples + new_concs[k]*new_odors[i]
-            mixture_svecs[i, :, k] = (factor*back_samples
-                        + new_concs[k] * (factor*x_par + x_ort))
+            mixture_svecs[i, :, k] = (factors[k]*back_samples
+                        + new_concs[k] * (factors[k]*x_par + x_ort))
             # We actually don't want to apply ReLU to understand what
             # happens if some svec is zero.
             #if str(activ_fct).lower() == "relu":
@@ -266,7 +274,8 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
         "new_odor_tags": new_odor_tags,
         "mixture_svecs": mixture_svecs,
         "mixture_tags": mixture_tags,
-        "jaccard_scores": jaccard_scores
+        "jaccard_scores": jaccard_scores,
+        "ideal_factors": factors
     }
     return sim_id, test_results, projmat
 
@@ -300,7 +309,7 @@ def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
         else:
             res_file.attrs[k] = ref_file.attrs[k]
     param_group = res_file.create_group("parameters")
-    for p in ["dimensions", "repeats", "new_concs"]:
+    for p in ["dimensions", "repeats", "new_concs", "moments_conc"]:
         param_group.create_dataset(p, data=ref_file.get("parameters").get(p)[()])
     options = ref_file.get("parameters").attrs
     param_group.attrs["activ_fct"] = (ref_file.get("parameters")

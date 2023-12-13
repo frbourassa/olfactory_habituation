@@ -25,7 +25,9 @@ HDF file structure
                 whiff_tmin, whiff_tmax, blank_tmin, blank_tmax, c0, alpha
         snap_times (dataset): times at which habituation is tested, in steps
         new_concs (dataset): concentrations at which new odors are introduced
-            typically 0.2 and 0.5.
+            typically 0.5 and 1.0 times the average.
+        moments_conc (dataset): average, variance, and central third moment
+            of the background odor concentrations.
 
     odors (group): background and new odors
         back_odors (dataset of floats): background odors for each simulations,
