@@ -52,12 +52,12 @@ if __name__ == "__main__":
     # In the testing phase, save some samples of backgrounds to compare
 
     # Other parameters common to all models
-    duration_dt = np.asarray([320000.0, 1.0])
+    duration_dt = np.asarray([360000.0, 1.0])
     start_test_t = duration_dt[0] - n_test_times * 2000.0
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
-    w_alpha_beta = np.asarray([25e-5, 5e-5])
+    w_alpha_beta = np.asarray([1e-4, 2e-5])
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         "dimensions": dimensions_array,
         "repeats": repeats_array,
         # learnrate, tau_avg, eta, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.004, 800.0, 0.5/n_i, 50.0, 2.0, 0.01]),
+        "m_rates": np.asarray([0.00125, 1600.0, 0.6/n_i, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seed)
     }
-    biopca_rates = np.asarray([0.0001, 2.0, 0.5])
+    biopca_rates = np.asarray([1e-4, 2.0, 0.5])
     biopca_params = {
         "dimensions": dimensions_array,
         "repeats": repeats_array,

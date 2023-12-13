@@ -67,6 +67,66 @@ def check_conc_samples_powerlaw_exp1(conc_samples, twlo, twhi, tblo, tbhi, c0s, 
     return fig, axes
 
 
+# Background process: save all elements of histograms
+# of concentration during whiffs, t_blank, t_whiff. Use all i.i.d. odors
+def check_turbulent_background_stats(tcser, back_rates):
+    # Extract parameters for analytical predictions
+    for i in range(len(back_rates)):
+        if not np.all(back_rates[i] == back_rates[i][0]):
+            raise ValueError("Odors not i.i.d., this functions assumes so")
+    twlo, twhi, tblo, tbhi, c0, alpha = [a[0] for a in back_rates]
+    chi = 1.0 / (1.0 + np.sqrt(tblo*tbhi/twlo/twhi))
+
+    stats = {}
+
+    # First, check concentrations
+    conc_ser = tcser[:, :, 1]
+    nonzero_samples = conc_ser[conc_ser > 0.0].flatten()
+    conc_counts, conc_bins = np.histogram(nonzero_samples, bins="doane")
+    stats["conc_bins"] = conc_bins
+    conc_binwidths = np.diff(conc_bins)  # This can be recomputed easily
+    # Center of bins on a log scale, but given in linear coordinates
+    conc_bin_centers = (conc_bins[1:] + conc_bins[:-1])/2  # easily recomputed
+    stats["conc_pdf"] = conc_counts / conc_binwidths / conc_ser.size
+    stats["conc_prob_zero"] = 1.0 - nonzero_samples.size / conc_ser.size
+
+    # Analytical distribution  of concentrations
+    conc_axis = np.linspace(stats["conc_bins"][0], stats["conc_bins"][-1], 201)  # easily recomputed
+    stats["conc_analytical_pdf"] = chi*truncexp1_density(conc_axis, c0, alpha)
+    stats["conc_analytical_prob_zero"] = 1.0 - chi
+
+    # Now, analyze whiff and blank durations
+    # Whiffs start when concentration goes up; blanks, when concentration goes down
+    conc_diffs = np.diff(conc_ser, prepend=conc_ser[0:1], axis=0)  # Prepend so the first element is 0
+    whiff_starts = np.nonzero(conc_diffs > 0.0)
+    blank_starts = np.nonzero(conc_diffs < 0.0)
+    tstarts = {"w":whiff_starts, "b":blank_starts}
+
+    for i in tstarts:  # loop over whiffs and blanks
+        if i == "w":
+            thresh_min, thresh_max = twlo, twhi
+        else:
+            thresh_min, thresh_max = tblo, tbhi
+        t_samples = tcser[tstarts[i][0], tstarts[i][1], 0].flatten()  # durations
+        # Choose log-spaced bins
+        t_counts, t_bins = np.histogram(np.log10(t_samples), bins="doane")
+        # Center of bins on a log scale, but given in linear coordinates
+        bin_centers_forlog = 10**((t_bins[1:] + t_bins[:-1])/2)
+        # For plotting, bin limits in linear scale; set the log scale on the plot
+        t_bins = 10**t_bins
+        stats["t_{}_bins".format(i)] = t_bins
+        t_binwidths = np.diff(t_bins)
+        stats["t_{}_pdf".format(i)] = t_counts / t_binwidths / t_samples.size
+        # Analytical density with an upper cutoff.
+        # Should be a straight line in log scale, no need for a more finely sampled axis.
+
+        stats["t_{}_axis".format(i)] = bin_centers_forlog
+        norm_factor = 2 * thresh_min * (1.0 - np.sqrt(thresh_min / thresh_max))
+        stats["t_{}_analytical_pdf".format(i)] = (bin_centers_forlog/thresh_min)**(-3/2) / norm_factor
+
+    return stats
+
+
 def compute_ibcm_second_derivative(m_fix, theta_fix, ibcm_params, back_moments):
     """ Function to compute the second time derivative of the IBCM model
     (which serves to compute the error term of the Euler integration method)
