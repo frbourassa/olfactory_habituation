@@ -29,8 +29,8 @@ def fixedpoints_pca_2vectors(components, sigma2, ab_rates):
     n_r = components.shape[1]
     ba_ratio = ab_rates[1] / ab_rates[0]
 
-    l_pca = sigma2 * l2_norm(x_s)
-    m_pca = sigma2 * np.sqrt(l2_norm(x_s)) * x_s
+    l_pca = sigma2 * l2_norm(x_s)**2
+    m_pca = sigma2 * l2_norm(x_s) * x_s
     w_pca = m_pca / (l_pca + ba_ratio)
     return m_pca, l_pca, w_pca
 

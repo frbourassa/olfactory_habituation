@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import h5py
 from simulfcts.habituation_recognition import id_to_simkey
 from simulfcts.plotting import hist_outline
+from modelfcts.ideal import find_projector, find_parallel_component
+from utils.metrics import l2_norm
 import os
 
 
@@ -110,8 +112,46 @@ def main_export_jaccards(dest_name):
     return None
 
 
+def main_export_new_back_distances(dest_name):
+    # Compare all algorithms
+    folder = os.path.join("results", "performance")
+    models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
+    model_file_choices = {
+        a:os.path.join(folder, a+"_performance_results.h5")
+        for a in models
+    }
+    # Check that all models were exposed to the same background indeed
+    backs, news = {}, {}
+    for m in model_file_choices.keys():
+        with h5py.File(model_file_choices[m], "r") as f:
+            backs[m] = f.get("odors").get("back_odors")[()]
+            news[m] = f.get("odors").get("new_odors")[()]
+            activ_fct = f.get("parameters").attrs.get("activ_fct")
+            n_backs, n_news = f.get("parameters").get("repeats")[[0, 3]]
+    assert np.all([backs["ibcm"] == backs[m] for m in backs]), "Different backs"
+    assert np.all([news["ibcm"] == news[m] for m in news]), "Different news"
+    backs = backs["ibcm"]
+    news = news["ibcm"]
+
+    # n_runs, n_test_times, n_back_samples, n_new_odors, n_new_concs, skp
+    new_back_distances = np.zeros([n_backs, n_news])
+    for i in range(n_backs):
+        back_proj = find_projector(backs[i].T)
+        for j in range(n_news):
+            new_par = find_parallel_component(news[j], backs[i], back_proj)
+            new_ort = news[j] - new_par
+            new_back_distances[i, j] = l2_norm(new_ort)
+    np.savez_compressed(
+        dest_name + "_" + str(activ_fct) + ".npz",
+        new_back_distances=new_back_distances
+    )
+    return None
+
 if __name__ == "__main__":
     main_plot_histograms()
     main_export_jaccards(
         os.path.join("results", "for_plots", "jaccard_similarities")
+    )
+    main_export_new_back_distances(
+        os.path.join("results", "for_plots", "new_back_distances")
     )

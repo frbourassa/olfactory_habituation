@@ -18,7 +18,8 @@ import multiprocessing
 from modelfcts.ideal import (
     find_projector,
     find_parallel_component,
-    ideal_linear_inhibitor
+    ideal_linear_inhibitor,
+    compute_optimal_factor
 )
 from modelfcts.tagging import (
     project_neural_tag,
