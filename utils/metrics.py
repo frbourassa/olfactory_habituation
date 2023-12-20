@@ -4,7 +4,7 @@
 June 2022
 """
 import numpy as np
-
+import itertools
 
 def l2_norm(vecs, axis=-1):
     """ Computes l2 norm of vectors stored along the last axis of vecs.
@@ -66,3 +66,11 @@ def jaccard(s1, s2):
         return len(s1 & s2) / len(s1 | s2)
     else:
         return 0.0
+
+
+# From the itertools documentation
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return itertools.chain.from_iterable(itertools.combinations(s, r)
+            for r in range(len(s)+1))

@@ -4,7 +4,7 @@ that were previously in Jupyter notebooks.
 @author: frbourassa
 """
 import numpy as np
-from utils.metrics import l2_norm
+from utils.metrics import l2_norm, powerset
 from modelfcts.ideal import relu_inplace
 
 ### Special solution for toy background with 2 odors, 1 varying proportion ###
@@ -327,8 +327,12 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False):
         y1, y2
         cd, u2
     """
-    # Compute the quadratic factor alpha that relates y1 and y2
     avgnu, sigma2, m3 = moments_nu
+    # All c_gammas equal. Probably unstable, can compute anyways.
+    if k1 == 0 or k2 == 0:
+        return fixedpoint_thirdmoment_onecval(avgnu, sigma2, m3, max(k1, k2), m3=1.0)
+
+    # Compute the quadratic factor alpha that relates y1 and y2
     a1 = (sigma2 - avgnu**2 * k1 - m3*avgnu/sigma2) * k1
     a2 = (sigma2 - avgnu**2 * k2 - m3*avgnu/sigma2) * k2
     b = 2*avgnu**2*k1*k2 + m3*avgnu/sigma2*(k1 + k2) + m3/avgnu
@@ -444,7 +448,8 @@ def ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, spe
 
 
 # Fixed point of a single neuron
-def jacobian_fixedpoint_thirdmoment(moments, ibcm_params, which_specif, back_comps, m3=1.0, order=1):
+def jacobian_fixedpoint_thirdmoment(
+    moments, ibcm_params, which_specif, back_comps, m3=1.0, options={}):
     """ which_specif: boolean array equal to True for specific gammas. """
     ## 1. Evaluate x, y, cd, u^2 at the fixed point
     # From the list of c_gammas which are specific, count k1 and k2
@@ -454,7 +459,8 @@ def jacobian_fixedpoint_thirdmoment(moments, ibcm_params, which_specif, back_com
     k2 = which_specif.size - k1
 
     avgnu, variance, epsilon = moments
-    mu, tau_theta, eta = ibcm_params
+    # Neglect non-linear saturation of neurons and decay, but not ktheta
+    mu, tau_theta, eta, sat, ktheta, decay_relative = ibcm_params
     c_sp, c_nsp, cd, u2 = fixedpoint_thirdmoment_exact([avgnu,
                         variance, epsilon*m3], k1, k2, verbose=False)
     x_d = avgnu * np.sum(back_comps, axis=0)
@@ -467,10 +473,8 @@ def jacobian_fixedpoint_thirdmoment(moments, ibcm_params, which_specif, back_com
     jac[-1, -1] = -1.0 / tau_theta
     # Vector blocks
     avg_cx = cd * x_d + variance * cgammas_vec.dot(back_comps)
-    # Last column
+    # Last column: derivative of theta with respect to m
     jac[:n_dims, -1] = 2.0 / tau_theta * avg_cx
-    # Last row
-    jac[-1, :n_dims] = -mu * avg_cx
     # Matrix block
     theta_ss = cd**2 + variance * u2
     x_gammas_outer = back_comps[:, :, None] * back_comps[:, None, :]
@@ -478,14 +482,60 @@ def jacobian_fixedpoint_thirdmoment(moments, ibcm_params, which_specif, back_com
     xd_xgammas_outer = x_d[None, :, None] * back_comps[:, None, :]
     avg_xx = xd_outer + variance*np.sum(x_gammas_outer, axis=0)
     avg_cxx = (cd * avg_xx
-                + variance*np.sum(cgammas_vec[:, None]*xd_xgammas_outer, axis=0)
-                + variance*np.sum(cgammas_vec[:, None]*xd_xgammas_outer, axis=0).T
+                + variance*np.sum(cgammas_vec[:, None, None]*xd_xgammas_outer, axis=0)
+                + variance*np.sum(cgammas_vec[:, None, None]*xd_xgammas_outer, axis=0).T
                 + epsilon*m3*np.sum(cgammas_vec[:, None, None]*x_gammas_outer, axis=0)
             )
-    jac[:-1, :-1] = mu * (2*avg_cxx - theta_ss*avg_xx)
+    variant = str(options.get("variant", "intrator"))
+    if variant == "intrator":
+        jac[:-1, :-1] = mu * (2*avg_cxx - theta_ss*avg_xx)
+        # Last row: derivative of m with respect to theta
+        jac[-1, :n_dims] = -mu * avg_cx
+    elif variant == "law":
+        # Changing the learning rate of mu
+        jac[:-1, :-1] = mu/(ktheta+theta_ss) * (2*avg_cxx - theta_ss*avg_xx)
+        # Last row: derivative of m with respect to theta
+        jac[-1, :n_dims] = -mu/(ktheta+theta_ss) * avg_cx
+        # Extra term in the derivative of mu equations w.r.t. theta
+        # is zero because <c(c-theta)x> = 0 at the fixed point!
+    else:
+        raise ValueError("Variant option" + variant + "unknown")
+
+    # Add effect of the Law IBCM modification? Because this changes stability
+    # when learning rate would be pushed too far for the regular IBCM model
 
     # Build the complete matrix
     return jac
+
+def ibcm_all_largest_eigenvalues(
+        moments, ibcm_params, back_comps, m3=1.0, cut=1e-16, options={}
+    ):
+    """ For one IBCM neuron, compute the non-zero eigenvalue
+    with the largest real part for each possible fixed point,
+    as defined by possible specificity to each odor.
+
+    Args:
+        moments (list): average, variance, third central moment of
+            background odor concentrations, assumed i.i.d.
+        ibcm_params (list): the pure IBCM rates, mu, tau_theta, eta
+    """
+    n_components = back_comps.shape[0]
+    all_largest_eigenvalues = {}
+    for specif in powerset(range(n_components)):
+        specif_vec = np.zeros(n_components, dtype=bool)
+        if len(specif) > 0:
+            specif_vec[list(specif)] = True
+        jacob = jacobian_fixedpoint_thirdmoment(
+                    moments, ibcm_params, specif_vec, back_comps, m3=m3,
+                    options=options
+                )
+        eigvals = np.linalg.eigvals(jacob)
+        # Keep non-zero eigvals only; the zero ones reflect the fact
+        # that dynamics lie in the background subspace.
+        eigvals = eigvals[np.absolute(eigvals) > cut]
+        max_idx = np.argmax(np.real(eigvals))
+        all_largest_eigenvalues[specif] = eigvals[max_idx]
+    return all_largest_eigenvalues
 
 # Test the function computing the W analytical prediction
 if __name__ == "__main__":
@@ -495,4 +545,6 @@ if __name__ == "__main__":
     moments_nu = (0.3, 0.09, 0.1)
     cs_cn = (5.0, -1.0)
     specif_gammas = np.asarray((0, 1, 2, 3, 4, 5, 0, 1))
-    print(ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, specif_gammas))
+    print(ibcm_fixedpoint_w_thirdmoment(
+            inhib_rates, moments_nu, back_vecs, cs_cn, specif_gammas)
+    )
