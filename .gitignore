@@ -20,6 +20,7 @@ notes/
 *.blg
 *.npy
 *.npz
+results/for_plots/*.json
 *.h5
 *.xlsx
 *.git

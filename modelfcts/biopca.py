@@ -37,7 +37,7 @@ import numpy as np
 from modelfcts.ideal import relu_inplace
 
 
-def build_lambda_matrix(l_range, n_neu):
+def build_lambda_matrix(l_max, l_range, n_neu):
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
     if l_range >= 1.0:
         raise ValueError("lambda_range should be < 1, "
@@ -47,7 +47,7 @@ def build_lambda_matrix(l_range, n_neu):
                         for k in range(n_neu)])
     else:
         lambda_mat = np.ones(1)
-    return lambda_mat
+    return l_max * lambda_mat
 
 
 def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
@@ -118,9 +118,9 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     assert n_orn == bk_vec_init.shape[0], "Mismatch between dimension of m and background"
     alpha, beta = inhib_params
     # xrate will be a dummy value if remove_mean == False
-    mrate, lrate, lambda_range, xrate = biopca_params
+    mrate, lrate, lambda_max, lambda_range, xrate = biopca_params
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
-    lambda_diag = build_lambda_matrix(lambda_range, n_neu)
+    lambda_diag = build_lambda_matrix(lambda_max, lambda_range, n_neu)
     rng = np.random.default_rng(seed=seed)
     tseries = np.arange(0, tmax, dt*skp)
 
@@ -277,9 +277,10 @@ def biopca_respond_new_odors(odors, mlx, wmat, biopca_rates, options={}):
     remove_lambda = options.get("remove_lambda", True)
     inv_l_diag = 1.0 / np.diagonal(lmat)
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
-    lambda_range = biopca_rates[2]
+    lambda_max = biopca_rates[2]
+    lambda_range = biopca_rates[3]
     n_neu = mmat.shape[0]
-    lambda_diag = build_lambda_matrix(lambda_range, n_neu)
+    lambda_diag = build_lambda_matrix(lambda_max, lambda_range, n_neu)
     if remove_mean:
         # Subtracting the mean background from c and from s too
         # c is just the projection of the variation around the mean
