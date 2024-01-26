@@ -250,7 +250,8 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     freeze learning once large theta reached.
 
     Option "saturation" == "tanh": apply a mild tanh saturation to c:
-    c = s * tanh(m.x / s)
+    c = s*lambd * tanh(m.x / s / lambd). To avoid undesired saturation,
+    s has to be scaled up proportionally to \Lambda.
 
     Option "activ_fct": either "ReLU" or "identity"
 
@@ -270,11 +271,15 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
                 shaped [odor, n_var_per_odor], or 1d if one var. per odor.
             bk_vec_init (np.ndarray): initial background vector, must have size n_orn
         ibcm_params (list): learnrate (mu), tavg (tau_theta), coupling (eta),
+            lambd (float): scale of synaptic weights, set via Theta equation;
+                default value is 1.0
             sat (normalization factor in tanh activation function),
             ktheta (threshold cbar at which the learning rate decreases),
             decay_relative (float): decay rate, relative to learning rate
-            The six should always be provided, just put dummy values for
+            The seven should always be provided, just put dummy values for
             unused ones depending on options.
+            learnrate and sat are relative to lambd=1, they are scaled
+            appropriately if lambda is different.
         inhib_params (list): alpha, beta: list of parameters for the inhibitory
             neurons update. Should have alpha > beta here.
             For the early times averaging of synaptic weights, will use beta
@@ -325,7 +330,10 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     bk_vari_init, bk_vec_init = bk_init
     assert n_orn == bk_vec_init.shape[0], "Mismatch between dimension of m and background"
     alpha, beta = inhib_params
-    learnrate, tavg, coupling, sat, ktheta, decay_relative = ibcm_params
+    learnrate, tavg, coupling, lambd, sat, ktheta, decay_relative = ibcm_params
+    # Compensate for lambda different from 1, if applicable
+    mu_abs = learnrate / lambd
+    sat_abs = sat * lambd
 
     rng = np.random.default_rng(seed=seed)
     tseries = np.arange(0, tmax, dt*skp)
@@ -347,10 +355,10 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     # Initialize neuron activity with m and background at time zero
     cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
     if saturation == "tanh":
-        cbar = sat * np.tanh(cbar / sat)
+        cbar = sat_abs * np.tanh(cbar / sat_abs)
     if theta_init is None:
         # Important to initialize cbar2_avg to non-zero values, because we divide by this!
-        cbar2_avg = np.maximum(cbar*cbar, learnrate)
+        cbar2_avg = np.maximum(cbar*cbar / lambd, learnrate*lambd)
     else:
         cbar2_avg = theta_init.copy()
     wmat = w_init.copy()
@@ -396,12 +404,12 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             phiterms_vec = cbar * (cbar - cbar2_avg)
         #  Law and Cooper modification for faster convergence.
         elif variant == "law":
-            phiterms_vec = cbar * (cbar - cbar2_avg) / (cbar2_avg + ktheta)
+            phiterms_vec = cbar * (cbar - cbar2_avg) / (ktheta + cbar2_avg/lambd)
         else:
             raise ValueError("Unknown variant: {}".format(variant))
 
         if saturation == "tanh":
-            phiterms_vec *=  1.0 - (cbar/sat)**2
+            phiterms_vec *=  1.0 - (cbar/sat_abs)**2
         # Now, careful with broadcast: for each neuron (dimension 0 of m and cbar), we need a scalar element
         # of phiterms_vec times the whole bkvec, for dimension 1 of m.
         # This can be done vectorially with a dot product (n_neu, 1)x(1, n_components)
@@ -411,16 +419,16 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         # Reducing learning rate after a while may help.
         # Consider feedback on mu through some metric of how well neurons
         # are inhibiting the background, e.g. s average activity.
-        m += learnrate*dt*rhs_scalar[:, np.newaxis].dot(bkvec[np.newaxis, :])
+        m += mu_abs*dt*rhs_scalar[:, np.newaxis].dot(bkvec[np.newaxis, :])
         # In principle, should add low decay to background subspace
         # To make sure 1) only learn the background space, 2) de-habituate after
         if decay and variant == "law":
-            m -= dt * decay_relative * learnrate / (ktheta + cbar2_avg[:, np.newaxis]) * m
+            m -= dt * decay_relative * learnrate / (ktheta + cbar2_avg[:, np.newaxis]/lambd) * m
         elif decay and variant == "intrator":
             m -= dt * decay_relative * learnrate * m
         # Now, update to time k+1 the threshold (cbar2_avg) using cbar at time k
         # to be used to update m in the next time step
-        cbar2_avg += dt * (cbar*cbar - cbar2_avg)/tavg
+        cbar2_avg += dt * (cbar*cbar / lambd - cbar2_avg)/tavg
 
         # Update background to time k+1, to be used in next time step
         bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k], dt)
@@ -431,7 +439,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         c = m.dot(bkvec)
         cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
         if saturation == "tanh":
-            cbar = sat * np.tanh(cbar / sat)
+            cbar = sat_abs * np.tanh(cbar / sat_abs)
         # np.sum(c) is a scalar and c a vector, so it broadcasts properly.
 
         # Lastly, projection neurons at time step k+1
