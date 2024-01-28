@@ -103,8 +103,8 @@ if __name__ == "__main__":
     ibcm_params = {
         "dimensions": dimensions_array,
         "repeats": repeats_array,
-        # learnrate, tau_avg, eta, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.00125, 1600.0, 0.6/n_i, 50.0, 0.1, 0.005]),
+        # learnrate, tau_avg, eta, lambda, sat, ktheta, decay_relative
+        "m_rates": np.asarray([0.00125, 1600.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,
@@ -136,7 +136,9 @@ if __name__ == "__main__":
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seed)
     }
-    biopca_rates = np.asarray([1e-4, 2.0, 0.5, 1e-4])
+    # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
+    # Using default Lambda = 1; could improve performance with another choice
+    biopca_rates = np.asarray([1e-4, 2.0, 1.0, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,
         "repeats": repeats_array,

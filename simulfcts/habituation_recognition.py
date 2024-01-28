@@ -340,10 +340,11 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
     return back_init
 
 
-def initialize_weights(attrs, dims, rgen):
+def initialize_weights(attrs, dims, rgen, params):
     # IBCM: only m_init
     if attrs["model"] == "IBCM":
-        all_init_weights = 0.2*rgen.standard_normal(size=[dims[2], dims[0]])
+        lambd = params["m_rates"][3]
+        all_init_weights = 0.2*rgen.standard_normal(size=[dims[2], dims[0]]) * lambd
         init_weight_names = "m_init"
     # BioPCA: list of [m_inits, l_inits]
     elif attrs["model"] == "PCA":
@@ -369,7 +370,7 @@ def initialize_integration(id, gp, attrs, params, modopt, back, rgen, spseed):
     # but it's easier to do it here for code clarity
     integrate, back_update, noise_type = select_model_functions(attrs)
     init_weights, init_weight_names = initialize_weights(
-                                        attrs, params["dimensions"], rgen)
+                                attrs, params["dimensions"], rgen, params)
     back_init_sim = initialize_background(
                     attrs, params["dimensions"], params["back_params"],
                     back[id], rgen
