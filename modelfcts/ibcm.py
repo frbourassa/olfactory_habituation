@@ -333,7 +333,6 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     learnrate, tavg, coupling, lambd, sat, ktheta, decay_relative = ibcm_params
     # Compensate for lambda different from 1, if applicable
     mu_abs = learnrate / lambd
-    sat_abs = sat * lambd
 
     rng = np.random.default_rng(seed=seed)
     tseries = np.arange(0, tmax, dt*skp)
@@ -355,7 +354,9 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     # Initialize neuron activity with m and background at time zero
     cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
     if saturation == "tanh":
+        sat_abs = sat * lambd
         cbar = sat_abs * np.tanh(cbar / sat_abs)
+    else: sat_abs = None
     if theta_init is None:
         # Important to initialize cbar2_avg to non-zero values, because we divide by this!
         cbar2_avg = np.maximum(cbar*cbar / lambd, learnrate*lambd)
@@ -569,7 +570,10 @@ def ibcm_respond_new_odors(odors, mmat, wmat, ibcm_rates, options={}):
     saturation = options.get("saturation", "linear")
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     eta = ibcm_rates[2]
-    sat = ibcm_rates[3]
+    lambd = ibcm_rates[3]
+    if saturation == "tanh":
+        sat = ibcm_rates[4] * lambd
+    else: sat = None
     # Compute activation of neurons to the mixtures (new+background)
     # Given the IBCM and inhibitory neurons' current state
     # (either latest or some average state of the neurons)

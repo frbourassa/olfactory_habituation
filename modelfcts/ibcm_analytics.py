@@ -8,7 +8,7 @@ from utils.metrics import l2_norm, powerset
 from modelfcts.ideal import relu_inplace
 
 ### Special solution for toy background with 2 odors, 1 varying proportion ###
-def fixedpoints_m_2vectors(components, sigma, eta, n_r=2):
+def fixedpoints_m_2vectors(components, sigma, eta, lambd=1.0, n_r=2):
     """ components: x_a and x_b, components of the fluctuating background mixture
     sigma: standard deviation of nu (the composition of the mixture)
     eta: coupling coefficient < 1
@@ -26,8 +26,8 @@ def fixedpoints_m_2vectors(components, sigma, eta, n_r=2):
     overlap = components[0].dot(components[1])
 
     # Fixed points where both neurons' synaptic weight vectors are equal
-    cplus = (1 + 0.5/sigma) / (1 - eta)
-    cminus = (1 - 0.5/sigma) / (1 - eta)
+    cplus = (1 + 0.5/sigma) / (1 - eta) * lambd
+    cminus = (1 - 0.5/sigma) / (1 - eta) * lambd
 
     # (+, +)
     ss_mat[0, 0] = (cplus*norm_b - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[0]
@@ -40,8 +40,8 @@ def fixedpoints_m_2vectors(components, sigma, eta, n_r=2):
     ss_mat[1, 1] = ss_mat[1, 0]
 
     # Fixed points where the two neurons are at opposite fixed points
-    cplus = 1 / (1 - eta) + 1 / (2*sigma*(1 + eta))
-    cminus = 1 / (1 - eta) - 1 / (2*sigma*(1 + eta))
+    cplus = (1 / (1 - eta) + 1 / (2*sigma*(1 + eta))) * lambd
+    cminus = (1 / (1 - eta) - 1 / (2*sigma*(1 + eta))) * lambd
 
     # (+, -)
     ss_mat[2, 0] = (cplus*norm_b - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[0]
@@ -58,7 +58,7 @@ def fixedpoints_m_2vectors(components, sigma, eta, n_r=2):
     return ss_mat, fixed_pts_labels
 
 
-def fixedpoints_barm_2vectors(components, sigma, eta, n_r=2):
+def fixedpoints_barm_2vectors(components, sigma, eta, lambd=1.0, n_r=2):
     """ Analytical fixed points for IBCM neurons in terms of the reduced m variables.
     These are simpler because they have the same possible values for all neurons individually,
     no matter whether they are at the same or different fixed points. So really, there are only
@@ -69,8 +69,8 @@ def fixedpoints_barm_2vectors(components, sigma, eta, n_r=2):
     overlap = components[0].dot(components[1])
 
     # Fixed points where both neurons' synaptic weight vectors are equal
-    cplus = (1 + 0.5/sigma)
-    cminus = (1 - 0.5/sigma)
+    cplus = (1 + 0.5/sigma) * lambd
+    cminus = (1 - 0.5/sigma) * lambd
 
     # (+, +)
     ss_mat[0, 0] = (cplus*norm_b - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[0]
@@ -83,8 +83,8 @@ def fixedpoints_barm_2vectors(components, sigma, eta, n_r=2):
     ss_mat[1, 1] = ss_mat[1, 0]
 
     # Fixed points where the two neurons are at opposite fixed points
-    cplus = 1 + 1 / (2*sigma)
-    cminus = 1 - 1 / (2*sigma)
+    cplus = (1 + 1 / (2*sigma)) * lambd
+    cminus = (1 - 1 / (2*sigma)) * lambd
 
     # (+, -)
     ss_mat[2, 0] = (cplus*norm_b - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[0]
@@ -102,7 +102,7 @@ def fixedpoints_barm_2vectors(components, sigma, eta, n_r=2):
 
 
 # Fixed point for w vector
-def fixedpoints_w_2vectors(rates, fixed_mbar, bk_components, sigma2):
+def fixedpoints_w_2vectors(rates, fixed_mbar, bk_components, sigma2, lambd=1.0):
     """
     Compute the steady-state inhibitory weights of the two IBCM neurons with
     input synaptic weights specified in fixed_mbar.
@@ -113,6 +113,7 @@ def fixedpoints_w_2vectors(rates, fixed_mbar, bk_components, sigma2):
         bk_components: array of background components x_a, x_b.
             shape (n_components=2, n_dimensions)
         sigma2 (float):  variance of nu
+        lambd (float): Lambda scale parameter.
     """
     # First, check at which fixed point each neuron is.
     # The sign of m.dot(x_s) tells that
@@ -123,38 +124,39 @@ def fixedpoints_w_2vectors(rates, fixed_mbar, bk_components, sigma2):
     if not np.sum(signs) == 0:
         raise ValueError("Analytical calculation not applicable because "
                          +"both neurons are at the same fixed point")
-
-    fixed_wvecs = alph / (2*alph + bet) * (x_d + signs.reshape(-1, 1) * np.sqrt(sigma2) * x_s)
+    factor = alph*lambd / (2*alph*lambd**2 + bet)
+    fixed_wvecs = factor * (x_d + signs.reshape(-1, 1) * np.sqrt(sigma2) * x_s)
     return fixed_wvecs
 
 
-def fixedpoint_s_2vectors_instant(rates, x_instant, options={}):
+def fixedpoint_s_2vectors_instant(rates, x_instant, lambd=1.0, options={}):
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     alph, bet = rates
     if activ_fct == "relu":
-        return relu_inplace(bet / (2*alph + bet) * x_instant)
+        return relu_inplace(bet / (2*alph*lambd**2 + bet) * x_instant)
     else:
-        return bet / (2*alph + bet) * x_instant
+        return bet / (2*alph*lambd**2 + bet) * x_instant
 
 
-def fixedpoint_s_2vectors_mean(rates, bk_components, options={}):
+def fixedpoint_s_2vectors_mean(rates, bk_components, lambd=1.0, options={}):
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     x_d = 0.5 * (bk_components[0] + bk_components[1])
     alph, bet = rates
     if activ_fct == "relu":
-        return relu_inplace(bet / (2*alph + bet) * x_d)
+        return relu_inplace(bet / (2*alph*lambd**2 + bet) * x_d)
     else:
-        return bet / (2*alph + bet) * x_d
+        return bet / (2*alph*lambd**2 + bet) * x_d
 
 
-def fixedpoint_s_2vectors_norm2(rates, bk_components, sigm2):
+def fixedpoint_s_2vectors_norm2(rates, bk_components, sigm2, lambd=1.0):
     x_d = 0.5 * (bk_components[0] + bk_components[1])
     x_s = bk_components[0] - bk_components[1]
     alph, bet = rates
-    return (bet / (2*alph + bet))**2 * (l2_norm(x_d) + sigm2*l2_norm(x_s))
+    factor = bet / (2*alph*lambd**2 + bet)
+    return factor**2 * (l2_norm(x_d) + sigm2*l2_norm(x_s))
 
 
-def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9):
+def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9, lambd=1.0):
     """ Predict times for c_d and c_s to converge to fixed points.
     Valid for small sigma^2, when we expect c_d to converge before c_s
     If sigma^2 or the initial value of c_s are too large, the prediction
@@ -166,13 +168,18 @@ def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9)
         norms2_x_ds (list of 2 floats): squared norm of x_d and x_s
         mu (float): learning rate
         sigm2 (float): variance of nu
+        lambd (float): Lambda scale factor. The convergence time should be the
+            same for any Lambda (mere change of variable rescaling m;
+            same dynamics). We assume that init_c_ds contains the Lambda
+            scale, we just need to cancel it to reduce to the Lambda=1 case.
+
     Returns:
         td (float): time for c_d to reach steady-state
         ts (float): time for c_s to reach steady-state,
             assuming c_d reached steady-state much faster.
     """
-    td = (1.0/init_c_ds[0] - 1.0)
-    td += np.log(alph*(1.0 - init_c_ds[0]) / (1.0 - alph) / init_c_ds[0])
+    td = (lambd/init_c_ds[0] - 1.0)
+    td += np.log(alph*(lambd - init_c_ds[0]) / (1.0 - alph) / init_c_ds[0])
     td /= mu * norms2_x_ds[0]
     # Keeping c_s = epsilon_s when solving for t_d
     #k = sigm2 * init_c_ds[1]**2
@@ -184,13 +191,13 @@ def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9)
     # Time to converge to 90 %
     #sig = np.sqrt(sigm2)
     #td = np.log(alph*np.sqrt(1.0 - sigm2*init_m_sd[1]**2)/(sig*init_m_sd[1]*np.sqrt(1-alph**2)))
-    ts = np.log(alph / np.sqrt(sigm2) / init_c_ds[1])
+    ts = np.log(alph * lambd / np.sqrt(sigm2) / init_c_ds[1])
     ts = ts / (mu * norms2_x_ds[1]*sigm2) + td
     return td, ts
 
 
 # To analyze a simulation of 1 IBCM neuron and find convergence time
-def find_convergence_time(tpts, mdd, mds, sigm2, alph=0.9):
+def find_convergence_time(tpts, mdd, mds, sigm2, alph=0.9, lambd=1.0):
     """
     Args:
         tpts (np.ndarray): time points
@@ -198,27 +205,28 @@ def find_convergence_time(tpts, mdd, mds, sigm2, alph=0.9):
         mds (np.ndarray): time series of m \cdot \vec{x}_s
         sigm2 (float): variance of nu
     """
-    # Check when mds reaches close to 1 (analytical ss value)
+    # Check when mds reaches close to lambda (analytical ss value)
     # and when mdd reaches close to \pm 1 / sigma
-    td = tpts[np.argmax(mdd > alph)]
-    ts = tpts[np.argmax(np.abs(mds) > alph / np.sqrt(sigm2))]
+    td = tpts[np.argmax(mdd > alph*lambd)]
+    ts = tpts[np.argmax(np.abs(mds) > alph*lambd / np.sqrt(sigm2))]
     return td, ts
 
 
 ### Fixed points of the IBCM model for a linear combination ###
 ### of odors with non-zero third moment                     ###
-def fixedpoint_thirdmoment_onecval(avgnu, variance, epsilon, nb, m3=1.0):
+def fixedpoint_thirdmoment_onecval(avgnu, variance, epsilon, nb, m3=1.0, lambd=1.0):
     # Reject the case c_gamma = 0, that is the unstable origin.
     # Linear equation, easily solved
     numerator = nb**2 * avgnu**3 + 3*variance*nb*avgnu + epsilon*m3
     denominator = nb**3 * avgnu**4 + 2*variance*nb**2*avgnu**2 + variance**2*nb
-    y = numerator / denominator
+    # Add the Lambda scale at the end
+    y = numerator / denominator * lambd
     cd = y*nb*avgnu
     u2 = nb*y**2
     return y, y, cd, u2
 
 
-def fixedpoint_thirdmoment_perturbtheory(avgnu, variance, epsilon, k1, k2, m3=1.0, order=1):
+def fixedpoint_thirdmoment_perturbtheory(avgnu, variance, epsilon, k1, k2, m3=1.0, order=1, lambd=1.0):
     """ Calculate the two possible values taken by the dot product of a neuron's \vec{\bar{m}}
     with each component, from a perturbation solution at first order in the magnitude
     of the third moment m_3 of the \nu_{\alpha}. It depends on $k_1$ and $k_2$, the number
@@ -260,6 +268,7 @@ def fixedpoint_thirdmoment_perturbtheory(avgnu, variance, epsilon, k1, k2, m3=1.
             k1+k2 = N, the number of components.
         m3 (float): third moment amplitude; multiplies epsilon.
             Default: 1.0, epsilon alone is sufficient.
+        lambd (float): Lambda scale parameter.
     Returns:
         x, y: the two possible values of dot products
         cd, u2: the sum of c_gammas and c_gamma^2s, respectively
@@ -311,11 +320,12 @@ def fixedpoint_thirdmoment_perturbtheory(avgnu, variance, epsilon, k1, k2, m3=1.
     # I think the stable fixed points are for k1<k2, plus sign in x. That makes the
     # less frequent value x the largest, and the most frequent, y, small and < 0.
     # That looks like the numerical fixed points we get.
-    return x, y, cd, u2
+    # Add lambda at the very end
+    return x*lambd, y*lambd, cd*lambd, u2*lambd**2
 
 
 # Exact fixed points
-def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False):
+def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False, lambd=1.0):
     """ Exact equation for the fixed point with k1 dot products c_gammas
     equal to the larger value y1, and k2 equal to the remaining value
     Args:
@@ -323,6 +333,7 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False):
         k1 (int): number of dot products equal to the larger value
         k2 (int): number of dot products equal to the lesser value
         verbose (bool): if True, print extra information
+        lambd (float): Lambda scale parameter.
     Returns:
         y1, y2
         cd, u2
@@ -382,7 +393,8 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False):
 
     # The other quadratic root (with a plus in alpha) gives y2 > y1, and is in
     # fact the fixed point one would find with k1 and k2 swapped.
-    return y1, y2, cd, u2
+    # Add Lambda back at the very end
+    return y1*lambd, y2*lambd, cd*lambd, u2*lambd**2
 
 
 # Exact W fixed points for general distribution of neurons across odors
@@ -404,9 +416,15 @@ def ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, spe
             thus shaped n_B x n_R, indexed [odor, orn dimension].
         cs_cn (list of 2 floats): values of y_1 and y_2, the specific
             and non-specific dot product values, respectively.
+            They should contain the scale Lambda.
         specif_gammas (np.ndarray of ints): vector giving \gamma_j of
             each neuron j, that is, the background odor to which each neuron
             is specific. 1d array of ints with length n_I.
+
+    The Lambda scale parameter is not needed: assumed to be contained in cs_cn,
+        it does not directly appear in the W equation otherwise.
+    It does give that W elements scale as Lambda / (cst + Lambda^2),
+        as in the toy model; MW tends to have scale 1 as Lambda increases.
 
     Returns:
         W (np.2darray): the W matrix, indexed [orn dimension, IBCM neuron],
@@ -460,9 +478,10 @@ def jacobian_fixedpoint_thirdmoment(
 
     avgnu, variance, epsilon = moments
     # Neglect non-linear saturation of neurons and decay, but not ktheta
-    mu, tau_theta, eta, sat, ktheta, decay_relative = ibcm_params
-    c_sp, c_nsp, cd, u2 = fixedpoint_thirdmoment_exact([avgnu,
-                        variance, epsilon*m3], k1, k2, verbose=False)
+    mu, tau_theta, eta, lambd, sat, ktheta, decay_relative = ibcm_params
+    mu_abs = mu / lambd
+    c_sp, c_nsp, cd, u2 = fixedpoint_thirdmoment_exact([avgnu, variance,
+                            epsilon*m3], k1, k2, verbose=False, lambd=lambd)
     x_d = avgnu * np.sum(back_comps, axis=0)
     cgammas_vec = np.where(which_specif, c_sp, c_nsp)
     # 2. Evaluate the jacobian blocks
@@ -474,9 +493,9 @@ def jacobian_fixedpoint_thirdmoment(
     # Vector blocks
     avg_cx = cd * x_d + variance * cgammas_vec.dot(back_comps)
     # Last column: derivative of theta with respect to m
-    jac[:n_dims, -1] = 2.0 / tau_theta * avg_cx
+    jac[:n_dims, -1] = 2.0 / tau_theta * avg_cx / lambd
     # Matrix block
-    theta_ss = cd**2 + variance * u2
+    theta_ss = (cd**2 + variance * u2) / lambd
     x_gammas_outer = back_comps[:, :, None] * back_comps[:, None, :]
     xd_outer = np.outer(x_d, x_d)
     xd_xgammas_outer = x_d[None, :, None] * back_comps[:, None, :]
@@ -488,14 +507,14 @@ def jacobian_fixedpoint_thirdmoment(
             )
     variant = str(options.get("variant", "intrator"))
     if variant == "intrator":
-        jac[:-1, :-1] = mu * (2*avg_cxx - theta_ss*avg_xx)
+        jac[:-1, :-1] = mu_abs * (2*avg_cxx - theta_ss*avg_xx)
         # Last row: derivative of m with respect to theta
-        jac[-1, :n_dims] = -mu * avg_cx
+        jac[-1, :n_dims] = -mu_abs * avg_cx
     elif variant == "law":
         # Changing the learning rate of mu
-        jac[:-1, :-1] = mu/(ktheta+theta_ss) * (2*avg_cxx - theta_ss*avg_xx)
+        jac[:-1, :-1] = mu_abs/(ktheta+theta_ss/lambd) * (2*avg_cxx - theta_ss*avg_xx)
         # Last row: derivative of m with respect to theta
-        jac[-1, :n_dims] = -mu/(ktheta+theta_ss) * avg_cx
+        jac[-1, :n_dims] = -mu_abs/(ktheta+theta_ss/lambd) * avg_cx
         # Extra term in the derivative of mu equations w.r.t. theta
         # is zero because <c(c-theta)x> = 0 at the fixed point!
     else:
