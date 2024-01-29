@@ -21,7 +21,7 @@ from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
 from modelfcts.distribs import truncexp1_average
 from modelfcts.backgrounds import sample_ss_conc_powerlaw
 from simulfcts.habituation_recognition import (
-    main_dense_simulation,
+    main_habituation_runs_lambda,
     main_performance_lambda
 )
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_lambda_test = 100
+    n_lambda_test = 2
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -91,10 +91,8 @@ if __name__ == "__main__":
     ])
     print("Computed numerically the concentration moments:", moments_conc)
 
-
-    ### Run one dense IBCM simulation, save it to disk
-    ibcm_ref_file = os.path.join(folder, "ibcm_ref_simulation.h5")
-    ibcm_res_file = os.path.join(folder, "ibcm_performance_lambda.h5")
+    ### Run IBCM simulations for each Lambda choice
+    ibcm_file_name = os.path.join(folder, "ibcm_performance_lambda.h5")
     ibcm_attrs = {
         "model": "IBCM",
         "background": "turbulent",
@@ -119,16 +117,49 @@ if __name__ == "__main__":
         "variant": "law",   # for turbulent background
         "decay": True
     }
-    print("Running dense IBCM simulation and saving to hdf5")
-    #main_dense_simulation(ibcm_ref_file, ibcm_attrs,
+    print("Running IBCM simulation for various Lambdas and saving to hdf5")
+    #main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
     #                       ibcm_params, ibcm_options)
+
     print("Running IBCM performance tests as a function of Lambda")
-    main_performance_lambda(ibcm_ref_file, ibcm_res_file, ibcm_attrs,
-                           ibcm_params, ibcm_options, projection_arguments)
+    # filename, attributes, parameters, model_options
+    #main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
+    #                       ibcm_options, projection_arguments)
 
-    # Re-run W, assess inhibition and recognition for each.
 
-
-    ### Run one BioPCA simulation
-
-    # Re-run W, assess inhibition and recognition for each.
+    ### Run one BioPCA simulation for each Lambda value
+    # Change number of inhibitory neurons, need less with PCA
+    n_i = n_b
+    dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
+    pca_file_name = os.path.join(folder, "biopca_performance_lambda.h5")
+    biopca_attrs = {
+        "model": "PCA",
+        "background": "turbulent",
+        # Intentionally the same seed to test all models against same backs
+        "main_seed": str(common_seed)
+    }
+    # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
+    # Starting with default Lambda = 1, mostly higher values will be tested
+    biopca_rates = np.asarray([1e-4, 2.0, 1.0, 0.5, 1e-4])
+    biopca_params = {
+        "dimensions": dimensions_array,
+        "repeats": repeats_array,
+        "m_rates": biopca_rates,
+        "w_rates": w_alpha_beta,
+        "time_params": duration_dt,
+        "back_params": turbulent_back_params,
+        "snap_times": snapshot_times,
+        "new_concs": new_test_concs,
+        "moments_conc": moments_conc
+    }
+    biopca_options = {
+        "activ_fct": activ_fct_choice,
+        "remove_mean": True,
+        "remove_lambda": False
+    }
+    print("Starting BioPCA simulations for various Lambdas")
+    main_habituation_runs_lambda(pca_file_name, biopca_attrs,
+                          biopca_params, biopca_options)
+    print("Starting BioPCA performance tests as a function of Lambda")
+    main_performance_lambda(pca_file_name, biopca_attrs, biopca_params,
+                          biopca_options, projection_arguments)

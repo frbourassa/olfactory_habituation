@@ -642,15 +642,116 @@ def main_recognition_runs(filename, attrs, params, model_options, proj_kwargs):
     return 0
 
 
-### Simulation to evaluate performance as a function of scale Lambda
-def main_dense_simulation(filename, attributes, parameters, model_options):
+def initialize_integration_lambda(id, lambd, gp, attrs, params, modopt, back, inits, spseed):
+    """ Create a list of args and dictionary of kwargs to launch
+    the main habituation parallel runs.
     """
-    Args: same as main_habituation_runs, except we ignore n_runs,
-    it is used in main_performance_lambda as the number of Lambda values
-    to try around the default one (on a log scale).
+    # Select appropriate functions for the model and background
+    # Yes we could do that outside of the loop, once for all repeats
+    # but it's easier to do it here for code clarity
+    integrate, back_update, noise_type = select_model_functions(attrs)
+    back_init, [init_weights, init_weight_names] = inits
+    back_params_sim = params["back_params"] + [back]
+    # Adjust Lambda parameter in the list of parameters
+    # Also adjust initial m weights
+    adjusted_m_rates = list(params["m_rates"])
+    if attrs["model"] == "IBCM":
+        adjusted_m_rates[3] = lambd
+        assert init_weight_names == "m_init", "Account for new weight names"
+        adjusted_inits = init_weights * lambd
+    elif attrs["model"] == "PCA":
+        adjusted_m_rates[2] = lambd
+        assert init_weight_names[0] == "m_init", "Account for new weight names"
+        adjusted_inits = [lambd*init_weights[0], *init_weights[1:]]
+    else:
+        raise ValueError("Lambda not in model {}".format(attrs["model"]))
 
+    apply_args = (integrate,
+                    id,
+                    adjusted_inits,
+                    back_update,
+                    back_init,
+                    adjusted_m_rates,
+                    params["w_rates"],
+                    back_params_sim,
+                    *params["time_params"]
+                )
+    apply_kwargs = {
+        "seed": spseed,
+        "noisetype": noise_type,
+        "skp": params["repeats"][5]
+    }
+    apply_kwargs.update(modopt)
+    # Save initialization to HDF file. Move this to a function
+    # treating different models
+    if type(init_weights) == list:  # M and L inits
+        for i, lbl in enumerate(init_weight_names):
+            gp.create_dataset(lbl, data=adjusted_inits[i])
+    else:
+        gp.create_dataset(init_weight_names, data=adjusted_inits)
+    bk_init_gp = gp.create_group("bk_init")
+    bk_init_gp.create_dataset("bk_vari_init", data=back_init[0])
+    bk_init_gp.create_dataset("bk_vec_init", data=back_init[1])
+    return apply_args, apply_kwargs
+
+
+def save_simul_results_lambda(id, res, attrs, gp, snap_i):
+    result_items = {
+        "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
+                 "cbar_snaps", "theta_snaps", "w_snaps", "s_snaps"],
+        "PCA": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
+                 "l_snaps", "x_snaps", "cbar_snaps", "w_snaps", "s_snaps"],
+        "AVG": ["tser", "back_conc_snaps", "back_vec_snaps",
+                 "w_snaps", "s_snaps"]
+    }
+    try:
+        item_names = result_items.get(attrs["model"])
+    except KeyError:
+        raise NotImplementedError("Treat output of other models")
+    for i, lbl in enumerate(result_items[attrs["model"]]):
+        if lbl == "tser" or res[i] is None: continue  # don't save this one
+        elif lbl == "back_conc_snaps" and res[i].ndim == 3:
+            dset = res[i][snap_i, :, -1]  # Keep only concentrations
+        elif lbl == "s_snaps":
+            dset = res[i][snap_i]
+            transient = 8 * res[i].shape[0] // 10
+            snorm = l2_norm(res[i][transient:], axis=1)
+            s_stats = np.asarray([
+                np.mean(snorm), np.var(snorm),
+                np.mean((snorm - np.mean(snorm))**3)
+            ])
+            gp.create_dataset("s_stats", data=s_stats)
+        else:
+            dset = res[i][snap_i]
+        gp.create_dataset(lbl, data=dset.copy())
+    return gp
+
+
+# Just save the bare minimum, don't save all tags etc. for now.
+def main_habituation_runs_lambda(filename, attributes, parameters, model_options):
+    """
+    Args: everything in the .attrs and parameters group of the HDF file that
+    will be saved. Also the path and file name.
+        filename (str): path and file name of the HDF results file to create.
+        attributes (dict): attributes dictionary as in the HDF file, contains
+            model (str): either "IBCM", "PCA", "AVG"
+            background (str): typically "turbulent"
+            main_seed (int): 128-bit integer entropy of main SeedSequence
+        parameters (dict): dictionary containing the following arrays
+            model_options (dict): model options, saved as attrs
+            dimensions (np.ndarray): n_r, n_b, n_i, n_k
+            repeats (np.ndarray): [n_runs, n_test_times, n_back_samples,
+                                    n_new_odors, skip_steps]
+            m_rates (np.ndarray): depends on the model, should be consistent
+            w_rates (np.ndarray): alpha, beta
+            time_params (np.ndarray): tmax, dt
+            back_params (np.ndarray): background process parameters
+            snap_times (np.ndarray): times at which snapshots are taken
+        model_options (dict): model options, will be saved
+            in the parameters group attrs in HDF5 file.
     Returns:
         Saves an HDF file.
+        0
     """
     # Some consistency checks
     assert parameters['snap_times'].size == parameters['repeats'][1]
@@ -680,174 +781,101 @@ def main_dense_simulation(filename, attributes, parameters, model_options):
     odors_group = results_file.create_group("odors")
     odors_group.create_dataset("back_odors", data=back_odors)
 
-    # Run reference simulation
-    spawned_seed = main_seed_seq.spawn(1)
-    ref_gp = results_file.create_group("ref")
-    apply_args, apply_kwargs = initialize_integration(
-                    "ref", ref_gp, attributes, parameters, model_options,
-                    back_odors, main_rgen, spawned_seed[0]
-                    )
-    sim_id, sim_results = func_wrapper_with_id(*apply_args, **apply_kwargs)
-    # Save all snapshots we need for odor recognition tests
+    # Find indices of snapshot times, based on skip steps, snap times and dt
     snap_idx = find_snap_index(
-                    parameters["time_params"][1], 1, parameters["snap_times"]
+                    parameters["time_params"][1], repeats[5],
+                    parameters["snap_times"]
                 )
-    save_simul_results(sim_id, sim_results, attributes, ref_gp, snap_idx)
 
-    # Also save complete series of x, cbar, and xavg if applicable
-    result_indices = {
-        "IBCM": {"bkvecser": 2, "cbarser": 4},
-        "PCA": {"bkvecser": 2, "cbarser": 6, "xser": 5}
-    }
-    for lbl, idx in result_indices.get(attributes["model"]).items():
-        ref_gp.create_dataset(lbl, data=sim_results[idx])
+    # Define the range of new lambdas
+    if attributes["model"] == "IBCM":
+        lambda_0 = parameters["m_rates"][3]
+        lambd_range = np.geomspace(0.1, 2.0, repeats[0]) * lambda_0
+    elif attributes["model"] == "PCA":
+        lambda_0 = parameters["m_rates"][2]
+        lambd_range = np.geomspace(0.5, 10.0, repeats[0]) * lambda_0
+    else:
+        raise ValueError("Lambda not in model {}".format(attributes["model"]))
+    param_group.create_dataset("lambd_range", data=lambd_range)
 
-    # Test this for now
+    # Initial weights, same for all
+    # init_weights, init_weight_names
+    init_weights_info = initialize_weights(
+                            attributes, parameters["dimensions"],
+                            main_rgen, parameters
+                        )
+    # Initialize background, same for all simulations too
+    back_init_sim = initialize_background(
+                    attributes, parameters["dimensions"],
+                    parameters["back_params"], back_odors, main_rgen
+                )
+    all_inits = [back_init_sim, init_weights_info]
+
+    # 1. Run habituation against each background
+    # Use a callback function to save only snapshots to disk
+    # Keep new odor recognition tests separate (launch another multiprocess)
+    def callback(result):
+        # Get the result being returned: id, [all results]
+        sim_id, sim_results = result
+        # Get the group created at launch time for this simulation id
+        sim_gp = results_file.get(id_to_simkey(sim_id))
+        # Save results, depending on model type the structure changes a bit
+        # TODO: Save statistics of inhibition in sser as well
+        save_simul_results_lambda(sim_id, sim_results, attributes, sim_gp, snap_idx)
+        print("Habituation run {} saved".format(sim_id))
+        del sim_results, result
+        return sim_id
+
+    # Initialize and launch all simulations
+    # Use the same seed for all Lambdas.
+    spawned_seed = main_seed_seq.spawn(1)[0]
+    pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
+    for sim_id in range(repeats[0]):
+        # Package simulation arguments and save initialization
+        # to a new group for this simulation
+        sim_gp = results_file.create_group(id_to_simkey(sim_id))
+        lambd = lambd_range[sim_id]
+        sim_gp.attrs["lambd"] = lambd
+        # id, lambd, gp, attrs, params, modopt, back, inits, spseed
+        apply_args, apply_kwargs = initialize_integration_lambda(
+                    sim_id, lambd, sim_gp, attributes, parameters,
+                    model_options, back_odors, all_inits, spawned_seed
+                    )
+        pool.apply_async(
+                            func_wrapper_with_id, args=apply_args,
+                            kwds=apply_kwargs, callback=callback,
+                            error_callback=error_callback
+                        )
+
+    # No need to .get() results: the callback takes care of it
+    # and in fact we don't want to get them, else they get stuck in the
+    # parent process memory and fill it up...
+    pool.close()
+    pool.join()
     results_file.close()
+    # Finish here and code the tests in a separate main function.
+    # All relevant results can be reloaded from the HDF file.
     return 0
 
 
-# One run of re-integrating W and assessing performance for inhib and recogn
-def run_performance_lambda(rel_lambd, ref_xc, snaps, attrs, params, sim_odors, test_params):
-    """
-    Args:
-        rel_lambd (float): Lambda scale, relative to the original simulation
-        ref_xc (list of 2 or 3 ndarrays): bkvecser, cbarser, xavgser
-        snaps (dict): snapshots of original simulations. W will be replaced
-        attrs (dict): "model", "background" are relevant here
-        params (dict): dimensions, repeats, m_rates, back_params, w_rates,
-            new_concs are relevant and same for all simulations.
-        sim_odors (dict):
-            "back": the background odors of that simulation
-                (not all of them like int he HDF file), shape [n_b, n_r]
-            "new": all new odors, shape [n_new_odors, n_r]
-        test_params (dict):
-            test_seed_seq (np.random.SeedSequence): child SeedSequence,
-                needed for background sampling.
-            pmat (sp.sparse.csr_matrix): sparse projection mat. of this simul.
-            proj_kwargs (dict): projection function kwargs (sparsity, etc.)
-            model_options (dict): model options
-    """
-    # Re-run W dynamics with scaled m weights
-    skp = params["repeats"]["skp"]
-    # Maybe another w_init would be needed, but whatever for now.
-    w_init = np.zeros([params["dimensions"][0], params["dimensions"][2]])
-    wser, sser = rerun_w_dynamics(w_init, ref_xc, params["w_rates"],
-        params["time_params"][1], skp=skp, scale=rel_lambd,
-        **test_params["model_options"])
-
-    # First test result: magnitude of sser
-    transient = int(0.8*params["time_params"][0] / params["time_params"][1])
-    sser_norm = l2_norm(sser[transient:])
-    mean_norm = np.mean(sser_norm, axis=0)
-    moments_sser_norm = [
-        np.mean(sser_norm, axis=0),
-        np.var(sser_norm),
-        np.mean((sser_norm - mean_norm)**3)
-    ]
-
-    # Find indices of snapshot times, based on skip steps, snap times and dt
-    snap_idx = find_snap_index(
-                    params["time_params"][1], skp, params["snap_times"]
-                )
-    snaps_new = dict(snaps)
-    snaps_new["w"] = wser[snap_idx]
-    snaps_new["s"] = sser[snap_idx]
-    snaps_new["m"] = snaps["m"] * rel_lambd
-    snaps_new["c"] = snaps["c"] * rel_lambd
-
-    if model_options.get("remove_mean") is True:
-        snaps["xavg"] = ref_xc[2][snap_idx]
-
-    n_times = params["repeats"][1]
-    n_back_samples = params["repeats"][2]
-    activ_fct = test_params.get("model_options", {}).get("activ_fct", "ReLU")
-    conc_sampling, vec_sampling = select_sampling_functions(attrs)
-    # Generate new background samples (stationary)
-    test_rgen = np.random.default_rng(test_params["test_seed_seq"])
-    conc_samples = conc_sampling(
-                        *params["back_params"],
-                        size=n_times*(n_back_samples-1), rgen=test_rgen
-                    )  # Shaped [sample, component]
-    back_samples = conc_samples.dot(sim_odors["back"])
-    back_samples = back_samples.reshape([n_times, n_back_samples-1, -1])
-    conc_samples = conc_samples.reshape([n_times, n_back_samples-1, -1])
-    # Append the background snapshots to them
-    # These samples will be returned and saved to disk afterwards
-    # Conc samples not immediately useful here, but nice for future analysis
-    back_samples = np.concatenate([snaps["back"][:, None, :], back_samples], axis=1)
-    conc_samples = np.concatenate([snaps["conc"][:, None, :], conc_samples], axis=1)
-    # Loop over new odors first
-    n_new_odors = params['repeats'][3]
-    n_new_concs = params['repeats'][4]
-    mixture_svecs = np.zeros([n_new_odors, n_times, n_new_concs,
-                            n_back_samples, params['dimensions'][0]])
-    n_kc = params['dimensions'][3]
-    assert n_kc == test_params["pmat"].shape[0], "Inconsistent KC number"
-    mixture_tags = SparseNDArray((n_new_odors, n_times, n_new_concs,
-                                    n_back_samples, n_kc), dtype=bool)
-    new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
-    jaccard_scores = np.zeros(mixture_tags.ndshape[:4])
-
-    for i in range(n_new_odors):
-        # Compute neural tag of the new odor alone, without inhibition
-        new_tag = project_neural_tag(
-                        sim_odors["new"][i], sim_odors["new"][i],
-                        test_params["pmat"], **test_params["proj_kwargs"]
-                    )
-        new_odor_tags[i, list(new_tag)] = True
-        # Now, loop over snapshots, mix the new odor with the back samples,
-        # compute the PN response at each test concentration,
-        # compute tags too, and save results
-        for j in range(n_times):
-            for k in range(n_new_concs):
-                mixtures = (back_samples[j]
-                    + params["new_concs"][k] * sim_odors["new"][i])
-                mixture_svecs[i, j, k] = appropriate_response(
-                                            attrs, params, mixtures, snaps,
-                                            j, test_params["model_options"]
-                                        )
-                # We actually don't want to apply ReLU to really understand
-                # what happens if a s vector is zero.
-                #if str(activ_fct).lower() == "relu":
-                #    mixture_svecs[i,j,k] = relu_inplace(mixture_svecs[i,j,k])
-                for l in range(n_back_samples):
-                    mix_tag = project_neural_tag(
-                        mixture_svecs[i, j, k, l], mixtures[l],
-                        test_params['pmat'], **test_params['proj_kwargs']
-                    )
-                    try:
-                        mixture_tags[i, j, k, l, list(mix_tag)] = True
-                    except ValueError as e:
-                        print(mix_tag)
-                        print(mixture_svecs[i, j, k, l])
-                        print(test_params["pmat"].dot(mixture_svecs[i, j, k, l]))
-                        raise e
-                    jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
-    # Prepare simulation results dictionary
-    new_odor_tags = new_odor_tags.tocsr()
-    test_results = {
-        "w_snaps": snaps["w"],
-        "conc_samples": conc_samples,
-        "back_samples": back_samples,
-        "new_odor_tags": new_odor_tags,
-        "mixture_svecs": mixture_svecs,
-        "mixture_tags": mixture_tags,
-        "jaccard_scores": jaccard_scores,
-        "moments_snorm": momentS_sser_norm
-    }
-    return test_results
-
-
-def initialize_lambda_test(id, lambd, gp, ref_gp, odors_gp,
+def initialize_recognition_lambda(id, gp, odors_gp,
     attrs, params, modopt, rgen, spseed, projkw):
     """ Function to arrange the arguments of multiprocessing pool apply
-    for Lambda effect on new odor detection tests
-
-    Args needed for the applied function, run_performance_lambda:
-        rel_lambd, ref_xc, attrs, params, sim_odors, test_params
-    With the applied function first, and the simulation id second
+    for new odor detection tests
     """
+    # Adjust Lambda parameter in the list of parameters
+    lambd = gp.attrs["lambd"]
+    adjusted_m_rates = list(params["m_rates"])
+    if attrs["model"] == "IBCM":
+        adjusted_m_rates[3] = lambd
+    elif attrs["model"] == "PCA":
+        adjusted_m_rates[2] = lambd
+    else:
+        raise ValueError("Lambda not in model {}".format(attrs["model"]))
+    params_adjusted = {l:p for l, p in params.items()}
+    params_adjusted["m_rates"] = adjusted_m_rates
+
+    # Create projection matrix
     p_matrix = create_sparse_proj_mat(
                     params["dimensions"][3], params["dimensions"][0], rgen
                 )
@@ -855,15 +883,18 @@ def initialize_lambda_test(id, lambd, gp, ref_gp, odors_gp,
         csr_matrix_to_hdf5(gp.create_group("kc_proj_mat"), p_matrix)
     except ValueError:
         pass  # Matrix already exists
-    # Load bkvecser, cbarser, and maybe xavgser
-    xc_series = [
-        ref_gp.get("ref").get("bkvecser"),
-        ref_gp.get("ref").get("cbarser"),
-        ref_gp.get("ref").get("xavgser", None)
-    ]
+    # Load relevant snapshots.
+    snaps_dict = {
+        "m": get_data(gp, "m_snaps"),
+        "w": get_data(gp, "w_snaps"),
+        "l": get_data(gp, "l_snaps"),
+        "x": get_data(gp, "x_snaps"),
+        "conc": get_data(gp, "back_conc_snaps"),
+        "back": get_data(gp, "back_vec_snaps"),
+    }
     # Load odors locally, argument to pass to each test process
     sim_odors_dict = {
-        "back": get_data(odors_gp, "back_odors")[id],
+        "back": get_data(odors_gp, "back_odors"),
         "new": get_data(odors_gp, "new_odors"),
     }
     # Construct dictionaries to pass to test_new_odor_recognition
@@ -873,52 +904,46 @@ def initialize_lambda_test(id, lambd, gp, ref_gp, odors_gp,
         "proj_kwargs": projkw,
         "model_options": modopt,
     }
-    # Background concentration snapshots
-    snaps = ref_gp.get("ref").get("back_conc_snaps")
-    apply_args = (run_performance_lambda, id, lambd, xc_series, snaps,
+    apply_args = (test_new_odor_recognition, id, snaps_dict,
                     attrs, params, sim_odors_dict, test_params)
     return apply_args
 
 
-# Just save the bare minimum, don't save all tags etc. for now.
-def main_performance_lambda(ref_name, res_name, attrs, params, model_options, proj_kwargs):
+def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs):
+    """ After having performed several habituation runs and saved these
+    results to HDF, load the results and test new odor recognition.
+
+    Args: same as main_habituation_runs
+    Be careful to create a new random number generator, not re-creating
+    the generator with the same seed used in the previous main simulation.
+    """
     # Some consistency checks
     assert params['snap_times'].size == params['repeats'][1]
-    # Check that the reference file can be loaded
-    ref_file = h5py.File(ref_name, "r")
-    res_file = h5py.File(res_name, "w")
-    assert attrs["main_seed"] == ref_file.attrs["main_seed"]
+    # Check that the result file can be loaded
+    results_file = h5py.File(filename, "r+")
+    assert attrs["main_seed"] == results_file.attrs["main_seed"]
     # Use the previous random number generator to create a new seed
     main_seed_seq, main_rgen = new_rng_from_old_seed(attrs["main_seed"])
     repeats, dimensions = params["repeats"], params['dimensions']
-
-    # Define the range of new lambdas
-    if attrs["model"] == "IBCM":
-        lambda_0 = params["m_rates"][3]
-    elif attrs["model"] == "PCA":
-        lambda_0 = params["m_rates"][2]
-    else:
-        raise ValueError("Lambda not in model {}".format(attrs["model"]))
-    lambd_rel_range = np.geomspace(0.1, 10.0, repeats[0])
 
     # Create new odors and save to odors group
     new_odors = generate_odorant(
                         [repeats[3], dimensions[0]], main_rgen, lambda_in=0.1
                     )
     new_odors /= l2_norm(new_odors).reshape(*new_odors.shape[:-1], 1)
-    odors_group = ref_file.get("odors")
+    odors_group = results_file.get("odors")
 
     # Save the new odors and the projection kwargs to disk
     try:
         odors_group.create_dataset("new_odors", data=new_odors)
-        dict_to_hdf5(res_file.create_group("proj_kwargs"), proj_kwargs)
+        dict_to_hdf5(results_file.create_group("proj_kwargs"), proj_kwargs)
     except ValueError:
         pass  # already exists (for now)
 
     # Define callback functions
     def callback(result):
         sim_id, sim_results = result
-        sim_gp = res_file.get(id_to_simkey(sim_id))
+        sim_gp = results_file.get(id_to_simkey(sim_id))
         csr_matrix_to_hdf5(sim_gp.create_group("new_odor_tags"),
                             sim_results.pop("new_odor_tags"))
         sim_results.pop("mixture_tags").to_hdf(
@@ -927,20 +952,20 @@ def main_performance_lambda(ref_name, res_name, attrs, params, model_options, pr
         print("New odor recognition tested for simulation {}".format(sim_id))
         return sim_id
 
-    # 2. For each lambda, reintegrate W and test recognition at snap times.
+    # 2. For each background and run, test new odor recognition at snap times.
     # Create a projection matrix, save to HDF file.
     # Against n_back_samples backgrounds, including the simulation one.
     # and test at 20 % or 50 % concentration
-    test_seed = main_seed_seq.spawn(1)
+    all_seeds = main_seed_seq.spawn(repeats[0])
     pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
     for sim_id in range(repeats[0]):
-        lambd = lambd_rel_range[sim_id]
-        sim_gp = res_file.create_group(id_to_simkey(sim_id))
-        # id, lambd, gp, ref_gp, odors_gp,
-        #    attrs, params, modopt, rgen, spseed, projkw
-        apply_args = initialize_lambda_test(
-                    sim_id, lambd, sim_gp, ref_file, odors_group, attrs,
-                    params, model_options, main_rgen, test_seed[0], proj_kwargs
+        # Retrieve relevant results of that simulation,
+        # then create and s ave the proj. mat., and initialize arguments
+        sim_gp = results_file.get(id_to_simkey(sim_id))
+        # Lambda parameter gets adjusted in the initialization
+        apply_args = initialize_recognition_lambda(
+                    sim_id, sim_gp, odors_group, attrs, params,
+                    model_options, main_rgen, all_seeds[sim_id], proj_kwargs
                     )
         pool.apply_async(func_wrapper_with_id, args=apply_args,
                         callback=callback, error_callback=error_callback)
