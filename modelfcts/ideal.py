@@ -144,3 +144,80 @@ def compute_optimal_factor_toy(nu_new, sigma2, n_r, odor_gen_fct, gen_args):
     optimal_factor = cross_product + nu_new**2
     optimal_factor /= (mean_back2 + 2*cross_product + nu_new**2)
     return optimal_factor
+
+
+### Re-run W for any model
+def rerun_w_dynamics(w_init, xc_series, inhib_params, dt, skp=1, scale=1.0, **options):
+    """ Run W dynamics given the background and cbar series of some model
+    simulation.
+
+    Args:
+        w_init (np.ndarray): initial W weigths, shape [n_R, n_I]
+        xc_series (list of 2 np.ndarray): bkvecser, cbarser, xavgser (optional)
+            of some model. They cannot have skipped steps.
+        inhib_params (list of 2 floats): alpha, beta
+        dt (float): time step of the simulations.
+        skp (int): save every skp time step of w
+        scale (float): cbar is multiplied by scale.
+
+    Options:
+        activ_fct (str): "ReLU" or "identity"
+
+    Returns:
+        wser (np.ndarray): shape [time, n_R, n_I]
+        sser (np.ndarray): shape [time, n_R]
+    """
+    # Extract parameters
+    activ_fct = str(options.get("activ_fct", "ReLU")).lower()
+    remove_mean = options.get("remove_mean", False)
+    if remove_mean:
+        bkvecser, cbarser, xavgser = xc_series
+    else:
+        bkvecser, cbarser = xc_series
+        xavgser = [0.0]
+    alpha, beta = inhib_params
+    n_times = bkvecser.shape[0]
+    n_r = bkvecser.shape[1]
+    n_i = cbarser.shape[1]
+    # Prepare container series
+    w_series = np.zeros([n_times // skp, n_r, n_i])
+    s_series = np.zeros([n_times // skp, n_r])
+    # Current state variables
+    wmat = w_init.copy()
+    cbar = cbarser[0] * scale
+    bkvec = bkvecser[0]
+    xavg = xavgser[0]
+    svec = bk_vec_init - wmat.dot(cbar)
+    if activ_fct == "relu":
+        relu_inplace(svec)
+    elif activ_fct == "identity":
+        pass
+    else:
+        raise ValueError("Unknown activation fct: {}".format(activ_fct))
+    # Store initial values
+    w_series[0] = w_init
+    s_series[0] = svec
+
+    # Start looping
+    t = 0
+    for k in range(0, n_times-1):
+        t += dt
+        # Access current values
+        cbar = cbarser[k] * scale
+        bkvec = bkvecser[k]
+        if remove_mean:  # Only change xavg from 0.0 if remove_mean
+            xavg = xavgser[k]
+        wmat += dt * (alpha*cbar[np.newaxis, :]*svec[:, np.newaxis] - beta*wmat)
+
+        # Lastly, projection neurons at time step k+1
+        svec = bkvec - xavg - wmat.dot(cbar)
+        if activ_fct == "relu":
+            relu_inplace(svec)
+
+        # Save current state
+        if (k % skp) == (skp - 1):
+            knext = (k+1) // skp
+            w_series[knext] = wmat
+            s_series[knext] = svec
+
+    return w_series, s_series
