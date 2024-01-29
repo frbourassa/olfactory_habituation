@@ -790,7 +790,7 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
     # Define the range of new lambdas
     if attributes["model"] == "IBCM":
         lambda_0 = parameters["m_rates"][3]
-        lambd_range = np.geomspace(0.1, 2.0, repeats[0]) * lambda_0
+        lambd_range = np.geomspace(0.1, 4.0, repeats[0]) * lambda_0
     elif attributes["model"] == "PCA":
         lambda_0 = parameters["m_rates"][2]
         lambd_range = np.geomspace(0.5, 10.0, repeats[0]) * lambda_0

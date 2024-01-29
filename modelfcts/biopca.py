@@ -119,6 +119,8 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     alpha, beta = inhib_params
     # xrate will be a dummy value if remove_mean == False
     mrate, lrate, lambda_max, lambda_range, xrate = biopca_params
+    lrate_l = lrate / lambda_max**2
+    print("Lambda = {}".format(lambda_max))
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
     lambda_diag = build_lambda_matrix(lambda_max, lambda_range, n_neu)
     rng = np.random.default_rng(seed=seed)
@@ -210,7 +212,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         ### Online PCA weights
         # Synaptic plasticity: update mmat, lmat to k+1 based on cbar at k
         mmat += dt * mrate * (cbar[:, newax].dot(bkvec[newax, :]) - mmat)
-        lmat += dt * mrate * lrate * (cbar[:, newax].dot(cbar[newax, :])
+        lmat += dt * mrate * lrate_l * (cbar[:, newax].dot(cbar[newax, :])
                         - lambda_diag[:, newax] * lmat * lambda_diag)
         # Update too the variable saving the inverse of the diagonal of L
         inv_l_diag = 1.0 / lmat[diag_idx]

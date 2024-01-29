@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_lambda_test = 2
+    n_lambda_test = 20
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -52,7 +52,7 @@ if __name__ == "__main__":
                     ])
 
     # Other parameters common to all models
-    duration_dt = np.asarray([36000.0, 1.0])
+    duration_dt = np.asarray([360000.0, 1.0])
     start_test_t = duration_dt[0] - n_test_times * 2000.0
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
@@ -118,13 +118,13 @@ if __name__ == "__main__":
         "decay": True
     }
     print("Running IBCM simulation for various Lambdas and saving to hdf5")
-    #main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
-    #                       ibcm_params, ibcm_options)
+    main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
+                           ibcm_params, ibcm_options)
 
     print("Running IBCM performance tests as a function of Lambda")
     # filename, attributes, parameters, model_options
-    #main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
-    #                       ibcm_options, projection_arguments)
+    main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
+                           ibcm_options, projection_arguments)
 
 
     ### Run one BioPCA simulation for each Lambda value
