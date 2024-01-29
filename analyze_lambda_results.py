@@ -24,6 +24,17 @@ def concat_sstats(f):
     return all_stats
 
 
+def get_lambda0(f):
+    if f.attrs.get("model") == "IBCM":
+        lambd_0 = f.get("parameters").get("m_rates")[3]
+    elif f.attrs.get("model") == "PCA":
+        lambd_0 = f.get("parameters").get("m_rates")[2]
+    else:
+        raise KeyError("Model {} not available for Lambda"
+                        .format(f.attrs.get("model")))
+    return lambd_0
+
+
 def main_plot_performance():
     # Compare IBCM and PCA as a function of Lambda
     # Plot s statistics vs lambda, plot Jaccard statistics vs Lambda
@@ -64,9 +75,13 @@ def main_plot_performance():
         f = h5py.File(model_file_choices[m], "r")
         all_stats = concat_sstats(f)
         lambd_axis = f.get("parameters").get("lambd_range")[()]
+        mask = all_stats > 100.0  # Clip excessively large values
+        masked_stats = np.ma.masked_array(all_stats, mask)
+        # Rescale lambda axis by the default value? 1 for IBCM, 10 for PCA
+        lambd_0 = get_lambda0(f)
         f.close()
         for i in range(all_stats.shape[1]):
-            axes[i].plot(lambd_axis, all_stats[:, i],
+            axes[i].plot(lambd_axis / lambd_0, masked_stats[:, i],
                 label=model_nice_names.get(m, m),
                 color=model_colors.get(m), lw=2.0
             )
@@ -75,8 +90,9 @@ def main_plot_performance():
     for i in range(all_stats.shape[1]):
         ax = axes[i]
         axes[i].set_title(stat_names[i])
-        axes[i].set_xlabel(r"Scale $\Lambda$")
+        axes[i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
         axes[i].set_ylabel(r"Statistic of $\| \vec{s} \|$")
+        axes[i].set_xscale("log")
     axes[0].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
     fig.tight_layout()
     fig.savefig("figures/detection/s_stats_vs_lambda.pdf", transparent=True,
@@ -93,17 +109,20 @@ def main_plot_performance():
         lambd_axis = f.get("parameters").get("lambd_range")[()]
         all_jacs = concat_jaccards(f)
         median_jacs = np.median(all_jacs, axis=[1, 2, 4])
+        # Rescale lambda axis by the default value? 1 for IBCM, 10 for PCA
+        lambd_0 = get_lambda0(f)
         f.close()
         for i in range(n_new_concs):
-            axes[i].plot(lambd_axis, median_jacs[:, i],
+            axes[i].plot(lambd_axis / lambd_0, median_jacs[:, i],
                         label=model_nice_names.get(m, m),
                         color=model_colors.get(m), lw=2.0)
     # Labeling the graphs, etc.
     for i in range(n_new_concs):
         ax = axes[i]
         axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
-        axes[i].set_xlabel(r"Scale $\Lambda$")
+        axes[i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
         axes[i].set_ylabel("Median Jaccard similarity")
+        axes[i].set_xscale("log")
     axes[0].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
     fig.tight_layout()
     fig.savefig("figures/detection/jaccard_vs_lambda.pdf", transparent=True,

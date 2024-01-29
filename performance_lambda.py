@@ -45,7 +45,7 @@ if __name__ == "__main__":
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
-    skip_steps = 1
+    skip_steps = 20
     repeats_array = np.asarray([
                         n_lambda_test, n_test_times, n_back_samples,
                         n_new_odors, len(new_test_concs), skip_steps
@@ -139,7 +139,8 @@ if __name__ == "__main__":
         "main_seed": str(common_seed)
     }
     # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
-    # Starting with default Lambda = 1, mostly higher values will be tested
+    # After a first try, it seems that PCA with Lambda = 10 is pretty
+    # much like IBCM with Lambda=1, 
     biopca_rates = np.asarray([1e-4, 2.0, 1.0, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,
