@@ -81,7 +81,7 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
     bkvec_series[0] = bkvec
 
     # Generate N(0, 1) noise samples in advance
-    if (tseries.shape[0]*skp-1)*bk_vari.size > 1e7:
+    if (tseries.shape[0]*skp-1)*bk_vari.size > 2e7:
         raise ValueError("Too much memory needed; consider calling multiple times for shorter times")
     if noisetype == "normal":
         noises = rng.normal(0, 1, size=(tseries.shape[0]*skp-1,*bk_vari.shape))

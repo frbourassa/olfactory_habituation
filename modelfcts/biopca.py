@@ -120,11 +120,15 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     # xrate will be a dummy value if remove_mean == False
     mrate, lrate, lambda_max, lambda_range, xrate = biopca_params
     lrate_l = lrate / lambda_max**2
-    print("Lambda = {}".format(lambda_max))
+
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
     lambda_diag = build_lambda_matrix(lambda_max, lambda_range, n_neu)
     rng = np.random.default_rng(seed=seed)
     tseries = np.arange(0, tmax, dt*skp)
+
+    # Check that the biggest matrices, W or M, will not use too much memory
+    if tseries.shape[0] * n_orn * n_neu > 5e8 / 8:  # 500 MB per series max
+        raise ValueError("Excessive memory use by saved series; increase skp")
 
     # Containers for the solution over time
     bk_series = np.zeros([tseries.shape[0]] + list(bk_vari_init.shape))
@@ -187,7 +191,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     s_series[0] = svec
 
     # Generate N(0, 1) noise samples in advance
-    if (tseries.shape[0]*skp-1)*bk_vari.size > 1e7:
+    if (tseries.shape[0]*skp-1)*bk_vari.size > 2e7:
         raise ValueError("Too much memory needed; consider calling multiple times for shorter times")
     if noisetype == "normal":
         noises = rng.normal(0, 1, size=(tseries.shape[0]*skp-1,*bk_vari.shape))

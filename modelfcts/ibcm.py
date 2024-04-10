@@ -66,7 +66,7 @@ def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
     theta_series[0] = c2_avg
 
     # Generate N(0, 1) noise samples in advance
-    if (tseries.shape[0]-1)*bk_vari.size > 1e7:
+    if (tseries.shape[0]-1)*bk_vari.size > 2e7:
         raise ValueError("Too much memory needed; consider calling multiple times for shorter durations")
     if noisetype == "normal":
         noises = rng.normal(0, 1, size=(tseries.shape[0]-1, *bk_vari.shape))
@@ -175,7 +175,7 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
     theta_series[0] = cbar2_avg
 
     # Generate N(0, 1) noise samples in advance
-    if (tseries.shape[0]-1)*bk_vari.size > 1e7:
+    if (tseries.shape[0]-1)*bk_vari.size > 2e7:
         raise ValueError("Too much memory needed; consider calling multiple times for shorter durations")
     if noisetype == "normal":
         noises = rng.normal(0, 1, size=(tseries.shape[0]-1, *bk_vari.shape))
@@ -337,6 +337,10 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     rng = np.random.default_rng(seed=seed)
     tseries = np.arange(0, tmax, dt*skp)
 
+    # Check that the biggest matrices, W or M, will not use too much memory
+    if tseries.shape[0] * n_orn * n_neu > 5e8 / 8:  # 500 MB per series max
+        raise ValueError("Excessive memory use by saved series; increase skp")
+
     # Containers for the solution over time
     bk_series = np.zeros([tseries.shape[0]] + list(bk_vari_init.shape))
     m_series = np.zeros([tseries.shape[0], n_neu, n_orn])
@@ -381,7 +385,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     w_series[0] = wmat
 
     # Generate N(0, 1) noise samples in advance
-    if (tseries.shape[0]*skp-1)*bk_vari.size > 1e7:
+    if (tseries.shape[0]*skp-1)*bk_vari.size > 2e7:
         raise ValueError("Too much memory needed; consider calling multiple times for shorter times")
     if noisetype == "normal":
         noises = rng.normal(0, 1, size=(tseries.shape[0]*skp-1,*bk_vari.shape))

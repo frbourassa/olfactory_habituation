@@ -17,6 +17,7 @@ import os
 from modelfcts.ideal import relu_inplace, rerun_w_dynamics
 from modelfcts.ibcm import integrate_inhib_ibcm_network_options
 from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
+from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact
 
 from modelfcts.distribs import truncexp1_average
 from modelfcts.backgrounds import sample_ss_conc_powerlaw
@@ -91,6 +92,11 @@ if __name__ == "__main__":
     ])
     print("Computed numerically the concentration moments:", moments_conc)
 
+    # Compute prediction of fixed points for IBCM,
+    # to estimate the baseline Lambda for BioPCA
+    ibcm_preds = fixedpoint_thirdmoment_exact(moments_conc, 1, n_b-1)
+    cs_minus_cn = abs(ibcm_preds[0] - ibcm_preds[1])
+
     ### Run IBCM simulations for each Lambda choice
     ibcm_file_name = os.path.join(folder, "ibcm_performance_lambda.h5")
     ibcm_attrs = {
@@ -118,13 +124,13 @@ if __name__ == "__main__":
         "decay": True
     }
     print("Running IBCM simulation for various Lambdas and saving to hdf5")
-    main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
-                           ibcm_params, ibcm_options)
+    #main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
+    #                       ibcm_params, ibcm_options)
 
     print("Running IBCM performance tests as a function of Lambda")
     # filename, attributes, parameters, model_options
-    main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
-                           ibcm_options, projection_arguments)
+    #main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
+    #                       ibcm_options, projection_arguments)
 
 
     ### Run one BioPCA simulation for each Lambda value
@@ -140,8 +146,11 @@ if __name__ == "__main__":
     }
     # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
     # After a first try, it seems that PCA with Lambda = 10 is pretty
-    # much like IBCM with Lambda=1, 
-    biopca_rates = np.asarray([1e-4, 2.0, 1.0, 0.5, 1e-4])
+    # much like IBCM with Lambda=1,
+    lambda_pca = cs_minus_cn
+    print(lambda_pca)
+    raise ValueError()
+    biopca_rates = np.asarray([1e-4, 2.0, lambda_pca, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,
         "repeats": repeats_array,

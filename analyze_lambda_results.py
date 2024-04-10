@@ -93,7 +93,7 @@ def main_plot_performance():
         axes[i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
         axes[i].set_ylabel(r"Statistic of $\| \vec{s} \|$")
         axes[i].set_xscale("log")
-    axes[0].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    axes[0].legend()
     fig.tight_layout()
     fig.savefig("figures/detection/s_stats_vs_lambda.pdf", transparent=True,
                 bbox_inches="tight")
@@ -123,7 +123,7 @@ def main_plot_performance():
         axes[i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
         axes[i].set_ylabel("Median Jaccard similarity")
         axes[i].set_xscale("log")
-    axes[0].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    axes[0].legend()
     fig.tight_layout()
     fig.savefig("figures/detection/jaccard_vs_lambda.pdf", transparent=True,
                 bbox_inches="tight")
@@ -141,7 +141,6 @@ def main_export_jaccards(dest_name):
     }
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
-    # TODO: check it is indeed the same
     with h5py.File(model_file_choices["ibcm"], "r") as f:
         n_new_concs = f.get("parameters").get("repeats")[4]
         new_concs = f.get("parameters").get("new_concs")[()]

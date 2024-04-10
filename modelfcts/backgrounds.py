@@ -289,6 +289,8 @@ def update_powerlaw_times_concs(tc_bk, params_bk, noises, dt):
             in case we need to pull a new t and/or c.
             TODO: most noises are wasted; for now memory isn't an issue
             but this is a place where the code can be optimized a lot.
+            But generating 10^7 noise samples takes ~ 100 ms, this is not
+            costing much time, so really, only memory is wasted.
         dt (float): time step duration, in simulation units
     """
     # Update one odor's t and c at a time, if necessary
