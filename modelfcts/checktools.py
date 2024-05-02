@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from modelfcts.distribs import truncexp1_density
-from utils.metrics import subspace_align_error
+from utils.metrics import subspace_align_error, l2_norm
 
 
 # Function to check the s.s. distribution of the power-law and exp1 process
@@ -201,6 +201,70 @@ def compute_ibcm_second_derivative(m_fix, theta_fix, ibcm_params, back_moments):
 
     # Return f and Df
     return f_vec, df
+
+
+def jacobian_row_wmat_l2_avgstats(cgammas, back_moments, w_rates):
+    """ Jacobian of dW/dt, given M and statistics of the background.
+    All rows of W have the same jacobian, the full ijxij jac is block-diagonal
+    So only compute the jacobian for one row derived wrt the same row.
+    This is to check stability of the W fixed point (irrespective of numerics)
+
+    Args:
+        cgammas (np.ndarray): matrix of dot products of L.M with each
+            background component x_gamma, indexed [i, gamma]
+        back_moments (list of floats of np.ndarrays): average nu, sigma^2
+            of all components (if floats) or of each component gamma (arrays)
+        w_rates (list of floats): alpha, beta
+    Returns:
+        jac (np.ndarray): jacobian matrix of one row of W by itself,
+            which is one block of the Jacobian for the full W matrix
+    """
+    avgnu, sigma2s = back_moments
+    alpha, beta = w_rates
+    n_i = cgammas.shape[0]
+    # Compute vector of c_ds: c^I_d
+    c_d = avgnu * np.sum(cgammas, axis=1)
+    c_dmat = c_d[:, None] * c_d[None, :]
+    # Compute matrix of c_gamma products, summed over gamma
+    c_gamma_mat = np.sum(sigma2s * cgammas[:, None, :]*cgammas[None, :, :], axis=2)
+    #  Compute <c^j c^l> correlations.
+    ccmat = c_dmat + c_gamma_mat
+    # Compute jacobian
+    jac = -beta * np.identity(n_i) - alpha * ccmat
+    return jac
+
+
+def stability_row_wmat_l2_instant(cvec, w_rates, dt):
+    """ Compute the eigenvalues of the Euler integrator's iterative map for W,
+    given an instantaneous \bar{c} value, the inhibitory neurons' activities.
+    Imagining that the c's remain constant thereafter, is the Euler integrator
+    on a stable tangent for this step? Check by computing the eigenvalues
+    of the matrix multiplying W in this iterative map,
+    W^{t+1} = W^t + dt * alpha*x.c^T - dt*(alpha*c.c^T + beta*identity).W
+    so the matrix of which to check eigenvalues and ensure they are < 1 is
+        A = 1 - dt*(alpha*c.c^T + beta*identity)
+
+    Args:
+        cvec (np.ndarray): vector of inhibitory neurons' activities,
+            i.e. LMx
+        w_rates (list of floats): alpha, beta
+        dt (float): time step
+
+    Returns:
+        eigvals (np.ndarray): eigenvalues of the linear update operator,
+            that is, 1 + dt*jacobian.
+    """
+    # Symmetric matrix, can use eigvalsh
+    alpha, beta = w_rates
+    n_i = cvec.shape[0]
+    #up_mat = np.identity(n_i)*(1.0 - dt*beta) - dt*alpha*np.outer(cvec, cvec)
+    #eigvals = np.linalg.eigvalsh(up_mat)
+    # Obviously, with the outer product here, one eigenvalue is
+    # 1-dt*(beta+alpha*cvec**2), the others are 1-beta*dt
+    # So no need to compute the whole matrix and diagonalize.
+    eigvals = np.full(n_i, fill_value=1.0 - dt*beta)
+    eigvals[0] = 1.0 - dt*beta - dt*alpha*l2_norm(cvec)**2
+    return eigvals
 
 
 ### Functions to analyze biologically plausible online PCA results

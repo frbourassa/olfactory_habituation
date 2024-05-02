@@ -401,7 +401,7 @@ def plot_cbars_gamma_series(ts, cbg_ser, skp=200, transient=None):
 
 ### PLOTS SPECIFIC TO ONLINE PCA ###
 def plot_pca_results(tser, truepca, learntpca, alignerrser, off_diag_l_ser,
-                     palette1=None, palette2=None):
+                     palette1=None, palette2=None, skp=1):
     """
     Args:
         tser (np.ndarray): time steps
@@ -414,6 +414,7 @@ def plot_pca_results(tser, truepca, learntpca, alignerrser, off_diag_l_ser,
         palette1 (list of colors): colors for the various principal values
         palette2 (list of 2 colors): palette for the plots of error vs time
             and L elements vs time.
+        skp (int): plot only every skp time point
 
     Returns:
         fig, axes (list of fig, ax): fig and axes of principal values vs time,
@@ -429,8 +430,9 @@ def plot_pca_results(tser, truepca, learntpca, alignerrser, off_diag_l_ser,
     fig.set_size_inches(default_size[0], default_size[1]*1.33)
     n_comp = learntpca[0].shape[1]
     for i in range(n_comp):
-        li, = ax.plot(tser, learntpca[0][:, i], label="Learnt {}".format(i),
-                      lw=1.0, zorder=10-i, color=palette1[i])
+        li, = ax.plot(tser[::skp], learntpca[0][::skp, i],
+                    label="Learnt {}".format(i),
+                    lw=1.0, zorder=10-i, color=palette1[i])
         if truepca[0][i] / truepca[0].max() > 1e-12:
             ax.axhline(truepca[0][i], ls="--", color=palette1[i], lw=1.0 - i/n_comp,
                 label="True {}".format(i), zorder=n_comp-i)
@@ -439,12 +441,12 @@ def plot_pca_results(tser, truepca, learntpca, alignerrser, off_diag_l_ser,
     leg.set_zorder(30)
 
     ax = axes[1]
-    ax.plot(tser, alignerrser, color=palette2[0])
+    ax.plot(tser[::skp], alignerrser[::skp], color=palette2[0])
     ax.set(yscale="log", ylabel="Subspace alignment error")
 
     ax = axes[2]
-    ax.plot(tser, np.mean(learntpca[0], axis=1), label="Diagonal", color=palette2[0])
-    ax.plot(tser, off_diag_l_ser, label="Off-diagonal", color=palette2[1])
+    ax.plot(tser[::skp], np.mean(learntpca[0][::skp], axis=1), label="Diagonal", color=palette2[0])
+    ax.plot(tser[::skp], off_diag_l_ser[::skp], label="Off-diagonal", color=palette2[1])
     ax.set(yscale="log", ylabel=r"Average $L_{ij}$ magnitude", xlabel="Time (steps)")
     ax.legend()
     fig.tight_layout()

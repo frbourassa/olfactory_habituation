@@ -341,7 +341,7 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False, lambd=1.0):
     avgnu, sigma2, m3 = moments_nu
     # All c_gammas equal. Probably unstable, can compute anyways.
     if k1 == 0 or k2 == 0:
-        return fixedpoint_thirdmoment_onecval(avgnu, sigma2, m3, max(k1, k2), m3=1.0)
+        return fixedpoint_thirdmoment_onecval(avgnu, sigma2, m3, max(k1, k2), m3=1.0, lambd=lambd)
 
     # Compute the quadratic factor alpha that relates y1 and y2
     a1 = (sigma2 - avgnu**2 * k1 - m3*avgnu/sigma2) * k1

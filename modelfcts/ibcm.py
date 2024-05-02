@@ -428,9 +428,9 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         # In principle, should add low decay to background subspace
         # To make sure 1) only learn the background space, 2) de-habituate after
         if decay and variant == "law":
-            m -= dt * decay_relative * learnrate / (ktheta + cbar2_avg[:, np.newaxis]/lambd) * m
+            m -= dt * decay_relative * mu_abs / (ktheta + cbar2_avg[:, np.newaxis]/lambd) * m
         elif decay and variant == "intrator":
-            m -= dt * decay_relative * learnrate * m
+            m -= dt * decay_relative * mu_abs * m
         # Now, update to time k+1 the threshold (cbar2_avg) using cbar at time k
         # to be used to update m in the next time step
         cbar2_avg += dt * (cbar*cbar / lambd - cbar2_avg)/tavg

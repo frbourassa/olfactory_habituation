@@ -106,7 +106,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         xmean_series, cbar_series, w_series, s_series
     """
     remove_mean = model_options.get("remove_mean", False)
-    remove_lambda = model_options.get("remove_lambda", True)
+    remove_lambda = model_options.get("remove_lambda", False)
     activ_fct = str(model_options.get("activ_fct", "ReLU")).lower()
     m_init, l_init = ml_inits
     # Note: keep lambda matrix as 1d diagonal only, replace dot products by:
@@ -230,10 +230,10 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         c = inv_l_diag * (mmat.dot(bkvec - xmean))  # L_d^(-1) M^T x
         # Lateral inhibition between neurons
         cbar = c - inv_l_diag*np.dot(lmat - dflt(1.0/inv_l_diag), c)
-        # Remove the Lambda scale of eigenvectors, so the W matrix does
-        # not need to compensate too much.
-        # So we use Lambda^{-1}L^{-1}M as a projector as prescribed in Minden 2018
         if remove_lambda:
+            # Remove the Lambda scale of eigenvectors, so the W matrix does
+            # not need to compensate too much.
+            # So we use Lambda^{-1}L^{-1}M as a projector as prescribed in Minden 2018
             cbar = cbar / lambda_diag
 
         # Lastly, projection neurons at time step k+1.
