@@ -35,6 +35,7 @@ June 2022
 """
 import numpy as np
 from modelfcts.ideal import relu_inplace
+from utils.metrics import l2_norm
 
 
 def build_lambda_matrix(l_max, l_range, n_neu):
@@ -100,6 +101,8 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         remove_lambda (bool): if True, multiply projection by Lambda^-1,
             i.e., get an orthonormal basis.
         activ_fct (str): either "ReLU" or "identity"
+        w_norms (tuple of 2 ints): (p, q) either 1 or 2. Default: (2, 2)
+            Lp norm for minimization, Lq norm for regularization.
 
     Returns:
         tseries, bk_series, bkvec_series, m_series, l_series,
@@ -108,6 +111,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     remove_mean = model_options.get("remove_mean", False)
     remove_lambda = model_options.get("remove_lambda", False)
     activ_fct = str(model_options.get("activ_fct", "ReLU")).lower()
+    w_norms = model_options.get("w_norms", ())
     m_init, l_init = ml_inits
     # Note: keep lambda matrix as 1d diagonal only, replace dot products by:
     # Lambda.dot(A): Lambda_ii applied to row i, replace by Lambda_diag[:, None]*A element-wise
@@ -211,6 +215,18 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         # They depend on cbar and svec at time step k, which are still in cbar, svec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
         # while svec, shape [n_orn], should broadcast across rows (copied on each column)
+        alpha_term = alpha*cbar[newax, :]*svec[:, newax]
+        if w_norms[0] == 1:
+            alpha_term /= max(l2_norm(svec), 1e-12)  # avoid zero division
+        elif w_norms[0] > 2:  # Assuming even Lp norm
+            alpha_term *= l2_norm(svec)**(w_norms[0]-2)
+
+        if w_norms[1] == 2:
+            beta_term = beta*wmat
+        elif w_norms[1] == 1:
+            beta_term = beta * np.sign(wmat)
+        wmat += dt * (alpha_term - beta_term)
+
         wmat = wmat + dt * (alpha*cbar[newax, :]*svec[:, newax] - beta*wmat)
 
         ### Online PCA weights

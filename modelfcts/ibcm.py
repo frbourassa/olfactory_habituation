@@ -7,6 +7,7 @@ September 2021
 """
 import numpy as np
 from modelfcts.ideal import relu_inplace
+from utils.metrics import l2_norm
 
 ### IBCM NEURON alone, no inhibition
 def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
@@ -298,6 +299,8 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         saturation (str): "linear" or "tanh"
         variant (str): either "intrator" or "law"
         decay (bool): if True, add small decay
+        w_norms (tuple of 2 ints): (p, q) either 1 or 2. Default: (2, 2)
+            Lp norm for minimization, Lq norm for regularization.
 
     Returns:
         [tseries, bk_series, bkvec_series, m_series,
@@ -308,6 +311,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     variant = options.get("variant", "intrator")
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     decay = options.get("decay", False)
+    w_norms = options.get("w_norms", (2, 2))
 
     # Legacy option to just pass initial M
     if isinstance(vari_inits, np.ndarray):
@@ -401,7 +405,20 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         # They depend on cbar and svec at time step k, which are still in cbar, svec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
         # while svec, shape [n_orn], should broadcast across rows (copied on each column)
-        wmat += dt * (alpha*cbar[np.newaxis, :]*svec[:, np.newaxis] - beta*wmat)
+        alpha_term = alpha*cbar[np.newaxis, :]*svec[:, np.newaxis]
+        if w_norms[0] == 1:
+            alpha_term /= max(l2_norm(svec), 1e-9)  # avoid zero division
+        elif w_norms[0] > 2:  # Assuming even Lp norm
+            alpha_term *= l2_norm(svec)**(w_norms[0]-2)
+
+        if w_norms[1] == 2:
+            beta_term = beta*wmat
+        elif w_norms[1] == 1:
+            beta_term = beta * np.sign(wmat)
+        else:
+            beta_term = 0.0
+
+        wmat += dt * (alpha_term - beta_term)
 
         ### IBCM neurons
         # Phi function for each neuron.
