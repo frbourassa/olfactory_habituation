@@ -8,6 +8,9 @@ For IBCM and PCA, the dynamics are identical for all Lambda, just rescaled,
  and re-run W dynamics for various rescaling of M and c.
  There has to be no skip in these series though.
 
+But that was too complicated to code, so we just re-run identical background
+simulations for all Lambdas in the end. 
+
 @author: frbourassa
 January 2024
 """

@@ -410,7 +410,10 @@ def initialize_integration(id, gp, attrs, params, modopt, back, rgen, spseed):
     return apply_args, apply_kwargs
 
 
-def main_habituation_runs(filename, attributes, parameters, model_options):
+def main_habituation_runs(
+    filename, attributes, parameters, model_options,
+    save_fct=save_simul_results
+):
     """
     Args: everything in the .attrs and parameters group of the HDF file that
     will be saved. Also the path and file name.
@@ -423,7 +426,7 @@ def main_habituation_runs(filename, attributes, parameters, model_options):
             model_options (dict): model options, saved as attrs
             dimensions (np.ndarray): n_r, n_b, n_i, n_k
             repeats (np.ndarray): [n_runs, n_test_times, n_back_samples,
-                                    n_new_odors, skip_steps]
+                                    n_new_odors, n_new_concs, skip_steps]
             m_rates (np.ndarray): depends on the model, should be consistent
             w_rates (np.ndarray): alpha, beta
             time_params (np.ndarray): tmax, dt
@@ -431,6 +434,8 @@ def main_habituation_runs(filename, attributes, parameters, model_options):
             snap_times (np.ndarray): times at which snapshots are taken
         model_options (dict): model options, will be saved
             in the parameters group attrs in HDF5 file.
+        save_fct (callable): default is save_simul_results, but can be changed
+            if we need to save different things for other kinds of simulations
     Returns:
         Saves an HDF file.
         0
@@ -478,7 +483,7 @@ def main_habituation_runs(filename, attributes, parameters, model_options):
         # Get the group created at launch time for this simulation id
         sim_gp = results_file.get(id_to_simkey(sim_id))
         # Save results, dpending on model type the structure changes a bit
-        save_simul_results(sim_id, sim_results, attributes, sim_gp, snap_idx)
+        save_fct(sim_id, sim_results, attributes, sim_gp, snap_idx)
         print("Habituation run {} saved".format(sim_id))
         del sim_results, result
         return sim_id
