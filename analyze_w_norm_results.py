@@ -138,7 +138,7 @@ def aggregate_result_files(folder, model):
         # Get jaccard scores of all seeds
         all_jacs = concat_jaccards(res_file)
         df.loc[(si, sj), "jaccard_mean"] = all_jacs.mean()
-        df.loc[(si, sj), "jaccard_median"] = all_jacs.median()
+        df.loc[(si, sj), "jaccard_median"] = np.median(all_jacs)
         df.loc[(si, sj), "jaccard_variance"] = all_jacs.var()
 
         # Get x and s stats for each seed in each simulation
@@ -216,4 +216,7 @@ if __name__ == "__main__":
     df_stats_biopca = create_or_load(pca_df_f, "PCA")
 
     # Now, plot results
+    print("Starting to plot results...")
     main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
+
+    print("Done!")
