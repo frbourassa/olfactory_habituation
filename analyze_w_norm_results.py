@@ -137,6 +137,9 @@ def aggregate_result_files(folder, model):
         res_file = h5py.File(os.path.join(folder, fname), "r")
         # Get jaccard scores of all seeds
         all_jacs = concat_jaccards(res_file)
+        df.loc[(si, sj), "jaccard_mean"] = all_jacs.mean()
+        df.loc[(si, sj), "jaccard_median"] = all_jacs.median()
+        df.loc[(si, sj), "jaccard_variance"] = all_jacs.var()
 
         # Get x and s stats for each seed in each simulation
         x_stats, s_stats = s_stats_from_snaps(res_file)
@@ -156,7 +159,9 @@ def aggregate_result_files(folder, model):
 def create_or_load(f, model):
     if os.path.isfile(f):
         df_stats = pd.read_hdf(f, key="df")
+        print("Loaded existing {}".format(f))
     else:
+        print("Aggregating stats for {}".format(f))
         df_stats = aggregate_result_files(
             os.path.join("results", "performance_w"), model
         )
@@ -164,11 +169,51 @@ def create_or_load(f, model):
     return df_stats
 
 
+def main_plot_w_norms(df_ibcm, df_pca):
+    # Line plots: x axis is (i, j), y axis is some statistic.
+    # One line for PCA, one line for IBCM
+    # As a way to identify best/worst cases first, and see variability
+    fig, axes = plt.subplots(2, 3, sharex=True)
+    size_inches = fig.get_size_inches()
+    fig.set_size_inches(size_inches[0]*2, size_inches[1]*0.75)
+    model_colors = {
+        "ibcm": "xkcd:turquoise",
+        "biopca": "xkcd:orangey brown",
+        "avgsub": "xkcd:navy blue",
+        "ideal": "xkcd:powder blue",
+        "orthogonal": "xkcd:pale rose",
+        "none": "grey"
+    }
+    metrics = [
+        "s_norm_mean_reduction",
+        "s_norm_variance_reduction",
+        "s_norm_thirdmoment_reduction",
+        "jaccard_mean",
+        "jaccard_median",
+        "jaccard_variance"
+    ]
+    xaxis = np.arange(df_ibcm.index.size)
+
+    for i, m in enumerate(metrics):
+        df_ibcm_plot = df_ibcm.loc[:, m].values
+        df_pca_plot = df_pca.loc[df_ibcm.index, m].values
+        axes.flat[i].plot(xaxis, df_pca_plot,
+                    label="BioPCA", color=model_colors.get("biopca"))
+        axes.flat[i].plot(xaxis, df_ibcm_plot,
+                    label="IBCM", color=model_colors.get("ibcm"))
+        axes.flat[i].set(ylabel=m, xlabel="Grid search index")
+    axes.flat[0].legend()
+    fig.tight_layout()
+    fig.savefig(os.path.join("figures", "detection", "line_plots_w_norm.pdf"),
+                transparent=True, bbox_inches="tight")
+    return None
+
 if __name__ == "__main__":
     # Create or load statistics dfs
     ibcm_df_f = os.path.join("results", "performance_w", "df_w_stats_ibcm.h5")
     df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
     pca_df_f = os.path.join("results", "performance_w", "df_w_stats_biopca.h5")
-    df_stats_biopca = create_or_load(pca_df_f)
+    df_stats_biopca = create_or_load(pca_df_f, "PCA")
 
     # Now, plot results
+    main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
