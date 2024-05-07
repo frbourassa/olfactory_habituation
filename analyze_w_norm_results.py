@@ -20,6 +20,10 @@ from simulfcts.habituation_recognition import (
 )
 
 
+def simkey_to_id(sk):
+    return int(sk.strip("sim"))
+
+
 def ij_from_name(fname):
     """ Returns strings """
     return (fname.split(".")[0]).split("_")[-2:]
@@ -45,10 +49,10 @@ def s_stats_from_snaps(res_file):
     # Get model parameters and appropriate snapshots
     all_params = res_file.get("parameters")
     back_params = all_params.get("back_params")[()]
-    n_snaps = params.get("repeats")[1]
+    n_snaps = all_params.get("repeats")[1]
     # Random generator to sample many x vectors
     rng = np.random.default_rng(
-            np.random.SeedSequence(int(res_file.attrs["main_seed"])).spawn()
+        np.random.SeedSequence(int(res_file.attrs["main_seed"])).spawn(2)[1]
     )
     all_s_stats_dict = {}
     all_x_stats_dict = {}
@@ -57,6 +61,8 @@ def s_stats_from_snaps(res_file):
     for sim_id in res_file.keys():
         if not sim_id.startswith("sim"): continue
         gp = res_file.get(sim_id)
+        back_comps = (res_file.get("odors")
+                    .get("back_odors")[simkey_to_id(sim_id)])
         snaps_dict = {
             "m": get_data(gp, "m_snaps"),
             "w": get_data(gp, "w_snaps"),
@@ -128,7 +134,7 @@ def aggregate_result_files(folder, model):
         alpha, beta = table_ij_ab.get("{}_{}".format(si, sj))
         df.loc[(si, sj), "pnorm":"beta"] = (pnorm, qnorm, alpha, beta)
 
-        res_file = h5py.File(fname, "r")
+        res_file = h5py.File(os.path.join(folder, fname), "r")
         # Get jaccard scores of all seeds
         all_jacs = concat_jaccards(res_file)
 
@@ -147,11 +153,22 @@ def aggregate_result_files(folder, model):
     return df
 
 
+def create_or_load(f, model):
+    if os.path.isfile(f):
+        df_stats = pd.read_hdf(f, key="df")
+    else:
+        df_stats = aggregate_result_files(
+            os.path.join("results", "performance_w"), model
+        )
+        df_stats.to_hdf(f, key="df")
+    return df_stats
+
+
 if __name__ == "__main__":
-    df_stats_ibcm = aggregate_result_files(
-        os.path.join("results", "performance_w"), "IBCM"
-    )
-    #df_stats_pca = aggregate_result_files(
-    #    os.path.join("results", "performance_w"), "PCA"
-    #)
-    
+    # Create or load statistics dfs
+    ibcm_df_f = os.path.join("results", "performance_w", "df_w_stats_ibcm.h5")
+    df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
+    pca_df_f = os.path.join("results", "performance_w", "df_w_stats_biopca.h5")
+    df_stats_biopca = create_or_load(pca_df_f)
+
+    # Now, plot results
