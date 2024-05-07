@@ -17,6 +17,14 @@ def concat_jaccards(f):
     return all_jacs
 
 
+def concat_sstats(f):
+    all_stats = []
+    for i in range(f.get("parameters").get("repeats")[0]):
+        all_stats.append(f.get(id_to_simkey(i)).get("s_stats")[()])
+    all_stats = np.stack(all_stats)
+    return all_stats
+
+
 def main_plot_histograms():
     # Compare all algorithms
     folder = os.path.join("results", "performance")

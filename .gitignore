@@ -21,6 +21,7 @@ notes/
 *.npy
 *.npz
 results/for_plots/*.json
+results/performance_w/*.json
 *.h5
 *.xlsx
 *.git

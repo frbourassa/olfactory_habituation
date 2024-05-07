@@ -7,21 +7,10 @@ from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
 import os
 
-
-def concat_jaccards(f):
-    all_jacs = []
-    for i in range(f.get("parameters").get("repeats")[0]):
-        all_jacs.append(f.get(id_to_simkey(i)).get("test_results")
-                            .get("jaccard_scores")[()])
-    all_jacs = np.stack(all_jacs)
-    return all_jacs
-
-def concat_sstats(f):
-    all_stats = []
-    for i in range(f.get("parameters").get("repeats")[0]):
-        all_stats.append(f.get(id_to_simkey(i)).get("s_stats")[()])
-    all_stats = np.stack(all_stats)
-    return all_stats
+from analyze_comparison_results import (
+    concat_jaccards,
+    concat_sstats
+)
 
 
 def get_lambda0(f):

@@ -25,6 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import itertools
+import json
 
 from modelfcts.ideal import relu_inplace, rerun_w_dynamics
 from modelfcts.ibcm import integrate_inhib_ibcm_network_options
@@ -265,15 +266,15 @@ if __name__ == "__main__":
     }
     # To keep track of the i, j index of each (p, q) and (alpha, beta) choice
     table_i_pq = {}
-    tables_ij_ab = {}
+    table_ij_ab = {}
     print("Running IBCM simulations of habituation and new odor recognition"
         + " for various p, q, alpha, beta and saving")
     for i, pq in enumerate(itertools.product(p_choices, q_choices)):
-        table_i_pq[i] = pq
+        table_i_pq[str(i)] = pq
         ibcm_options["w_norms"] = pq
         agrid, bgrid = alpha_grids_p[pq[0]], beta_grids_q[pq[1]]
         for j, ab in enumerate(itertools.product(agrid, bgrid)):
-            tables_ij_ab[(i, j)] = ab
+            table_ij_ab["{}_{}".format(i, j)] = ab
             ibcm_params["w_rates"] = ab
             ibcm_file_name = os.path.join(
                 folder, "ibcm_simuls_for_w_{}_{}.h5".format(i, j)
@@ -339,3 +340,9 @@ if __name__ == "__main__":
             main_recognition_runs(
                 biopca_file_name, biopca_attrs, biopca_params,
                 biopca_options, projection_arguments)
+
+    # Save the (p, q, alpha, beta) tables grids to a JSON file
+    with open(os.path.join(folder, "table_i_pnorm-qnorm.json"), "w") as f:
+        json.dump(table_i_pq, f)
+    with open(os.path.join(folder, "table_ij_alpha-beta.json"), "w") as f:
+        json.dump(table_ij_ab, f)
