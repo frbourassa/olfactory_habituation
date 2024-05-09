@@ -22,6 +22,11 @@ def l1_norm(vecs, axis=-1):
     """ |x| = \sum_i |x_i|"""
     return np.sum(np.abs(vecs), axis=axis)
 
+def lp_norm(vecs, p, axis=-1):
+    """ |x| = (\sum_i |x_i|^p)**(1.0/p) """
+    # Use numpy implementation
+    return np.linalg.norm(vecs, ord=p, axis=axis)
+
 def linf_norm(vecs, axis=-1):
     """ |x| = max_i(|x_i|) """
     return np.max(np.abs(vecs), axis=axis)

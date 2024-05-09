@@ -169,15 +169,15 @@ if __name__ == "__main__":
     dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
 
     # Grid search over p, q, alpha, beta
-    p_choices = (1, 2, 4)
+    p_choices = (1, 2, 16)
     q_choices = (1, 2)
     alpha_grids_p = {  # Depends on p, decrease alpha for larger p, vice-versa
-        1: np.geomspace(1e-5, 3e-4, 4),
-        2: np.geomspace(5e-6, 1e-4, 4),
-        4: np.geomspace(1e-6, 3e-5, 4)
+        1: 10**np.arange(-5, -3.4, 0.5),
+        2: 10**np.arange(-5.5, -3.9, 0.5),
+        16: 10**np.arange(-5.5, -3.9, 0.5)
     }
     beta_grids_q = {  # Depends on q, decrease beta for small q, vice-versa
-        1: [1e-6, 1e-5, 1e-4],
+        1: 10**np.arange(-7.0, -4.9, 1.0),
         2: [5e-6, 2e-5, 8e-5]
     }
 

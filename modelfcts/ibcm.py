@@ -7,7 +7,7 @@ September 2021
 """
 import numpy as np
 from modelfcts.ideal import relu_inplace
-from utils.metrics import l2_norm
+from utils.metrics import l2_norm, l1_norm, lp_norm
 
 ### IBCM NEURON alone, no inhibition
 def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
@@ -399,24 +399,36 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         raise NotImplementedError("Noise option {} not implemented".format(noisetype))
 
     t = 0
+    newax = np.newaxis
     for k in range(0, len(tseries)*skp-1):
         t += dt
         ### Inhibitory  weights
         # They depend on cbar and svec at time step k, which are still in cbar, svec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
         # while svec, shape [n_orn], should broadcast across rows (copied on each column)
-        alpha_term = alpha*cbar[np.newaxis, :]*svec[:, np.newaxis]
-        if w_norms[0] == 1:
-            alpha_term /= max(l2_norm(svec), 1e-9)  # avoid zero division
-        elif w_norms[0] > 2:  # Assuming even Lp norm
-            alpha_term *= l2_norm(svec)**(w_norms[0]-2)
+        if w_norms[0] == 2:  # default L2 norm, nice and smooth
+            alpha_term = alpha * cbar[newax, :] * svec[:, newax]
+        elif w_norms[0] == 1:  # L1 norm
+            asnorm = alpha * l1_norm(svec)
+            alpha_term = asnorm * cbar[newax, :] * np.sign(svec[:, newax])
+        elif w_norms[0] > 2:  # Assuming some Lp norm with p > 2
+            # Avoid division by zero for p > 2 by clipping snorm
+            snorm = max(1e-9, lp_norm(svec, p=w_norms[0]))
+            sterm = np.sign(svec) * np.abs(svec/snorm)**(w_norms[0]-1) * snorm
+            alpha_term = alpha * cbar[newax, :] * sterm[:, newax]
+        else:
+            raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
 
         if w_norms[1] == 2:
-            beta_term = beta*wmat
+            beta_term = beta * wmat
         elif w_norms[1] == 1:
-            beta_term = beta * np.sign(wmat)
+            beta_term = beta * l1_norm(wmat.ravel()) * np.sign(wmat)
+        elif w_norms[1] > 2:
+            wnorm = max(1e-9, lp_norm(wmat.ravel(), p=w_norms[1]))
+            wterm = np.sign(wmat) * np.abs(wmat/wnorm)**(w_norms[1]-1)
+            beta_term = beta * wterm * wnorm
         else:
-            beta_term = 0.0
+            raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
 
         wmat += dt * (alpha_term - beta_term)
 

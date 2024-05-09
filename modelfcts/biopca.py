@@ -35,7 +35,7 @@ June 2022
 """
 import numpy as np
 from modelfcts.ideal import relu_inplace
-from utils.metrics import l2_norm
+from utils.metrics import l2_norm, l1_norm, lp_norm
 
 
 def build_lambda_matrix(l_max, l_range, n_neu):
@@ -215,19 +215,31 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         # They depend on cbar and svec at time step k, which are still in cbar, svec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
         # while svec, shape [n_orn], should broadcast across rows (copied on each column)
-        alpha_term = alpha*cbar[newax, :]*svec[:, newax]
-        if w_norms[0] == 1:
-            alpha_term /= max(l2_norm(svec), 1e-12)  # avoid zero division
-        elif w_norms[0] > 2:  # Assuming even Lp norm
-            alpha_term *= l2_norm(svec)**(w_norms[0]-2)
+        if w_norms[0] == 2:  # default L2 norm, nice and smooth
+            alpha_term = alpha * cbar[newax, :] * svec[:, newax]
+        elif w_norms[0] == 1:  # L1 norm
+            asnorm = alpha * l1_norm(svec)
+            alpha_term = asnorm * cbar[newax, :] * np.sign(svec[:, newax])
+        elif w_norms[0] > 2:  # Assuming some Lp norm with p > 2
+            # Avoid division by zero for p > 2 by clipping snorm
+            snorm = max(1e-9, lp_norm(svec, p=w_norms[0]))
+            sterm = np.sign(svec) * np.abs(svec/snorm)**(w_norms[0]-1) * snorm
+            alpha_term = alpha * cbar[newax, :] * sterm[:, newax]
+        else:
+            raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
 
         if w_norms[1] == 2:
-            beta_term = beta*wmat
+            beta_term = beta * wmat
         elif w_norms[1] == 1:
-            beta_term = beta * np.sign(wmat)
-        wmat += dt * (alpha_term - beta_term)
+            beta_term = beta * l1_norm(wmat.ravel()) * np.sign(wmat)
+        elif w_norms[1] > 2:
+            wnorm = max(1e-9, lp_norm(wmat.ravel(), p=w_norms[1]))
+            wterm = np.sign(wmat) * np.abs(wmat/wnorm)**(w_norms[1]-1)
+            beta_term = beta * wterm * wnorm
+        else:
+            raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
 
-        wmat = wmat + dt * (alpha*cbar[newax, :]*svec[:, newax] - beta*wmat)
+        wmat += dt * (alpha_term - beta_term)
 
         ### Online PCA weights
         # Synaptic plasticity: update mmat, lmat to k+1 based on cbar at k
