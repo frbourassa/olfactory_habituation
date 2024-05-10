@@ -172,9 +172,9 @@ if __name__ == "__main__":
     p_choices = (1, 2, 16)
     q_choices = (1, 2)
     alpha_grids_p = {  # Depends on p, decrease alpha for larger p, vice-versa
-        1: 10**np.arange(-5, -3.4, 0.5),
+        1: 10**np.arange(-6, -4.4, 0.5),
         2: 10**np.arange(-5.5, -3.9, 0.5),
-        16: 10**np.arange(-5.5, -3.9, 0.5)
+        16: 10**np.arange(-4.5, -3.0, 0.5)
     }
     beta_grids_q = {  # Depends on q, decrease beta for small q, vice-versa
         1: 10**np.arange(-7.0, -4.9, 1.0),
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     }
     biopca_options = {
         "activ_fct": activ_fct_choice,
-        "remove_mean": False,  # helps PCA too much
+        "remove_mean": True,  # helps PCA too much
         "remove_lambda": False
     }
 
