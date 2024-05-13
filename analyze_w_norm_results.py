@@ -8,6 +8,7 @@ from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
 import os
 import json
+import itertools
 
 from analyze_comparison_results import (
     concat_jaccards,
@@ -192,11 +193,19 @@ def main_plot_w_norms(df_ibcm, df_pca):
         "jaccard_median",
         "jaccard_variance"
     ]
+    # Prevent large but non-NaNs divergences from being plotted.
     xaxis = np.arange(df_ibcm.index.size)
+    df_ibcm2 = df_ibcm.copy()
+    df_pca2 = df_pca.copy()
+    for lbl in ["pnorm", "qnorm"]:
+        df_ibcm2[lbl] = df_ibcm2[lbl].astype(int)
+        df_pca2[lbl] = df_pca2[lbl].astype(int)
+    df_pca2.loc[df_pca2["s_norm_mean_reduction"] > 10.0] = pd.NA
+    df_ibcm2.loc[df_ibcm2["s_norm_mean_reduction"] > 10.0] = pd.NA
 
     for i, m in enumerate(metrics):
-        df_ibcm_plot = df_ibcm.loc[:, m].values
-        df_pca_plot = df_pca.loc[df_ibcm.index, m].values
+        df_ibcm_plot = df_ibcm2.loc[:, m].values
+        df_pca_plot = df_pca2.loc[df_ibcm2.index, m].values
         axes.flat[i].plot(xaxis, df_pca_plot,
                     label="BioPCA", color=model_colors.get("biopca"))
         axes.flat[i].plot(xaxis, df_ibcm_plot,
@@ -206,6 +215,57 @@ def main_plot_w_norms(df_ibcm, df_pca):
     fig.tight_layout()
     fig.savefig(os.path.join("figures", "detection", "line_plots_w_norm.pdf"),
                 transparent=True, bbox_inches="tight")
+    #plt.show()
+    plt.close()
+
+    # Make a clearer plot now. Take the best (alpha, beta) combination
+    # for each p, q and make barplots both models? and annotate
+    # optimal alpha, beta for each bar.
+    fig, axes = plt.subplots(2, 3)
+    size_inches = fig.get_size_inches()
+    fig.set_size_inches(size_inches[0]*2, size_inches[1]*0.75)
+    pq_combi = list(itertools.product(
+        df_pca2["pnorm"].unique(), df_pca2["qnorm"].unique()
+    ))
+    qstr = "pnorm == @p and qnorm == @q"
+    idx_lvls = ["alpha", "beta"]
+    for i, m in enumerate(metrics):
+        for x, (p, q) in enumerate(pq_combi):
+            y_ibcm = df_ibcm2.query(qstr).set_index(idx_lvls)
+            y_pca = df_pca2.query(qstr).set_index(idx_lvls)
+            if m.startswith("s_norm"):
+                yidx_ibcm = y_ibcm["s_norm_mean_reduction"].idxmin()
+                yidx_pca = y_pca["s_norm_mean_reduction"].idxmin()
+            else:
+                yidx_ibcm = y_ibcm["jaccard_mean"].idxmax()
+                yidx_pca = y_pca["jaccard_mean"].idxmax()
+            axes.flat[i].bar(x-0.125, y_pca.loc[yidx_pca, m], width=0.25,
+                            color=model_colors.get("biopca"))
+            axes.flat[i].annotate(
+                ", ".join(("{:.0e}".format(a) for a in yidx_pca)),
+                xy=(x-0.125,y_pca.loc[yidx_pca, m]*1.05), fontsize=6,
+                rotation=90, ha="center"
+            )
+            axes.flat[i].bar(x+0.125, y_ibcm.loc[yidx_ibcm, m],
+                            width=0.25, color=model_colors.get("ibcm"))
+            axes.flat[i].annotate(
+                ", ".join(("{:.0e}".format(a) for a in yidx_ibcm)),
+                xy=(x+0.125,y_ibcm.loc[yidx_ibcm, m]*1.05), fontsize=6,
+                rotation=90, ha="center"
+            )
+        axes.flat[i].set_xticks(range(len(pq_combi)))
+        axes.flat[i].set_xticklabels([(int(p), int(q)) for (p, q) in pq_combi])
+        axes.flat[i].set(ylabel=m, xlabel="(p, q) combination")
+        for s in ["top", "right"]:
+            axes.flat[i].spines[s].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(
+        os.path.join("figures", "detection", "bar_graphs_pq_w_norms.pdf"),
+        transparent=True, bbox_inches="tight"
+    )
+    #plt.show()
+    plt.close()
+
     return None
 
 if __name__ == "__main__":
