@@ -32,6 +32,7 @@ def ij_from_name(fname):
 
 def compute_norm_stats(vecs):
     norm = l2_norm(vecs, axis=1)
+    norm[norm > 1e1] = np.nan
     norm_stats = np.asarray([
         np.mean(norm),
         np.var(norm),
@@ -138,9 +139,9 @@ def aggregate_result_files(folder, model):
         res_file = h5py.File(os.path.join(folder, fname), "r")
         # Get jaccard scores of all seeds
         all_jacs = concat_jaccards(res_file)
-        df.loc[(si, sj), "jaccard_mean"] = all_jacs.mean()
+        df.loc[(si, sj), "jaccard_mean"] = np.mean(all_jacs)
         df.loc[(si, sj), "jaccard_median"] = np.median(all_jacs)
-        df.loc[(si, sj), "jaccard_variance"] = all_jacs.var()
+        df.loc[(si, sj), "jaccard_variance"] = np.var(all_jacs)
 
         # Get x and s stats for each seed in each simulation
         x_stats, s_stats = s_stats_from_snaps(res_file)
@@ -148,7 +149,7 @@ def aggregate_result_files(folder, model):
         reds = []
         for sd in x_stats.keys():
             reds.append(s_stats[sd] / x_stats[sd])
-        reds = np.stack(reds).mean(axis=0)
+        reds = np.mean(np.stack(reds), axis=0)  # Drop simulations with NaNs
         # Store these aggregate habituation statistics in the DataFrame
         df.loc[(si, sj),
                 "s_norm_mean_reduction":"s_norm_thirdmoment_reduction"] = reds

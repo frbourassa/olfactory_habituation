@@ -159,7 +159,7 @@ if __name__ == "__main__":
     folder = os.path.join("results", "performance_w")
 
     # Global seed, used to spawn more seeds for different background instances
-    common_seed = 0xe4a1f15c70ecc52736db51e441a451df
+    common_seed = 0xe4a1f15c70ecc52736db51e441a451de
 
     # Dimensionalities
     n_r = 25  # n_R: choose 25 (half of full Drosophila dimensionality)
@@ -172,9 +172,9 @@ if __name__ == "__main__":
     p_choices = (1, 2, 16)
     q_choices = (1, 2)
     alpha_grids_p = {  # Depends on p, decrease alpha for larger p, vice-versa
-        1: 10**np.arange(-5.2, -4.2, 0.3),
+        1: 10**np.arange(-5.5, -4.5, 0.3),
         2: 10**np.arange(-4.5, -3.7, 0.25),
-        16: 10**np.arange(-4.2, -3.2, 0.3)
+        16: 10**np.arange(-4.5, -3.5, 0.3)
     }
     beta_grids_q = {  # Depends on q, decrease beta for small q, vice-versa
         1: 10**np.arange(-7.5, -6.4, 0.5),
@@ -290,7 +290,10 @@ if __name__ == "__main__":
 
     ### Run n_runs BioPCA simulation for each p, q, alpha, beta choice
     # Change number of inhibitory neurons, need less with PCA
-    n_i = n_b
+    print("Stopping before BioPCA; launch separate script on other cluster")
+    raise NotImplementedError()
+
+    n_i = n_b + 4  # some overfitting
     dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
     pca_file_name = os.path.join(folder, "biopca_performance_lambda.h5")
     biopca_attrs = {
@@ -300,9 +303,9 @@ if __name__ == "__main__":
         "main_seed": str(common_seed)
     }
     # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
-    # After a first try, it seems that PCA with Lambda = 10 is pretty
+    # After a first try, it seems that PCA with Lambda = 15 is pretty
     # much like IBCM with Lambda=1,
-    lambda_pca = cs_minus_cn
+    lambda_pca = cs_minus_cn * 1.5
     print(lambda_pca)
     biopca_rates = np.asarray([1e-4, 2.0, lambda_pca, 0.5, 1e-4])
     biopca_params = {
