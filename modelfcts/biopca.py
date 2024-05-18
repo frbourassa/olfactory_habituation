@@ -111,7 +111,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     remove_mean = model_options.get("remove_mean", False)
     remove_lambda = model_options.get("remove_lambda", False)
     activ_fct = str(model_options.get("activ_fct", "ReLU")).lower()
-    w_norms = model_options.get("w_norms", ())
+    w_norms = model_options.get("w_norms", (2, 2))
     m_init, l_init = ml_inits
     # Note: keep lambda matrix as 1d diagonal only, replace dot products by:
     # Lambda.dot(A): Lambda_ii applied to row i, replace by Lambda_diag[:, None]*A element-wise

@@ -8,6 +8,7 @@ if not ".." in sys.path:
 from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
 from modelfcts.backgrounds import update_ou_kinputs
 from utils.statistics import seed_from_gen
+from utils.random_matrices import random_orthogonal_mat
 
 
 # Call signature of integrate_inhib_ifpsp_network_skip:
@@ -19,14 +20,6 @@ def update_mvnormal(bk_vari, bk_params, stdnorm_vec, dt):
     # bk_vari and dt are arguments for general compatibility: not used.
     psi = bk_params[0]  # Only parameter is the Cholesky of the covariance!
     return psi.dot(stdnorm_vec), stdnorm_vec
-
-
-# Generate a random orthogonal matrix
-def random_orthogonal_mat(n, rng):
-    # Scipy or my version both give similar test results
-    #return sp.stats.ortho_group.rvs(dim=n, size=1, random_state=rng)
-    q, r = np.linalg.qr(rng.standard_normal(size=[n, n]), mode="complete")
-    return q.dot(np.diagflat(np.sign(np.diagonal(r))))
 
 
 # Version that uses the approximate inverse L

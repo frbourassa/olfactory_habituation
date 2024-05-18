@@ -54,6 +54,7 @@ from scipy import special
 from scipy.spatial import cKDTree
 import psutil
 
+
 def to_2d_array(a):
     """ Convert a list of points or a 1D array to a 2D arrays where
     the first axis indexes samples, the second indexes dimensions
@@ -124,7 +125,7 @@ def kraskov_continuous_info(x, y, k=3, version=1, base=np.e, eps=0):
         r=0.0, eps=0.0, output_type="ndarray"
     )
     # If any, perturb them slightly to avoid numerical instabilities
-    dup_pts = np.zeros(0)#np.unique(identical_pairs[:, 0])
+    dup_pts = np.unique(identical_pairs[:, 0])
     if identical_pairs.shape[0] > 0:
         print("Found identical points; perturbing them")
         # Average nn distance as a perturbation
@@ -173,7 +174,7 @@ def kraskov_continuous_info(x, y, k=3, version=1, base=np.e, eps=0):
         # of these k-neighborhoods
         epsilon_xi = np.max(np.abs(x[:, np.newaxis, :] - x[neighbors]), axis=(1, 2))
         epsilon_yi = np.max(np.abs(y[:, np.newaxis, :] - y[neighbors]), axis=(1, 2))
-        
+
         # For each point, count the n_x(i) and n_y(i): number of points within
         # epsilon_x(i) or epsilon_x(i) of point i in the X and Y subspaces.
         n_x = x_tree.query_ball_point(
@@ -203,29 +204,59 @@ def kraskov_continuous_info(x, y, k=3, version=1, base=np.e, eps=0):
     return f / np.log(base)
 
 
-if __name__ == "__main__":
-    # Test case 1 : independent X and Y, each 2D
-    nsamp = int(1e4)
-    meanx = np.zeros(2)
-    meany = np.ones(2)
-    cov = np.eye(2)
-    rndgen = np.random.default_rng(seed=12323452)
-    xvecs = rndgen.multivariate_normal(mean=meanx, cov=cov, size=[nsamp, 2])
-    yvecs = rndgen.multivariate_normal(mean=meany, cov=cov, size=[nsamp, 2])
+def kraskov_differential_entropy(x, k=3, version=1, base=np.e, eps=0):
+    """ Estimate entropy of a random variable (can be vector-valued)
+    given samples, using the estimator derived in
+    eq. 20 (version 1) of Kraskov et al., 2004, PRE.
+    Too lazy to derive the formula and implement version 2.
 
-    # Add identical points to check what happens then
-    #xvecs = np.concatenate([xvecs, xvecs[-2:-1]], axis=0)
-    #yvecs = np.concatenate([yvecs, yvecs[-2:-1]], axis=0)
+    Using the maximum norm, so c_d density is 1 in the estimator.
 
-    # Fast, approximate algorithm using KDTrees and vectorized queries
-    print("Testing version 1")
-    mi_fast = kraskov_continuous_info(xvecs, yvecs, version=1, k=6, base=2)
-    msg = "Difference too large to be true: found "+str(mi_fast)
-    assert abs(mi_fast) < 1e-1, msg
-    print("Fast MI = ", mi_fast)
+    Args:
+        as in kraskov_continuous_info, for x only.
 
-    print("Testing version 2")
-    mi_fast = kraskov_continuous_info(xvecs, yvecs, version=2, k=6, base=2)
-    msg = "Difference too large to be true: found "+str(mi_fast)
-    assert abs(mi_fast) < 1e-1, msg
-    print("Fast MI = ", mi_fast)
+    Returns:
+        entropy (float): differential entropy, in the base units specified.
+    """
+    if version != 1:
+        raise NotImplementedError("Only implemented version 1 for entropy")
+
+    # Make sure x and y are 2D arrays
+    x = to_2d_array(x)
+
+    # Number of workers for parallel processing, use half of them.
+    n_workers = min(1, psutil.cpu_count() // 2)
+
+    # Build KDTrees in the joint and marginal spaces.
+    n_points = x.shape[0]
+    num_dims = x.shape[1]
+    x_tree = cKDTree(x, leafsize=max(16, int(k*num_dims/4)))
+
+    # Check that there are no exactly identical points
+    identical_pairs = x_tree.query_pairs(
+        r=0.0, eps=0.0, output_type="ndarray"
+    )
+    # If any, perturb them slightly to avoid numerical instabilities
+    dup_pts = np.unique(identical_pairs[:, 0])
+    if identical_pairs.shape[0] > 0:
+        print("Found identical points; perturbing them")
+        # Average nn distance as a perturbation
+        perturb = 1e-6*np.mean(x_tree.query(x, p=np.inf, k=[2])[0])
+        # Perturb the first point of each pair
+        increments = np.random.random(size=(dup_pts.shape[0], x.shape[1]))
+        x[dup_pts, :] = x[dup_pts, :] + perturb*(increments - 0.5)
+        # Update the tree, x and y arrays too
+        x_tree = cKDTree(x, leafsize=max(16, int(k*num_dims/4)))
+
+    # Version 1 of the estimator (eq. 20)
+    # The epsilon(i) are distances to kth neighbors in the joint space.
+    epsilon_i = np.squeeze(x_tree.query(
+        x, k=[k+1], p=np.inf, eps=eps, workers=n_workers
+    )[0])  # These are really epsilon(i) / 2, the distances to k-neighbors
+
+    dens_term = num_dims / n_points * np.sum(np.log(epsilon_i * 2.0))
+
+    # Computing the estimator
+    f = special.psi(n_points) + dens_term - special.psi(k)
+
+    return f / np.log(base)
