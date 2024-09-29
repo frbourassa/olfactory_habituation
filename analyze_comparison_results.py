@@ -25,6 +25,39 @@ def concat_sstats(f):
     return all_stats
 
 
+def concat_wmats(f):
+    all_mats = []
+    for i in range(f.get("parameters").get("repeats")[0]):
+        all_mats.append(f.get(id_to_simkey(i)).get("w_snaps")[()])
+    all_mats = np.stack(all_mats)
+    return all_mats
+
+
+def concat_mmats(f):
+    all_mats = []
+    for i in range(f.get("parameters").get("repeats")[0]):
+        all_mats.append(f.get(id_to_simkey(i)).get("m_snaps")[()])
+    all_mats = np.stack(all_mats)
+    return all_mats
+
+
+def concat_lmats(f, model="PCA"):
+    n_r, n_b, n_i, n_k = f.get("parameters").get("dimensions")[0]
+    if model == "IBCM":
+        eta = f.get("parameters").get("m_rates")[2]
+        lmat = np.full([n_i, n_i], -eta)
+        lmat[np.diag_indices(n_i)] = 1.0
+        all_mats = np.expand_dims(lmat, axis=0)
+    elif model == "PCA":
+        all_mats = []
+        for i in range(f.get("parameters").get("repeats")[0]):
+            lmat = f.get(id_to_simkey(i)).get("l_snaps")[()]
+            all_mats.append(np.linalg.inv(lmat))
+        all_mats = np.stack(all_mats)
+    return all_mats
+
+
+
 def main_plot_histograms():
     # Compare all algorithms
     folder = os.path.join("results", "performance")

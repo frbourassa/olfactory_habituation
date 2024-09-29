@@ -12,7 +12,9 @@ import itertools
 
 from analyze_comparison_results import (
     concat_jaccards,
-    concat_sstats
+    concat_sstats,
+    concat_wmats,
+    concat_mmats
 )
 from modelfcts.backgrounds import sample_background_powerlaw
 from simulfcts.habituation_recognition import (
@@ -93,8 +95,7 @@ def s_stats_from_snaps(res_file):
     return all_x_stats_dict, all_s_stats_dict
 
 
-def aggregate_result_files(folder, model):
-    # Load main tables mapping simulation indices to (p, q) and (alpha, beta)
+def load_fnames_indices(folder, model):
     with open(os.path.join(folder, "table_i_pnorm-qnorm.json"), "r") as f:
         table_i_pq = json.load(f)
     with open(os.path.join(folder, "table_ij_alpha-beta.json"), "r") as f:
@@ -111,6 +112,14 @@ def aggregate_result_files(folder, model):
             and a.endswith(".h5")
     ]
     sim_indices = list(map(ij_from_name, sim_files))
+
+    return table_i_pq, table_ij_ab, sim_files, sim_indices
+
+
+def aggregate_result_files(folder, model):
+    # Load main tables mapping simulation indices to (p, q) and (alpha, beta)
+    info = load_fnames_indices(folder, model)
+    table_i_pq, table_ij_ab, sim_files, sim_indices = info
 
     # Prepare DataFrame to store simulation performance statistics
     wanted_stats = pd.Index([
@@ -214,7 +223,7 @@ def main_plot_w_norms(df_ibcm, df_pca):
         axes.flat[i].set(ylabel=m, xlabel="Grid search index")
     axes.flat[0].legend()
     fig.tight_layout()
-    fig.savefig(os.path.join("figures", "detection", "line_plots_w_norm.pdf"),
+    fig.savefig(os.path.join("figures", "noise_struct", "line_plots_w_norm.pdf"),
                 transparent=True, bbox_inches="tight")
     #plt.show()
     plt.close()
@@ -261,7 +270,7 @@ def main_plot_w_norms(df_ibcm, df_pca):
             axes.flat[i].spines[s].set_visible(False)
     fig.tight_layout()
     fig.savefig(
-        os.path.join("figures", "detection", "bar_graphs_pq_w_norms.pdf"),
+        os.path.join("figures", "noise_struct", "bar_graphs_pq_w_norms.pdf"),
         transparent=True, bbox_inches="tight"
     )
     #plt.show()
@@ -269,15 +278,133 @@ def main_plot_w_norms(df_ibcm, df_pca):
 
     return None
 
+
+def main_compare_lm_w_magnitudes(folder, model):
+    info = load_fnames_indices(folder, model)
+    table_i_pq, table_ij_ab, sim_files, sim_indices = info
+
+    wanted_stats = pd.Index([
+        "pnorm", "qnorm", "alpha", "beta",  # will be made index levels
+        "mean_m_magnitude",
+        "vari_m_magnitude",
+        "mean_w_magnitude",
+        "vari_w_magnitude"
+    ], name="statistics")
+    wanted_index = pd.MultiIndex.from_tuples(sim_indices, names=["i", "j"])
+    df = pd.DataFrame(
+            np.zeros([len(wanted_index), len(wanted_stats)]),
+            index=wanted_index, columns=wanted_stats
+    )
+
+    for fname in sim_files:
+        print("Starting to process file {}".format(fname))
+        si, sj = ij_from_name(fname)
+        pnorm, qnorm = table_i_pq.get(si)
+        alpha, beta = table_ij_ab.get("{}_{}".format(si, sj))
+        df.loc[(si, sj), "pnorm":"beta"] = (pnorm, qnorm, alpha, beta)
+
+        res_file = h5py.File(os.path.join(folder, fname), "r")
+        # Get jaccard scores of all seeds
+        all_mmats = np.abs(concat_mmats(res_file))
+        all_wmats = np.abs(concat_wmats(res_file))
+        all_lmats = np.abs(concat_lmats(res_file, model))
+        non_na_rows = [np.all(all_wmats[i] < 100)
+                        for i in range(all_wmats.shape[0])]
+        all_wmats = all_wmats[non_na_rows]
+        all_projmats = np.einsum("...ij,...jk", all_lmats, all_mmats)
+        df.loc[(si, sj), "mean_m_magnitude"] = np.mean(all_mmats)
+        df.loc[(si, sj), "vari_m_magnitude"] = np.var(all_mmats)
+        df.loc[(si, sj), "mean_w_magnitude"] = np.mean(all_wmats)
+        df.loc[(si, sj), "vari_w_magnitude"] = np.var(all_wmats)
+        df.loc[(si, sj), "mean_proj_magnitude"] = np.mean(all_projmats)
+        df.loc[(si, sj), "vari_proj_magnitude"] = np.var(all_projmats)
+        res_file.close()
+    return df
+
+
+def main_plot_m_w_magnitudes(df_ibcm, df_pca):
+    # Line plots: x axis is (i, j), y axis is some statistic.
+    # One line for PCA, one line for IBCM
+    # As a way to identify best/worst cases first, and see variability
+    fig, axes = plt.subplots(1, 2)
+    fig_size = fig.get_size_inches()
+    fig.set_size_inches(fig_size[0]*1.5, fig_size[1]*0.75)
+    axes = axes.flatten()
+    model_colors = {
+        "ibcm": "xkcd:turquoise",
+        "biopca": "xkcd:orangey brown",
+        "avgsub": "xkcd:navy blue",
+        "ideal": "xkcd:powder blue",
+        "orthogonal": "xkcd:pale rose",
+        "none": "grey"
+    }
+    metrics = [
+        "mean_m_magnitude",
+        "mean_w_magnitude",
+        "mean_proj_magnitude",
+        "vari_m_magnitude",
+        "vari_w_magnitude",
+        "vari_proj_magnitude"
+    ]
+    # 2D scatter plot of M vs W mean magnitudes, all points of each model
+    ax = axes[0]
+    # TODO: adding jitter is stupid, realize that all M are identical
+    # in these simulations and playing with Lambda would make more sense.
+    jit1 = 0.05*np.random.normal(size=df_ibcm.shape[0])
+    jit2 = 0.05*np.random.normal(size=df_ibcm.shape[0])
+    ax.plot(
+        df_ibcm[metrics[0]] + jit1, df_ibcm[metrics[1]],
+        marker="o", ms=4, ls="none",
+        color=model_colors.get("ibcm"), label="IBCM"
+    )
+    ax.plot(
+        df_pca[metrics[0]] + jit2, df_pca[metrics[1]],
+        marker="s", ms=4, ls="none",
+        color=model_colors.get("biopca"), label="BioPCA"
+    )
+    ax.set(xlabel="LM weights average magnitude",
+            ylabel="W weights average magnitude", yscale="log")
+    ax.legend()
+
+    # Second plot for magnitude stdev
+    ax = axes[1]
+    ax.plot(
+        df_ibcm[metrics[2]], df_ibcm[metrics[3]], marker="o", ms=4, ls="none",
+        color=model_colors.get("ibcm"), label="IBCM"
+    )
+    ax.plot(
+        df_pca[metrics[2]], df_pca[metrics[3]], marker="s", ms=4, ls="none",
+        color=model_colors.get("biopca"), label="BioPCA"
+    )
+    ax.set(xlabel="LM weights magnitude st.dev.",
+            ylabel="W weights magnitude st.dev.", yscale="log")
+
+    fig.tight_layout()
+    fig.savefig(
+        os.path.join("figures", "noise_struct", "scatter_m_w_magnitudes_pq.pdf"),
+        transparent=True, bbox_inches="tight"
+    )
+    plt.show()
+    plt.close()
+
+    return None
+
+
 if __name__ == "__main__":
     # Create or load statistics dfs
     ibcm_df_f = os.path.join("results", "performance_w", "df_w_stats_ibcm.h5")
-    df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
+    #df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
     pca_df_f = os.path.join("results", "performance_w", "df_w_stats_biopca.h5")
-    df_stats_biopca = create_or_load(pca_df_f, "PCA")
+    #df_stats_biopca = create_or_load(pca_df_f, "PCA")
 
     # Now, plot results
     print("Starting to plot results...")
-    main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
+    #main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
+
+    # Compare W and M magnitudes in IBCM and PCA, see if one more realistic
+    folder = os.path.join("results", "performance_w")
+    df_m_w_ibcm = main_compare_m_w_magnitudes(folder, "IBCM")
+    df_m_w_pca = main_compare_m_w_magnitudes(folder, "PCA")
+    main_plot_m_w_magnitudes(df_m_w_ibcm, df_m_w_pca)
 
     print("Done!")
