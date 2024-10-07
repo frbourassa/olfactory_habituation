@@ -1,0 +1,501 @@
+% IBCM network on a 3-odor, non-Gaussian case
+	% Analytics, numerics: lifted degeneracy, 2 dot product values, 
+	% Which is stable: analytical prediction
+
+% Background process definition
+% Fixed points: two possible values (make sure it's because of 3rd moment?)
+% Fixed points: zeroth-order by inverting the two relations of Gaussian case for the 
+	% Works because we know there are only two allowed values due to third moment
+% Fixed points: perturbation expansion
+% Inhibition
+% Numerical results
+% Performance for new odor recognition
+
+\subsection{Definition of the background process}
+\label{subsect:general_background_def}
+The background is still defined as in section \ref{subsubsect:gaussian_back} and equation \eqref{eq:background_mixture}: a general linear combination of constant odor vectors $\vec{x}_{\gamma}$ with concentrations $\nu_{\gamma}(t)$ realizing some (stationary) stochastic process, 
+\begin{equation}
+	\vec{x}_b(t) = \sum_{\gamma} \nu_{\gamma}(t) \vec{x}_{\gamma} \,\, .
+	\tag{\ref{eq:background_mixture}}
+\end{equation}
+
+
+For analytical simplicity, we assume that the concentrations are independent and identically distributed. Contrary to the Gaussian case, the concentrations now also have a third central moment, $m_3 = \esper{(\nu - \avgnu)^3}$, in addition to a mean $\avgnu$ and a variance $\sigma^2$. 
+
+	
+	
+\subsection{Analytical results: fixed points calculation}
+\label{subsect:analytical_fixed_points}
+
+The third moment of the fluctuating background breaks the degeneracy of fixed points seen in the Gaussian case. We start, as in the Gaussian case, by averaging $\Theta$ over the intermediate time scale, and by averaging the $\vec{m}$ equation over the fast time scale. There is now an extra term due to the third moment $m_3 = \esper{(\nu - \avgnu)^3}$. Neglecting over-bars that indicate feedforward coupling and defining, as before, $u^2 = \sum_{\gamma} c_{\gamma}^2$ and $c_d = \avgnu \sum_{\gamma} c_{\gamma}$, 
+we obtain
+\begin{align*}
+	\Theta^* &= c_d^2 + \sigma^2 u^2 \nonumber \\
+	\frac{d \braket{\vec{m}}}{dt} &= \sum_{\gamma} \left[ \avgnu(c_d^2 +\sigma^2 u^2)(1 - c_d) - \sigma^2 (c_d^2 - 2c_d + \sigma^2 u^2) c_{\gamma} + m_3 c_{\gamma}^2  \right] \vec{x}_{\gamma} \,\, . 
+	\label{eq:mean_dynamics_m3}
+\end{align*}
+We find fixed points by setting the r.h.s. of the latter equation to zero. Since the $\vec{x}_{\gamma}$ are linearly independent, this requires individually
+\begin{equation}
+	0 = \avgnu(c_d^{*2} +\sigma^2 u^{*2})(1 - c_d) - \sigma^2 (c_d^{*2} - 2c_d^* + \sigma^2 u^{*2})c_{\gamma}^* +  m_3 c_{\gamma}^{*2}   \quad \forall \,\gamma \in \{1, \ldots, n_B\} \,\, .
+	\label{eq:fixed_pts_m3}
+\end{equation}
+This is a set of $n_B$ coupled cubic equations for the $c_{\gamma}$s{\protect\footnote{
+For the rest of this subsection, we drop the stars on variables that indicate steady-state values; they are implied. 
+}} (since $c_d$ and $u^2$ contain sums of $c_{\gamma}$s). Here, because of the $m_3 c_{\gamma}$ term, setting $c_d = 1$ and $u^2 = 1/\sigma^2$ does not satisfy the equations, so we must solve for individual $c_{\gamma}$s. 
+
+The first thing to notice is that the dot products $\bar{c}_{\gamma}$ of an IBCM neuron can only take at most two different values (averaged over the fast time scales) at steady-state. Indeed, from the point of view of a specific $\gamma$, $c_d$ and $u^2$ are fixed values; all $c_{\gamma}$s therefore obey the same quadratic equation with two possible solutions. This is proven more explicitly by taking the different between the equation for $c_{\gamma}$ and some other $c_{\alpha}$, which gives
+\begin{equation}
+	0 = m_3 (c_{\gamma} + c_{\alpha})(c_{\gamma} - c_{\alpha}) - (c_d^2 \sigma^2 + \sigma^4 u^2 - 2c_d \sigma^2) (c_{\gamma} - c_{\alpha})
+	\label{eq:difference_cg_eqs}
+\end{equation}
+Either $c_{\gamma} = c_{\alpha}$, or if they have different values, then they are related by the constraint
+\beq
+	c_{\gamma} + c_{\alpha} = \frac{ c_d^2 \sigma^2 + \sigma^4 u^2 - 2c_d \sigma^2 }{m_3} \,\, .
+	\label{eq:cg_plus_ca}
+\eeq
+Note that constraint \eqref{eq:cg_plus_ca} is removed for gaussian backgrounds $m_3=0$, explaining the degeneracy in that special case. 
+For any pair $\gamma, \alpha$, the r.h.s. is the same; if we imagine a third dot product $c_{\beta}$, then $c_{\gamma} + c_{\alpha} = c_{\gamma} + c_{\beta} \Rightarrow c_{\alpha} = c_{\beta}$, implying that there cannot be a third distinct value. Therefore, either all $c_{\gamma}$s are equal, or they each take one of two possible values. 
+
+% All c_gammas equal
+\subsubsection{All $c_{\gamma}$s are equal}
+First, consider the case where all $c_{\gamma} = y$, where $y$ is the dot products' unique value. Then $u^2 = \sum_{\gamma} c_{\gamma}^2 = n_B y^2$ and $c_d = \avgnu \sum_{\gamma} c_{\gamma} = n_B \avgnu y$. Inserting in \eqref{eq:fixed_pts_m3}, we can factor out $y^2$, giving
+\begin{equation}
+	0 = y^2 \left[n_B^2 \avgnu^3 + 3 \sigma^2 n_B \avgnu + m_3 - y(n_B^3 \avgnu^4 + 2 \sigma^2 n_B^2 \avgnu^2 + \sigma^4 n_B) \right] \,\, .
+	\label{eq:all_cg_equal}
+\end{equation}
+So, either $y=0$, which is an unstable fixed point, or 
+\begin{equation}
+y = \frac{n_B^2 \avgnu^3 + 3 \sigma^2 n_B \avgnu + m_3}{n_B^3 \avgnu^4 + 2 \sigma^2 n_B^2 \avgnu^2 + \sigma^4 n_B} \,\, .
+\label{eq:all_cg_equal_solution}
+\end{equation}
+We conjecture that this fixed point is always unstable. It is potentially a saddle point to which a neuron converges before becoming specific to some components. 
+% TODO: check stability of the case where all c_gammas are equal
+
+% Two c_gammas values: perturbation theory
+\subsubsection{Two possible $c_{\gamma}$ values: perturbation theory}
+\label{subsect:perturbation_theory}
+Second, consider the case where $k_1$ components have a dot product equal to $y_1$, and the remainder, $k_2 = n_B - k_1$, have a dot product $y_2$. We let $y_1 > y_2$ by convention. The values $y_1$ and $y_2$ will depend on the repartition $k_1, k_2$, but there will be a unique pair $y_1,y_2$ for each choice of $k_1, k_2$. Then, the set of $n_B$ equations \eqref{eq:fixed_pts_m3} really reduces to two equations, one for all the $c_{\gamma} = y_1$ and the other for $y_2$, which are symmetric under $1 \leftrightarrow 2$. Moreover, 
+\begin{align}
+	c_d &= \avgnu (k_1 y_1 + k_2 y_2)	\label{eq:cd_two_values}	\\
+	u^2 &=  k_1 y_1^2 + k_2 y_2^2 	\label{eq:u2_two_values}
+\end{align}
+which shows that we could solve for $c_d$ and $u^2$ and then invert for $y_1, y_2$, instead of solving directly for the latter. When the third moment $m_3 = \esper{(\nu - \avgnu)^3}$ is small but non-zero, this is a good strategy: the zeroth-order solution is the (simple) Gaussian case with $c_d = 1$ and $u^2 = 1/\sigma^2$, except now we can assume the degeneracy is broken by the small $m_3$ in condition \eqref{eq:cg_plus_ca}, so it makes sense to derive two non-degenerate values $y_1, y_2$ from \eqref{eq:cd_two_values} and \eqref{eq:u2_two_values}. 
+Then, we can find a better approximation using regular perturbation theory where the small parameter is $\varepsilon = m_3$. As it turns out, numerically, the results hold surprisingly well even when $m_3$ is not very small.  
+
+Equations \eqref{eq:fixed_pts_m3} are apparently more concise in terms of $c_d$ and $u^2$; however, we need to replace $y_i$ and $y_i^2$ in them before solving. We easily invert equations \eqref{eq:cd_two_values}-\eqref{eq:u2_two_values} to obtain
+\begin{align}
+	y_1 &= \frac{c_d}{n_B \avgnu} \pm \frac{1}{n_B} \sqrt{\frac{k_2}{k_1}}\sqrt{n_B u^2 - (c_d/\avgnu)^2}	\label{eq:y1_from_cd_u2} \\
+	y_2 &= \frac{c_d}{n_B \avgnu} \mp \frac{1}{n_B} \sqrt{\frac{k_1}{k_2}}\sqrt{n_B u^2 - (c_d/\avgnu)^2}	\label{eq:y2_from_cd_u2}
+\end{align}
+We notice the symmetry $y_1 \leftrightarrow y_2 $ under exchange of labels $1 \leftrightarrow 2$ and signs $\pm \leftrightarrow \pm$: in fact, we only need to keep the $+$ sign in $y_1$ and $-$ sign in $y_2$; the other solution would be obtained by reversing the distribution $k_1, k_2$ and relabeling $y_1 \rightarrow y_2$ to maintain the convention $y_1 > y_2$. 
+Also, it is convenient to use
+\begin{equation*}
+	y_i^2 =	\frac{2 c_d}{n_B \avgnu} y_i + \frac{k_{3-i} u^2 - (c_d / \avgnu)^2}{n_B k_i} \quad (i \in \{1, 2\})
+\end{equation*}
+Using these to eliminate $y_i$ from the fixed point equations, the equations to solve are
+\begin{align}
+0 =  &\left( \frac{2 m_3 c_d}{\avgnu n_B} + 2\sigma^2 c_d - \sigma^2 c_d^2 - \sigma^4 u^2 \right) \left( \frac{c_d}{\avgnu n_B} + \frac{(-1)^{i+1}}{n_B} \sqrt{\frac{k_{3-i}}{k_i}}\sqrt{n_B u^2 - (c_d / \avgnu)^2} \right)  \nonumber \\
+	&+ \avgnu (c_d^2 + \sigma^2 u^2)(1-c_d) + m_3 \left(\frac{k_{3-i} u^2 - (c_d/\avgnu)^2}{n_B k_i} \right) \quad (i \in \{1, 2\}) \,\, . \label{eq:fixedpoint_cd_u2}
+\end{align}
+This seems horrible, but many terms will simplify up to first order in $m_3 = \varepsilon$. We write perturbative expansions for $c_d$ and $u^2$, with zeroth-order terms from the Gaussian solution \eqref{eq:sum_cgammas}-\eqref{eq:sum_cgammas2},
+\begin{align}
+	c_d &= 1 + c_d^{(1)} \varepsilon + \mathcal{O}(\varepsilon^2) 	\label{eq:expansion_cd} \\
+	u^2 &= \frac{1}{\sigma^2} + u^{(1)} \varepsilon + \mathcal{O}(\varepsilon^2)	\label{eq:expansion_u2}
+\end{align}
+Substituting into eq. \eqref{eq:fixedpoint_cd_u2}, the different terms become
+\begin{align*}
+	\avgnu (c_d^2 + \sigma^2 u^2)(1-c_d) &= -2 \avgnu c_d^{(1)} \varepsilon + \mathcal{O}(\varepsilon^2) 	\\
+	m_3 \left(\frac{k_{3-i} u^2 - (c_d/\avgnu)^2}{n_B k_i} \right) &= \left(\frac{k_{3-i}/\sigma^2 - 1/\avgnu^2}{n_B k_i} \right) \varepsilon +  \mathcal{O}(\varepsilon^2) \\
+	\left( \frac{2 m_3 c_d}{\avgnu n_B} + 2\sigma^2 c_d - \sigma^2 c_d^2 - \sigma^4 u^2 \right) &=	 \left(\frac{2}{n_B \avgnu} - \sigma^4 u^{(1)} \right) \varepsilon + \mathcal{O}(\varepsilon^2)
+\end{align*} 
+and
+\begin{align}
+y_i = &\frac{1}{n_B \avgnu} + \frac{(-1)^{i+1}}{n_B} \sqrt{\frac{k_{3-i}}{k_i}}\sqrt{n_B/\sigma^2 - 1 / \avgnu^2}	\nonumber \\
+      &+ \left( \frac{1}{\avgnu n_B} - \frac{(-1)^{3-i}}{n_B} \sqrt{\frac{k_{3-i}}{k_i}} \frac{1}{\avgnu^2 \sqrt{n_B / \sigma^2 - 1/\avgnu^2}} \right) c_d^{(1)} \varepsilon \nonumber \\
+      &+ \left( \frac{(-1)^{i+1}}{n_B} \frac{k_{3-i}}{k_i} \frac{1}{\sqrt{n_B/\sigma^2 - 1/\avgnu^2}} \right) u^{(1)} \varepsilon + \mathcal{O}(\varepsilon^2) \label{eq:yi_first_order}
+\end{align}
+Equation \eqref{eq:fixedpoint_cd_u2} is trivially satisfied at order $\varepsilon^0$ (Gaussian case). At order $\varepsilon$, the $\mathcal{O}(\varepsilon)$ terms of $y_i$ disappear because there is already a factor $\varepsilon$ in front of $y_i$. Collecting terms, we find the following first-order equation, 
+\begin{align*}
+	0 = &\left[-2 \avgnu c_d^{(1)} +  \frac{k_{3-i}/\sigma^2 - 1/\avgnu^2}{n_B k_i} \right. \\
+	& \left. + \left(\frac{2}{n_B \avgnu} - \sigma^4 u^{(1)} \right) \left(\frac{1}{n_B \avgnu} + \frac{(-1)^{i+1}}{n_B} \sqrt{\frac{k_{3-i}}{k_i}}\sqrt{\frac{n_B}{\sigma^2} - \frac{1}{\avgnu^2}}  \right)  \right] \varepsilon + \mathcal{O}(\varepsilon^2) \,\, .
+\end{align*}
+We eliminate $c_d^{(1)}$ and isolate $u^{(1)}$ by taking the difference between equations for $i=1$ and $i=2$, 
+\begin{equation}
+	\sigma^4 u^{(1)} = \frac{2}{\avgnu n_B} + \frac{\left(\frac{k_2}{k_1} - \frac{k_1}{k_2}\right)\frac{1}{\sigma^2} + \left(\frac{1}{k_2} - \frac{1}{k_1} \right) \frac{1}{\avgnu^2}}{\left(\sqrt{\frac{k_2}{k_1}} + \sqrt{\frac{k_1}{k_2}}\right)\sqrt{\frac{n_B}{\sigma^2} - \avgnu^2}} \,\, ,
+	\label{eq:u_correction}
+\end{equation}
+and we can then find $c_d^{(1)}$ in terms of $u^{(1)}$ in either equation, say for $i=2$,
+\begin{equation}
+c_d^{(1)} = \frac{1}{2\avgnu n_B} \left[ \left(\frac{2}{\avgnu n_B} - \sigma^4 u^{(1)} \right) \left(\frac{1}{\avgnu} - \sqrt{\frac{k_1}{k_2}} \sqrt{\frac{n_B}{\sigma^2} - \frac{1}{\avgnu^2}} \right)  + \frac{1}{k_2} \left(\frac{k_1}{\sigma^2} - \frac{1}{\avgnu^2} \right) \right]
+%c_d^{(1)} = \frac{1}{2\avgnu} \left[ \left( \frac{\left(\frac{k_2}{k_1} - \frac{k_1}{k_2}\right)\frac{1}{\sigma^2} + \left(\frac{1}{k_2} - \frac{1}{k_1} \right) \frac{1}{\avgnu^2}}{\left(\sqrt{\frac{k_2}{k_1}} + \sqrt{\frac{k_1}{k_2}}\right)\sqrt{\frac{n_B}{\sigma^2} - \avgnu^2}} \right) \left(\frac{1}{n_B \avgnu} - \frac{1}{n_B} \sqrt{\frac{k_1}{k_2}} \sqrt{\frac{n_B}{\sigma^2} - \frac{1}{\avgnu^2}} \right)  + \frac{1}{n_B k_2} \left(\frac{k_1}{\sigma^2} - \frac{1}{\avgnu^2} \right) \right]
+\label{eq:c_correction}
+\end{equation}
+
+These expressions are somewhat cumbersome, but computing $u^{(1)}$ from \eqref{eq:u_correction}, then $c_d^{(1)}$ from \eqref{eq:c_correction}, and finally reinserting into \eqref{eq:yi_first_order} [or \eqref{eq:y1_from_cd_u2}-\eqref{eq:y2_from_cd_u2}] is straightforward to do numerically. It yields analytical predictions of the two dot products values $y_1$ and $y_2$ up to first order in $\varepsilon = m_3$. These values agree surprisingly well with numerical simulations. 
+
+Based on this calculation, there should be in total $2^{n_B} - 2$ fixed points of an IBCM neuron where at least one dot product is different from the others, counting as follows: choose one of two values for each dot product ($2^{n_B}$ ways to do that), and drop the two cases where all components are equal (which have been treated above). Recall that we kept only the $+$ root in eq. \eqref{eq:y1_from_cd_u2} because the $-$ root is recovered by exchanging $1 \leftrightarrow 2$. 
+
+It is strange to start with coupled cubic polynomial equations \eqref{eq:fixed_pts_m3} and to end up with only one possible value of $y_1, y_2$ for a chosen $k_1, k_2$. 
+However, an exact calculation of the fixed point values turns out to be possible; it reveals that the perturbative calculation is correct and has found all fixed points. The other roots one would expect turn out to be $y_1=y_2=0$, which is an unstable fixed point we already found. We now proceed with the exact solution. 
+
+
+\subsubsection{Two possible $c_{\gamma}$ values: exact solution}
+We start again from equation \eqref{eq:fixed_pts_m3}. Recall that by taking the difference between equations for different values of $c_{\gamma}$ and factoring out $c_{\gamma} - c_{\alpha}$, we obtain eq. \eqref{eq:cg_plus_ca}, which we rewrite here as
+\beq
+	0 = c_d^2 - 2c_d + \sigma^2 u^2 - \frac{m_3}{\sigma^2}(y_1 + y_2)
+	\label{eq:difference}
+\eeq
+since one of the $c_{\gamma}$s is equal to $y_1$ and the other, to $y_2$ . We will use this equation to replace, where appropriate, the following term in the fixed point equation \eqref{eq:fixed_pts_m3} for, say, $c_{\gamma} = y_1$ (using $y_2$ would not make a difference):
+\begin{equation*}
+c_d^2 + \sigma^2 u^2 = 2 c_d + \frac{m_3}{\sigma^2}(y_1 + y_2)
+\end{equation*}
+resulting in
+\beq
+	0 = \sigma^2 u^2 - c_d^2 - \frac{m_3}{\sigma^2} c_d (y_1 + y_2) - \frac{m_3}{\avgnu} y_1 y_2
+	\label{eq:substituted}
+\eeq
+Together, equations \eqref{eq:difference} and \eqref{eq:substituted} form our system of equations to solve for $y_1$ and $y_2$. Obtaining the latter was the crucial simplification to make, because it eliminates terms linear or cubic in $y_i$, allowing us to easily isolate $y_2$ in terms of $y_1$ (or vice-versa){\protect\footnote{
+We have managed to reduce the degree from cubic to quadratic because the substitutions eliminated one root $y_1 = y_2 = 0$, which was not interesting. 
+}}. Indeed, writing $c_d$ and $u^2$ in terms of the $y_i$ (equations \ref{eq:cd_two_values}-\ref{eq:u2_two_values}), we find it takes the simple, symmetric form
+\beq
+	0 = a_1 y_1^2 - b y_1 y_2 + a_2 y_2^2
+\label{eq:quadratic}
+\eeq
+where
+\begin{align}
+	a_i &= \sigma^2 k_i - \avgnu^2 k_i^2 - \frac{m_3 \avgnu}{\sigma^2} k_i  \quad (i \, \in \{1, 2\})  \nonumber \\
+	b &= 2 \avgnu^2 k_1 k_2  + \frac{m_3 \avgnu}{\sigma^2}(k_1 + k_2) + \frac{m_3}{\avgnu} \,\, .		\label{eq:quadratic_coefs}
+\end{align}
+This equation makes clear the symmetry of solutions under exchange of labels $1 \leftrightarrow 2$, confirming that we can only keep roots where $y_1 > y_2$, knowing that other roots would be found by exchanging $k_1$ and $k_2$; in other words, the roots $y_1', y_2'$ for $k_1' = k_2$, $k_2' = k_1$, are the solutions for $k_1, k_2$ with $y_2 < y_1$. We will explicitly check it is the case later. For now, we solve for $y_2$ in terms of $y_1$,
+\begin{equation}
+	y_2 = \left( \frac{b \pm \sqrt{b^2 - 4a_1a_2}}{2a_2} \right) y_1 = \alpha_{\pm} y_1 \,\, .
+	\label{eq:y2_from_y1}
+\end{equation}
+Formally, the numerator should be $b y_1 \pm \sqrt{b^2 - 4 a_1 a_2} |y_1|$, but we can absorb the absolute value into $\pm$, compute the solution for both $\alpha$ values, and keep the one with $y_2 < y_1$ at the end. We now insert $y_2 = \alpha y_1$ into \eqref{eq:substituted}; another root $y_1 = y_2 = 0$ can be factored out, and we find the non-trivial solution
+\beq
+y_1 = \frac{2 \avgnu(k_1 + \alpha k_2) + \frac{m_3}{\sigma^2}(1 + \alpha)}{\avgnu^2(k_1 + \alpha k_2)^2 + \sigma^2(k_1 + \alpha^2k_2)} \,\, .
+\label{eq:y1_exact}
+\eeq
+Equations \eqref{eq:quadratic_coefs}, \eqref{eq:y2_from_y1}, and \eqref{eq:y1_exact} form our exact analytical solution for the fixed points of IBCM neurons in terms of the dot products $c_{\gamma}$ taking values $y_1$ and $y_2$. 
+
+
+\paragraph{Condition of existence of non-trivial fixed points}
+The fixed points with $y_1$ and $y_2$ given by equations \eqref{eq:y2_from_y1}-\eqref{eq:y1_exact} will only exist in $\mathbb{R}$ if the discriminant $b^2 - 4a_1 a_2$ in $\alpha$ is non-negative.  Writing this discriminant explicitly, 
+\beq
+b^2 - 4 a_1 a_2 = 4 \sigma^2 \avgnu^2 k_1 k_2 \left(n_B - \frac{\sigma^2}{\avgnu^2}\right) + 12 m_3 \avgnu k_1 k_2 + m_3^2 \left(\frac{\avgnu^2}{\sigma^4} (k_1 - k_2)^2 + \frac{1}{\avgnu^2} + \frac{2n_B}{\sigma^2} \right) \,\, .
+\label{eq:discriminant_alpha}
+\eeq
+In general, this discriminant will be $>0$, unless there is very high variance and low average concentration, $\sigma^2 > n_B \avgnu^2$, and vanishing third moment $m_3 \rightarrow 0$. This would be an unrealistic setting with Gaussian, zero-average background fluctuations. Hence, it is safe to assume these fixed points exist. 
+
+
+\paragraph{Verification of the $1 \leftrightarrow 2$ symmetry}
+We want to prove that it is fair to keep only the sign in $\alpha$ that ensures $y_1 > y_2$, since the other sign corresponds to the solution we would find with $k_1$ and $k_2$ switched. We define the switch fixed point values $y_1', y_2'$ with $k_1' = k_2$, $k_2' = k_1$; the $\alpha'$ factor is as defined in \eqref{eq:y2_from_y1} but with $k'_i$. The goal is to prove that the fixed point values $y_1, y_2$ with the $+$ sign in $\alpha$ are equal to the fixed point values $y'_1, y'_2$ with the $-$ sign in $\alpha'$.  We note that
+\begin{equation*}
+	\frac{1}{\alpha_{\pm}} = \frac{2 a_2}{b \pm \sqrt{b^2 - 4 a_1 a_2}} = \frac{b \mp \sqrt{b^2 - 4 a_1 a_2}}{2 a_1} = \alpha'_{\mp}
+\end{equation*}
+after eliminating square roots at the denominator. Then, factoring out $\alpha_{\pm}$ from the $y_1$ expression, 
+\begin{equation*}
+	y_{1, \pm} = \frac{1}{\alpha_{\pm}} \frac{2 \avgnu\left(\frac{1}{\alpha_{\pm}} k_1 + k_2\right) + \frac{m_3}{\sigma^2}\left(\frac{1}{\alpha_{\pm}} + 1\right)} {\avgnu^2 \left(\frac{1}{\alpha_{\pm}} k_1 + k_2 \right)^2 + \sigma^2 \left(\frac{1}{\alpha_{\pm}^2} k_1 + k_2 \right)} \,\, .
+\end{equation*}
+We make the substitutions $\frac{1}{\alpha_{\pm}} = \alpha'_{\mp}$ and $k_i = k'_{3-i}$ to find
+\begin{equation*}
+	y_{1, \pm} = \alpha'_{\mp} \frac{2 \avgnu (k'_1 + \alpha'_{\mp}k'_2) + \frac{m_3}{\sigma^2}(1 + \alpha'_{\mp})}{\avgnu^2 (k'_1 + \alpha'_{\mp} k_2)^2 + \sigma^2 (1 + {\alpha'_{\mp}}^2)}
+\end{equation*}
+We recognize that the right-hand side is equal to $\alpha'_{\mp} y'_{1, \mp} = y'_{2, \mp}$; hence, we have found that
+\begin{equation*}
+	y_{1, \pm} = y'_{2, \mp} \,\, ,
+\end{equation*}
+which also implies
+\begin{equation*}
+	y_{2, \pm} = \alpha_{\pm} y_{1, \pm} = \frac{1}{\alpha'_{\mp}} y'_{2, \mp} = y'_{1, \mp}
+\end{equation*}
+confirming that the root with a sign in $\alpha$ that makes $y_1 < y_2$ is not a new root, but merely the root with the other sign in $\alpha$ when $k_1$ and $k_2$ are switched, and the labels $1, 2$ on $y'$ are also switched to ensure $y'_1 > y'_2$. 
+
+\paragraph{Agreement between exact and perturbative solutions}
+The perturbative solution should equal the exact one expanded to order $\varepsilon = m_3$. 
+% TODO: check agreement. 
+
+
+% Summary of fixed points
+\subsubsection{Summary of fixed point solutions}
+\label{subsec:summary_fixed_points}
+The fixed point solution for i.i.d. odor concentrations with mean $\avgnu$, variance $\sigma^2$, third moment $m_3$ is summarized here. The fixed points of $\vec{\bar{m}}$ are characterized by their dot products with the $n_B$ background odors, $\bar{c}_{\gamma} = \vec{\bar{m}} \cdot \vec{x}_{\gamma}$. There are $2^{n_B}$ fixed points in total: one with all $c_{\gamma} = 0$, one with all $c_{\gamma}$s equal to
+\beq
+\bar{c}_{\gamma} = \frac{n_B^2 \avgnu^3 + 3 \sigma^2 n_B \avgnu + m_3}{n_B^3 \avgnu^4 + 2 \sigma^2 n_B^2 \avgnu^2 + \sigma^4 n_B} \,\, ,
+\tag{\ref{eq:all_cg_equal_solution}}
+\eeq
+and $2^{n_B} - 2$ where $k_1$ dot products are equal to $y_1$, and $k_2 = n_B - k_1$ are equal to $y_2$, with $\binom{n_B}{k_1}$ choices for each possible $k_1 \in \{1, \ldots, n_B-1\}$. The values $y_1$ and $y_2$, where by convention $y_1 > y_2$, are calculated as follows:
+\begin{align}
+    a_i &= \sigma^2 k_i - \avgnu^2 k_i^2 - \frac{m_3 \avgnu}{\sigma^2} k_i  \quad (i \, \in \{1, 2\})  \nonumber \\
+    b &= 2 \avgnu^2 k_1 k_2  + \frac{m_3 \avgnu}{\sigma^2}(k_1 + k_2) + \frac{m_3}{\avgnu} 	\tag{\ref{eq:quadratic_coefs}}  \\
+    \alpha &= \frac{b \pm \sqrt{b^2 - 4a_1a_2}}{2a_2}    	\tag{\ref{eq:y2_from_y1}} \\
+    &\text{Compute solutions for each sign in } \alpha 	\nonumber \\
+    y_1 &= \frac{2 \avgnu(k_1 + \alpha k_2) + \frac{m_3}{\sigma^2}(1 + \alpha)}{\avgnu^2(k_1 + \alpha k_2)^2 + \sigma^2(k_1 + \alpha^2k_2)}	 \tag{\ref{eq:y1_exact}} \\
+    y_2 &= \alpha y_1		\nonumber \\
+    &\text{Keep the pair where } y_1 > y_2 \nonumber
+\end{align}
+
+
+\subsection{Semi-analytical result: linear stability analysis}
+\label{subsec:linear_stability}
+We conjectured that the only stable fixed points of an IBCM neuron are those with $k_1 = 1$ dot product with $c_{\gamma} = y_1$, and all others equal to $y_2$; in other words, points where the neuron is specific to one background component. There are $n_B$ such fixed points. 
+To support this conjecture, we can linearize the IBCM equations around a fixed point and find the expression of the jacobian matrix. Then, we can evaluate its eigenvalues numerically for every fixed point, and check which fixed points are stable in a number of examples. Finding the eigenvalues analytically in the general case, or applying the Routh-Hurwitz criterion, seems out of reach. 
+
+We start by averaging the dynamics of $\vec{\ovl{m}}$ and $\ovl{\Theta}$ over the fast time scale, neglecting higher-order correlations between $\vec{m}$ and $\Theta$. Formally, 
+\begin{align*}
+	\esper{\frac{d \vec{m}}{dt}} &= \mu \esper{c^2 \vec{x}_b} - \mu \braket{\Theta} \esper{c \vec{x}_b}	\\
+	\esper{\frac{d \Theta}{dt}}	&= \frac{1}{\tau_{\Theta}}\left(\esper{c^2} - \braket{\Theta} \right)
+\end{align*}
+We drop the bars over, and the brakets around, $\vec{m}$ and $\Theta$ in this section; implicitly, we are considering their reduced averages. Computing the jacobian entries, recalling that $c = \vec{m} \cdot \vec{x}_b$ and thus $\frac{\partial c}{\partial m_i} = x_i$, we find
+\begin{align*}
+	\frac{\partial}{\partial m_i} \esper{ \frac{d m_j}{dt}} &= 2 \mu \esper{c x_i x_j} - \mu \Theta \esper{x_i x_j}	\\
+	\frac{\partial}{\partial \Theta} \esper{ \frac{d m_j}{dt}} &= - \mu \esper{c x_j}	\\
+	\frac{\partial}{\partial m_i} \esper{\frac{d \Theta}{dt}} &= \frac{2}{\tau_{\Theta}} \esper{c x_i}	\\
+	\frac{\partial}{\partial \Theta} \esper{\frac{d \Theta}{dt}} &= - \frac{1}{\tau_{\Theta}}	\,\, .
+\end{align*}
+These derivatives form the different blocks of the jacobian matrix, which is, in vector notation, 
+{
+\beq D \vec{f}(\vec{m}, \Theta) = 
+\renewcommand\arraystretch{1.6}
+\left(
+\begin{array}{c|c}
+  2 \mu \esper{c \vec{x}_b \vec{x}_b^T} & \multirow{2}{*}{$\frac{2}{\tau_{\Theta}} \esper{c \vec{x}_b}$} \\
+  - \mu \Theta^* \esper{\vec{x}_b \vec{x}_b^T}	&		\\
+  \hline
+  -\mu \esper{c \vec{x}_b^T} & -\frac{1}{\tau_{\Theta}}
+\end{array}
+\right) \,\, .
+\eeq
+}
+This expression is general. Now, computing more explicitly the expectation values for i.i.d. concentrations as in previous subsections, 
+\begin{align*}
+\esper{c \vec{x}_b} &= c_d \vec{x}_d + \sigma^2 \sum_{\gamma} c_{\gamma} \vec{x}_{\gamma}		\\
+\esper{\vec{x}_b\vec{x}_b^T} &= \vec{x}_d \vec{x}_d^T + \sigma^2 \sum_{\gamma} \vec{x}_{\gamma} \vec{x}_{\gamma}^T 		\\
+\esper{c \vec{x}_b \vec{x}_b^T} &= c_d \esper{\vec{x}_b \vec{x}_b^T} + \sigma^2 \sum_{\gamma} c_{\gamma} (\vec{x}_d \vec{x}_{\gamma}^T + \vec{x}_{\gamma} \vec{x}_d^T) + 2 m_3 \sum_{\gamma} c_{\gamma} \vec{x}_{\gamma} \vec{x}_{\gamma}^T
+\end{align*}
+The last two lines, along with $\Theta = c_d^2 + \sigma^2 u^2$, means that the main block of the matrix is
+\begin{align*}
+2 \mu \esper{c \vec{x}_b \vec{x}_b^T} - \mu \Theta^* \esper{\vec{x}_b \vec{x}_b^T} = & \mu \left[(2 c_d - c_d^2 - \sigma^2 u^2) (\vec{x}_d \vec{x}_d^T + \sigma^2 \sum_{\gamma} \vec{x}_{\gamma} \vec{x}_{\gamma}^T)	\right.\\
+ 	&\left. + 2 m_3 \sum_{\gamma} c_{\gamma} \vec{x}_{\gamma} \vec{x}_{\gamma}^T + 2\sigma^2 \sum_{\gamma} c_{\gamma} (\vec{x}_d \vec{x}_{\gamma}^T + \vec{x}_{\gamma} \vec{x}_d^T) \right]
+\end{align*}
+We have defined here $\vec{x}_d = \sum_{\gamma} \vec{x}_{\gamma}$. We see that these moments depend on the specific odor components $\vec{x}_{\gamma}$, making an analytical calculation of eigenvalues very hard without more details. However, these expressions can be evaluated easily at the analytical fixed points in several examples to check the stability in these cases. 
+
+\subsubsection{IBCM neuron specificity}
+The examples tested up to now suggest that stable fixed points of an IBCM neuron have one dot product equal to $y_1$ and all others equal to $y_2$, with values given in section \ref{subsec:summary_fixed_points} and obeying $y_1 > y_2$. This means the neuron is specifically responding to one background odor, say component $\gamma=\rho$. We can therefore call $\vec{m} \cdot \vec{x}_{\rho} = y_1 \equiv c_s$ (specific) and $y_2 \equiv c_n$ (non-specific) for all other dot products. 
+
+% TODO: figure out how to analytically compute the corrections due to neglected correlations, the variance, or some other properly stochastic property. Because here I ended up just doing nonlinear dynamics (and even just fixed point calculation) of ODEs, not much probability theory. 
+% TODO: figure out a way to solve/approximate the average system dynamics, not just computing fixed points. 
+
+
+\subsection{Analytical result: fixed point of inhibitory weights $W$}
+\label{subsec:fixed_point_w}
+We can also derive an analytical expression for the average, steady-state values of the inhibitory weights $W$ when the projection weights $M$ converge to the IBCM fixed point derived above. We consider the identity activation function (instead of ReLU) on PN, for simplicity. 
+
+\subsubsection{Simple case: 1 neuron per odor}
+We first assume there are $n_I = n_B$ IBCM neurons and that neuron $i$ is specific to background odor $\vec{x}_i$. Therefore, at stationarity, the average $M$ has $\vec{\bar{m}}^i \cdot \vec{x}_{\gamma} = c_s$ if $\gamma = i$, $c_n$ otherwise (with $c_s = y_1$, $c_n = y_2$ derived in the main notes and reproduced below). We can then write the neurons' responses as $\bar{c}^j = \vec{\bar{m}}^j \cdot \vec{x} = c_s \nu^j + c_n \sum_{k \neq j} \nu^k$ and the average response as $\bar{c}_d = \avgnu \sum_{\gamma} \bar{c}_{\gamma} = \avgnu (c_s + (n_B -1) c_n)$ --  the same for all neurons. 
+
+Averaging the dynamical equation~\eqref{eq:learning_rule_w_components} for $w^i_j$ over the fast background fluctuations, neglecting correlations with slow-varying $M$ and $W$, we find
+\beq
+	\frac{d \braket{w^i_j}}{dt} = \alpha \braket{\bar{c}_j a^i} - \beta \braket{w^i_j} = \alpha \braket{\bar{c}_j x^i} - \alpha \sum_k \braket{w^i_k} \braket{\bar{c}_j \bar{c}^k} - \beta \braket{w^i_j}
+	\label{eq:fixed_point_wij}
+\eeq
+For the rest of this section, we drop average signs on $\vec{m}$ and $w^i_j$, it is implied we are solving for the average stationary values. We compute the moments using the expressions for $\bar{c}^j$ when neuron $j$ is specific to odor component $j$, and we find
+\begin{align}
+	\braket{\bar{c}_j \bar{c}^k} &= \bar{c}_d^2 + \sigma^2 \left(c_n^2(n_B-2) + 2c_s c_n + \delta^k_j (c_s - c_n)^2 \right)		\label{eq:correlation_cc} \\
+	\braket{\bar{c}_j \vec{x}} 		&= \left(\bar{c}_d + \frac{\sigma^2}{\avgnu} c_n\right) \vec{x}_d + \frac{\sigma^2}{\avgnu} (c_s - c_n) \vec{x}_j 	\label{eq:correlation_cx}
+\end{align}
+Inserting these expressions into eq.~\eqref{eq:fixed_point_wij} with the derivative set to zero, and rearranging a little, the fixed point equation we have to solve is
+\beq
+\left(\bar{c}_d + \frac{\sigma^2}{\avgnu} c_n \right)  \vec{x}_d + \sigma^2 (c_s - c_n) \vec{x}_j = A \sum_k \vec{w}_k + B \vec{w}_j
+\label{eq:fixed_point_w_general}
+\eeq
+where we have defined
+\begin{align}
+	A &= \bar{c}_d^2 + \frac{\sigma^2}{\avgnu} \bar{c}_d c_n + \sigma^2 c_n (c_s - c_n) \nonumber 	\\
+	B &= \frac{\beta}{\alpha} + \sigma^2 (c_s - c_n)^2	\label{eq:coefs_ab_equation_w}
+\end{align}
+with $\vec{w}_k$ the $k$th column of $W$, that is, the vector of weights connecting IBCM neuron $k$ to all projection neurons in the second layer. Summing this equation over $j$, we find a linear equation for the sum of column vectors of $W$, $\vec{S}_W = \sum_k \vec{w}_k$, 
+\begin{equation*}
+\left(n_B + \frac{\sigma^2}{\avgnu} \right) \bar{c}_d  \vec{x}_d = n_B A \vec{S}_W + B \vec{S}_W
+\end{equation*}
+where we used $\bar{c}_d = \avgnu (c_s + (n_B-1)c_n)$. Solving, we find
+\beq
+	\vec{S}_W = \sum_k \vec{w}_k = \frac{\left(n_B + \frac{\sigma^2}{\avgnu} \right) \bar{c}_d}{B + n_B A} \vec{x}_d
+\eeq
+Inserting this into the fixed point equation~\eqref{eq:fixed_point_w_general}, expanding and combining terms, we eventually find an informative expression for $\vec{w}_j$, 
+\beq
+	\vec{w}_j = \frac{\sigma^2 (c_s - c_n)}{B} \vec{x}_j + \frac{\left(\bar{c}_d + \frac{\sigma^2}{\avgnu} c_n \right) \left( \frac{\beta}{\alpha} - \frac{\sigma^2}{\avgnu} \bar{c}_d (c_s - c_n) \right) + \sigma^2 \bar{c}_d(c_s - c_n)^2}{B(B + n_B A)} \vec{x}_d
+	\label{eq:steady-state_w_ibcm_1}
+\eeq
+With this expression, we can compute the instantaneous PN activity when $M$ and $W$ take their average steady-state value, $\vec{s}(t) = \vec{x}(t) - \sum_j \vec{w}_j \vec{\bar{c}}^j(t)$. With further algebraic manipulations, some terms simplify and we are left with
+\beq
+\vec{s} = \frac{\beta/\alpha}{\beta/\alpha + \sigma^2 (c_s - c_n)^2} \left[ \vec{x}(t) - \frac{A/\avgnu}{B + n_B A} \left(\sum_{\gamma} \nu^\gamma\right) \vec{x}_d \right]
+\label{eq:instantaneous_s}
+\eeq
+Taking the average, recalling that $\braket{\vec{x}} = \vec{x}_d$, 
+\beq
+\braket{\vec{s}} = \frac{\beta/\alpha}{\beta/\alpha + \sigma^2 (c_s - c_n)^2} \frac{B}{B + n_B A} \vec{x}_d
+\label{eq:average_s}
+\eeq
+so the average is reduced to very nearly zero by the IBCM inhibition. Moreover, the variance is reduced by a factor of approximately $\left( \frac{\beta/\alpha}{\beta/\alpha + \sigma^2 (c_s - c_n)^2} \right)^2$, which is typically a small factor if the variance of concentrations $\sigma^2$ is large and the difference in specific and non-specific dot products $c_s - c_n$ is large too. 
+
+
+\subsubsection{General case}
+The above simplification of 1 neuron per odor is not convenient for comparison with numerical simulations where neurons distribute unequally among odor components. We can relax this assumption with $n_I > n_B$ neurons. We call $\gamma_j$ the background odor to which IBCM neuron $j$ is specific; thus, $\vec{m}^j \cdot \vec{x}_{\gamma} = c_s$ if $\gamma = \gamma_j$, $c_n$ otherwise. There will be in general some number $n_{\gamma}$ of neurons specific to odor $\gamma$. In this case, we can still derive a closed form for the average, stationary $W$ weights; the end result is similar to the above but the calculation requires a slightly different strategy. 
+
+We start by working on the $W$ equation in matrix form to organize the calculation better. We define the (constant) matrix $\Gamma$, whose columns are the background odor vectors $\vec{x}_{\gamma}$, and $\vec{\nu}$ the vector of odor concentrations i.i.d. with mean $\avgnu$ and variance $\sigma^2$. Then, $\vec{x}_b(t) = \Gamma \vec{\nu}$. We also define the matrix $P = LM \Gamma$, giving the dot products of each IBCM neuron's reduced synaptic weights, $\vec{\bar{m}}^j$, with background odors; $P_{\gamma}^j = \vec{\bar{m}}^j \cdot \vec{x}_{\gamma}$, such that row $j$ contains the dot products of neuron $j$, equal to $c_n$ everywhere except in column $\gamma = \gamma_j$. Averaging the $W$ equation over fast $\nu$ fluctuations, 
+
+\beq
+	\braket{\frac{d  W}{dt}} = \alpha (\Gamma - \braket{W}\braket{P}) \braket{\vec{\nu} \vec{\nu}^T} \braket{P}^T - \beta \braket{W}
+	\label{eq:average_W_matrix}
+\eeq
+where we neglected correlations between $\nu$, $W$, and $P$. Average signs on $W$ and $P$ are implied below. We define $N = \braket{\vec{\nu} \vec{\nu}^T}$ and evaluate it
+\beq
+	N = \braket{\vec{\nu} \vec{\nu}^T} = \sigma^2 \mathbb{I}_{n_B} + \avgnu^2 O_{n_B}
+	\label{eq:nu_correl_matrix}
+\eeq
+where $\mathbb{I}$ is the $n_B \times n_B$ identity matrix and $O_{n_B}$ is a $n_B \times n_B$ matrix filled with $1$s. We now set $dW/dt=0$ and focus on column $j$ of the resulting matrix equation, with the notation $\vec{w}_j$ for column $j$ of $W$, and $\vec{p}_j$ for column $j$ of $P^T$, which is the row of $P$ for neuron $j$. The set of equations to solve for the $\vec{w}_j$ is then
+\beq
+\frac{\beta}{\alpha} \vec{w}_j  + W P N \vec{p}_j = \Gamma N \vec{p}_j
+\label{eq:wj_equation}
+\eeq
+We notice here that all IBCM neurons with the same specificity $\gamma_j$ will have the same $\vec{p}_j$ and thus the same equation; in other words, all columns $\vec{w}_j$ with the same $\gamma_j$ will be identical, and we can denote them by $\vec{w}_{\gamma_j}$. This allows to rewrite sums over columns as sums over components, for instance $\sum_j \vec{w}_j = \sum_{\gamma} n_{\gamma} \vec{w}_{\gamma}$. We moreover notice that
+\beq
+	\vec{p}_k^T \vec{p}_j = \left\{ \begin{array}{ll} 
+		c_s^2 + (n_B-1) c_n^2 = u^2  & \mathrm{if} \, \gamma_j = \gamma_k	\\
+		2 c_s c_n + (n_B - 2) c_n^2 = c_n (\frac{\bar{c}_d}{\avgnu} + c_s - c_n) & \mathrm{else} 
+	\end{array} \right.
+\label{eq:rule_pj_pk}
+\eeq
+and that 
+\beq
+	\vec{p}_k^T O_{n_B} \vec{p}_j = \vec{p}_k^T \vec{v} (c_s + (n_B-1) c_n) = (c_s + (n_B-1) c_n)^2 = \frac{\bar{c}_d^2}{\avgnu^2}
+	\label{eq:rule_pj_O}
+\eeq
+where we defined $\vec{v}$, are vector filled with $1$s. 
+
+We now evaluate the two terms involving $N$. Both contain
+\begin{align*}
+	N \vec{p}_j &= (\sigma^2 \mathbb{I}_{n_B} + \avgnu^2 O_{n_B}) \vec{p}_j \\
+		&= \sigma^2 \vec{p}_j + \avgnu^2 (c_s + (n_B - 1) c_n) \vec{v}	\\
+		&= \sigma^2 \vec{p}_j + \avgnu \bar{c}_d \vec{v}
+\end{align*}
+where we recognized $\bar{c}_d = \avgnu \sum_{\gamma} \vec{\bar{m}} \cdot \vec{x}_{\gamma} = \avgnu^2 (c_s + (n_B - 1) c_n)$ for all neurons specific to one odor. We can thus evaluate the first term:
+\begin{align*}
+	W P N \vec{p}_j &= \sum_k \vec{w}_k (\vec{p}^k)^T \left(\sigma^2 \vec{p}_j + \avgnu \bar{c}_d \vec{v} \right)	\\
+		&= \sum_k \vec{w}_k \left(\sigma^2 u^2 \delta_{\gamma_j \gamma_k} + \sigma^2 c_n (\frac{\bar{c}_d}{\avgnu} + c_s - c_n) (1 - \delta_{\gamma_j \gamma_k}) + \bar{c}_d^2  \right) 	\quad \text{(using eqs. \ref{eq:rule_pj_pk} and \ref{eq:rule_pj_O})}	\\
+		&= \left( \sigma^2 u^2 - \sigma^2 (2 c_s c_n + (n_B - 2) c_n^2) \right) n_{\gamma_j} \vec{w}_j  +  \left(\bar{c}_d^2 + \sigma^2 c_n \frac{\bar{c}_d}{\avgnu} + \sigma^2 c_n(c_s - c_n) \right) \sum_{\gamma} n_{\gamma} \vec{w}_{\gamma} 
+\end{align*}
+We recognize the $A$ coefficient defined in eq. \eqref{eq:coefs_ab_equation_w}, and we can rearrange the coefficient of $\vec{w}_{\gamma_j}$ to find
+\beq
+	W P N \vec{p}_j = \sigma^2 (c_s - c_n)^2 n_{\gamma_j} \vec{w}_{\gamma_j} + A \sum_{\gamma} n_{\gamma} \vec{w}_{\gamma}
+	\label{eq:wnpj}
+\eeq
+
+We evaluate the second term involving $N$:
+\begin{align}
+	\Gamma N \vec{p}_j &= \Gamma \left(\sigma^2 \vec{p}_j + \avgnu \bar{c}_d \vec{v} \right)	\\
+		&= \sigma^2 c_s \vec{x}_{\gamma_j} + \sigma^2 c_n \sum_{\gamma \neq \gamma_j} \vec{x}_{\gamma} + \avgnu \bar{c}_d \sum_{\gamma} \vec{x}_{\gamma}	\\
+		&= \sigma^2 (c_s - c_n) \vec{x}_{\gamma_j} + \left(\frac{\sigma^2}{\avgnu} c_n +  \bar{c}_d \right) \vec{x}_d \label{eq:gamma_npj}
+\end{align}
+where we have used $\vec{x}_d = \avgnu \sum_{\gamma} \vec{x}_{\gamma}$ in the last line. 
+
+We now insert results \eqref{eq:wnpj} and \eqref{eq:gamma_npj} into the equation \eqref{eq:wj_equation} for $\vec{w}_j$ (or equivalently, $\vec{w}_{\gamma_j}$), to find the form
+\beq
+	B_{\gamma_j} \vec{w}_j + A \sum_{\gamma} n_{\gamma} \vec{w}_{\gamma} = \sigma^2 (c_s - c_n) \vec{x}_{\gamma_j} + \left(\frac{\sigma^2}{\avgnu} c_n +  \bar{c}_d \right) \vec{x}_d 
+	\label{eq:bj_wj_equation}
+\eeq
+where we have recognized a coefficient
+\beq
+	B_{\gamma_j} = \frac{\beta}{\alpha} + n_{\gamma_j} \sigma^2 (c_s - c_n)^2
+	\label{eq:bj_def}
+\eeq 
+different for each $j$ due to $n_{\gamma_j}$, but reducing to the $B$ in eq. \eqref{eq:coefs_ab_equation_w} for the simpler case $n_{\gamma} = 1 \, \forall \gamma$.  
+
+Here, the presence of $n_{\gamma_j}$ in $B_{\gamma_j}$ prevents us from summing over columns $j$ to isolate $\vec{S}_W$, as we did in the simpler case. Instead, we look at the difference between the equation for column $j$ and for a column $k$ with $\gamma_k \neq \gamma_j$; this eliminates the term that sums over all $\vec{w}_{\gamma}$ and allows us to isolate $\vec{w}_{\gamma_k}$ in terms of $\vec{w}_{\gamma_j}$ and the known vectors $\vec{x}_{\gamma}$ only:
+\begin{align}
+	B_{\gamma_j} \vec{w}_{\gamma_j} - B_{\gamma_k} \vec{w}_{\gamma_k} &= \sigma^2 (c_s - c_n) (\vec{x}_{\gamma_j} - \vec{x}_{\gamma_k})	\nonumber \\
+	& \Rightarrow \vec{w}_{\gamma_k} = \frac{B_{\gamma_j}}{B_{\gamma_k}} \vec{w}_{\gamma_j} + \frac{\sigma^2 (c_s - c_n)}{B_{\gamma_k}} (\vec{x}_{\gamma_k} - \vec{x}_{\gamma_j})
+\end{align}
+
+Doing this for each $\gamma_k \neq \gamma_j$, and noticing the expression reduces to $\vec{w}_{\gamma_j}$ for $\gamma = \gamma_j$, we express $\sum_{\gamma} n_{\gamma} \vec{w}_{\gamma}$ in terms of $\vec{w}_{\gamma_j}$ only, 
+\begin{align*}
+	\sum_{\gamma} n_{\gamma} \vec{w}_{\gamma} &= \sum_{\gamma} n_{\gamma} \left( \frac{B_{\gamma_j}}{B_\gamma} \vec{w}_{\gamma_j} + \frac{\sigma^2 (c_s - c_n)}{B_\gamma} (\vec{x}_{\gamma} - \vec{x}_{\gamma_j}) \right)	\\
+	&= B_{\gamma_j} \vec{w}_{\gamma_j} \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} + \sigma^2 (c_s - c_n) \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \vec{x}_{\gamma} - \sigma^2 (c_s - c_n) \vec{x}_{\gamma_j} \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}}
+\end{align*}
+and insert into eq.~\eqref{eq:bj_wj_equation} to isolate $\vec{w}_{\gamma_j}$,
+\begin{align*}
+	B_{\gamma_j} \left(1 + A \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \right) \vec{w}_{\gamma_j} =& \,\, \sigma^2 (c_s - c_n) \left(1 + A \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \right) \vec{x}_{\gamma_j}	\\	
+	& - A \sigma^2 (c_s - c_n) \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \vec{x}_{\gamma} + \left(\frac{\sigma^2}{\avgnu} c_n +  \bar{c}_d \right) \vec{x}_d	\,\, .
+\end{align*}
+Dividing by $B_{\gamma_j} \left(1 + A \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \right)$, rearranging a little bit gives our final expression for columns of the matrix $W$:
+\beq
+	\vec{w}_{\gamma_j} = \frac{\sigma^2 (c_s - c_n)}{B_{\gamma_j}} \vec{x}_{\gamma_j} + \frac{\bar{c}_d + \frac{\sigma^2}{\avgnu} c_n}{B_{\gamma_j} (1 + A K)} \vec{x}_d - \frac{A \sigma^2 (c_s - c_n)}{B_{\gamma_j} (1 + A K)} \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \vec{x}_{\gamma} \,\, .
+	\label{eq:general_wj_ibcm}
+\eeq
+where we have defined $K = \sum_{\rho} \frac{n_{\rho}}{B_{\rho}}$. As a check, when all $n_{\gamma}=1$ and thus all $B_{\gamma} = B$, this expression reduces to the simpler one found in eq.~\eqref{eq:steady-state_w_ibcm_1}. 
+
+Unfortunately, the expression for $\vec{s} = \vec{x} - WLM\vec{x}$ does not simplify a lot in this general case, due to the $B_{\gamma}$. Inserting our solution for $W$, we find
+\begin{align}
+	\vec{s} =& \,\, \sum_{\gamma} \nu_{\gamma}(t) \frac{\beta/\alpha}{\beta/\alpha + n_{\gamma} \sigma^2(c_s - c_n)^2} \vec{x}_{\gamma}
+			-\frac{\left(\bar{c}_d + \frac{\sigma^2}{\avgnu} c_n \right)}{1 + AK} \sum_{\gamma}  \nu_{\gamma} \left( (c_s - c_n) \frac{n_{\gamma}}{B_{\gamma}} + c_n K \right) \vec{x}_d	\nonumber \\
+			&- \frac{\sigma^2 (c_s - c_n)}{1 + A K} \left( c_n \sum_{\rho} \nu_{\rho} - A(c_s - c_n) \sum_{\rho} \frac{n_{\rho} \nu_{\rho}}{B_{\rho}} \right) \left( \sum_{\gamma} \frac{n_{\gamma}}{B_{\gamma}} \vec{x}_{\gamma} \right) \,\, .
+\end{align}
+This expression for $\vec{s}$ does reduce to eq.~\eqref{eq:instantaneous_s} upon setting $n_{\gamma} = 1 \,\, \forall \gamma$ -- in fact, the general solution reduces to the simpler one if all $n_{\gamma}$ are equal (not necessarily equal to $1$ each). 
+
+Taking the average and simplifying some terms, we find
+\beq
+	\braket{\vec{s}} = \avgnu \sum_{\gamma} \frac{\vec{x}_{\gamma}}{B_{\gamma}} \frac{1}{1 + AK} \left(\frac{\beta}{\alpha} - \sigma^2 c_n (c_s - c_n) (n_{\gamma} n_B - K B_{\gamma}) \right) \,\, .
+	\label{eq:average_s_general}
+\eeq
+The factor $n_{\gamma} n_B - K B_{\gamma}$ is zero when all $n_{\gamma}$s are equal; hence, the second term represents the bias incurred by having an uneven distribution of IBCM neurons across odor components. The threshold $n^*$ at which $n_{\gamma} n_B - K B_{\gamma} = 0$ for some $n_{\gamma}$ is $n^* = \frac{\beta/\alpha K}{n_B - K \sigma^2 (c_s - c_n)^2}$; since we can show (using a Lagrange multiplier to enforce $\sum_\rho n_{\rho} = n_I$) that $K$ is maximized by having a uniform distribution $n_{\gamma} = n_I / n_B$, the threshold $n^* < n_I / n_B$; hence, all components which have $n_{\gamma} > n_I / n_B$ surely have a positive factor $(n_{\gamma} n_B - K B_{\gamma})$, and since $c_n < 0$ in general, they have a negative bias in eq.~\eqref{eq:average_s_general}, i.e. they are suppressed less than other background odor components. Conversely, if some $n_{\gamma} = 0$ (no neuron specific to that odor), then this odor is still partly subtracted, due to the non-specific response of other neurons, $c_n < 0$, but at the cost of less efficient inhibition of all other odors, and without overall reduction of fluctuations since the factor $\frac{\beta/\alpha}{B_{\gamma}} = 1$ if $n_{\gamma} = 0$. 
+
+
+
+
+\subsection{Weakly non-Gaussian fluctuating background}
+\label{subsect:weakly_non-gauss_case}
+
+\subsubsection{Background process}
+\label{subsubsect:weakly_non-gauss_back}
+We simulate a multivariate Ornstein-Uhlenbeck process, $\vec{\tilde{\nu}}$ as in the general Gaussian case, section \ref{subsubsect:gaussian_back}, but here with zero mean. Then, we take
+\begin{equation*}
+\nu_i = \nu_0 + \tilde{\nu}_i + \epsilon \tilde{\nu}_i^2
+\end{equation*}
+where $\epsilon$ should be chosen small and $\nu_0$ is the chosen zeroth-order mean concentration. 
+If the $\tilde{\nu}_i$ have stationary variance $\tilde{\sigma}^2$, then the concentrations themselves have the following moments:
+\begin{align*}
+	\esper{\nu} &= \nu_0 + \epsilon \tilde{\sigma}^2	\\
+	\variance{\nu} &= \tilde{\sigma}^2 + 2 \epsilon^2 \tilde{\sigma}^4	\\
+	\esper{(\nu - \esper{\nu})^3} &= 6 \epsilon \tilde{\sigma}^4 + 8 \epsilon^3 \tilde{\sigma}^6 
+\end{align*}
+These results are straightforward to obtain by expanding $\nu^2$ and $\nu^3$ and using higher moments of the Gaussian distribution as required, {\it i.e.}, $\esper{\tilde{\nu}^{2k}} = \frac{(2k)!}{2^k k!} \tilde{\sigma}^{2k}$. The important outcome is that the third moment is of order $\epsilon$. 
+
+% Analytics? None yet
+	% Numerical results
+	% Numerical problems
+
+% IBCM network on a background with log-normal fluctuations
+	% Neuron distribution problem
+	% Works fine if well distributed. 
+\subsection{Log-normal background fluctuations}
+\label{subsect:log_normal_case}
+
+\subsubsection{Background process}
+\label{subsubsect:log-normal_back}
+We simulate a multivariate Ornstein-Uhlenbeck process, $\vec{\tilde{\nu}}$ as in the general Gaussian case, section \ref{subsubsect:gaussian_back}, then we take these as the $\log_{10}$ of the concentrations, so 
+\begin{equation*}
+\nu_i = 10^{\tilde{\nu}} \,\, .
+\end{equation*}
+If the $\tilde{\nu}_i$ have stationary mean $\braket{\tilde{\nu}}$ and variance $\tilde{\sigma}^2$, then from the log-normal distribution properties~\cite{balakrishnan_handbook_1999}, the concentrations themselves have
+\begin{align*}
+	\esper{\nu} &= 10^{\braket{\tilde{\nu}} + \frac12 \tilde{\sigma}^2 \ln{10}}	\\
+	\variance{\nu} &= \left(10^{\tilde{\sigma^2} \ln{10}} - 1 \right) 10^{2 \braket{\tilde{\nu}} + \tilde{\sigma}^2 \ln{10}}	\\
+	\esper{(\nu - \braket{\nu})^3} &= \variance{\nu}^{3/2} \left(10^{\tilde{\sigma}^2 \ln{10}} + 2\right) \sqrt{10^{\tilde{\sigma}^2 \ln{10}} - 1} \,\, .
+\end{align*}
+
+	% Analytics? None yet
+	% Numerical results
+	% Numerical problems
+
+	

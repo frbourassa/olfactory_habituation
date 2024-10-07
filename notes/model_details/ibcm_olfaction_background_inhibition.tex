@@ -1,0 +1,155 @@
+\documentclass[letter, 12pt]{article}
+
+% Police, caractères spéciaux
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb}
+\usepackage{mathrsfs}
+\usepackage{braket}
+
+% Environnements, figures
+\usepackage{graphicx}
+\usepackage{caption}  % Pour avoir du contrôle sur la taille des titres
+\usepackage{subcaption}  % Sous-figures
+\usepackage{booktabs}  % Plus beaux tableaux
+\usepackage{multirow}
+%\usepackage{appendix}  % Pour avoir du contrôle sur les annexes
+%\usepackage{tikz}
+%\usepackage{float}
+%\usepackage{array}
+
+% Bibliographie
+\usepackage[
+    backend=biber,
+    style=numeric, 
+    citestyle=numeric,  %authoryear, 
+    natbib=true,
+    url=false, 
+    doi=false,
+    eprint=false, 
+    isbn=false, 
+    sorting=none, 
+    maxnames=2
+]{biblatex}
+\usepackage{csquotes}
+\bibliography{olfaction_neurosci}
+% Enlever les "notes" exportées par Zotero (qui donnent le "publisher" par exemple)
+\AtEveryBibitem{%
+  \clearfield{note}
+  \clearlist{language}%
+}
+
+% Enlever le "In:" inutile
+\renewbibmacro{in:}{}
+
+% Mise en page
+\usepackage[left = 2.5cm, right = 2.5cm, top = 2.5cm, bottom = 2.5cm]{geometry}
+\oddsidemargin=0mm
+\evensidemargin=0mm
+\parindent=0mm
+\parskip=12pt plus 1pt minus 1pt
+%\usepackage{setspace}  % Si on veut changer l'interligne
+%\widowpenalty10000  % Pour éviter les lignes orphelines
+%\clubpenalty10000
+
+
+% Titres et sous-titres
+\usepackage[pagestyles]{titlesec}
+\titlespacing{\section}{0mm}{0pt}{0pt}
+\captionsetup[figure]{font=small}  % Pour que le titre des figures soit plus petit
+
+% Titres de sections  -> Changer après la table des matières seulement
+\titleformat{\section}
+{\large\normalfont\bfseries}
+{\thesection}{0.1em}{. }
+% Solution for numberless sections from https://tex.stackexchange.com/questions/102116/titlesec-and-section-in-titleformat
+\titleformat{name=\section,numberless}[block]{\large\normalfont\bfseries}{}{0em}{}[]% starred version
+
+
+% Titres de sous-sections
+\titleformat{\subsection}
+{\normalfont\bfseries}
+{\thesubsection}{0.1em}{ }
+
+% Nouvelles commandes et raccourcis
+\def\tb{\textbf} 
+\def\mb{\mathbf}
+\newcommand{\prob}[1]{\mathbb{P}\left[ #1 \right]}
+\newcommand{\card}[1]{\mathrm{card}\left( #1 \right)}
+\newcommand{\esper}[1]{\mathbb{E}\left[ #1 \right]}
+\newcommand{\variance}[1]{\mathrm{Var}\left[ #1 \right]}
+\def\beq{ \begin{equation} }		% \beq remplace maintenant \begin{equation}	
+\def\eeq{ \end{equation} } 			% \eeq remplace maintenant \end{equation}
+\def\ovl{\overline}
+\def\avgnu{\braket{\nu}}
+
+
+\title{Notes on the IBCM model for olfactory background inhibition}
+\author{François Bourassa}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+{\parskip=1pt plus 1pt minus 1pt
+\tableofcontents
+}
+\parskip=12pt plus 1pt minus 1pt
+
+% Summary of the goal and model chosen. A few sentences, not more. Like an abstract, but only of the technical part. 
+\section{Introduction}
+\label{sect:introduction}
+\input{sect_introduction.tex}
+
+
+% Very short review of the baseline model from PNAS and of how odors are encoded, decoded
+\section{Olfactory network with average background subtraction}
+\label{sect:basic_model}
+\input{sect_basic_model.tex}
+
+
+\section{Olfactory habituation by background subspace inhibition}
+\label{sect:inhib_network}
+\input{sect_inhib_network.tex}
+
+
+\section{Presentation of the IBCM model of neuronal plasticity}
+\label{sect:ibcm}
+\input{sect_ibcm.tex}
+
+
+% Presentation of the proposed inhibition network when IBCM neurons are used in it
+\section{Olfactory inhibition network with IBCM neurons}
+\label{sect:ibcm_inhibition}
+\input{sect_ibcm_inhibition.tex}
+
+%%% Solution of IBCM equations for simple examples
+\section{IBCM network solution for simple backgrounds}
+\label{sect:ibcm_simple_examples}
+\input{sect_ibcm_simple_examples.tex}
+
+
+%%% Solution of IBCM equations for non-Gaussian backgrounds
+\section{IBCM network solution for non-Gaussian backgrounds}
+\label{sect:ibcm_non-gaussian_examples}
+\input{sect_ibcm_non-gaussian_examples.tex}
+
+
+% TODO: IBCM network on real odors with realistic fluctuations
+% Make a section out of it because just detailing how we simulate such backgrounds is complicated. 
+% Maybe even make a section about turbulent backgrounds, then a section about how the various models fare against them. Unclear, depends on how far I can progress. 
+\section{Inhibition of realistic fluctuating olfactory backgrounds}
+\label{sect:realistic_odors}
+\input{sect_realistic_odors.tex}
+
+
+\section{Comparison to other projection models}
+\label{sect:other_models}
+\input{sect_other_models.tex}
+
+
+\printbibliography
+
+
+\end{document}

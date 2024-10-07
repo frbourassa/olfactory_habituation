@@ -1,0 +1,69 @@
+\subsection{Biologically plausible online PCA}
+\subsubsection{Model equations}
+% Remind offline PCA first
+% Then give algorithm 1 from Minden et al, just outline the derivation using auxiliary variables in a minimization problem
+% Explain the Taylor inverse for L. Note: my L is really their L^{-1}, so their model is learning my L^{-1}... 
+% Results on test cases, simple backgrounds
+The online PCA algorithm is explained in detail in the paper by Minden, Pehlevan, and Chklovskii~\cite{minden_biologically_2018}. We used the inverse-free Principal Subspace Projection (ifPSP) version of their algorithm (Algorithm 1). Here, we just summarize the dynamical equations and main theorems using a notation consistent with the IBCM network. Table~\ref{tab:notations} relates our notation to theirs. 
+
+\begin{table}[htb]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Variable 	& Our notation	& Minden 2018 \\
+\midrule
+Projection weights (from ORNs to LNs)	& $M$	& $W$	\\
+Coupling weights (between LNs)		& $L$		& $M^{-1}$	\\
+Inhibitory weights (from LNs to PNs)	& $W$	& (not defined)	\\
+Input vectors (ORNs)		& $\vec{x}$	& $\mb{x_t}$		\\
+Neuron activities before coupling	& $\vec{c}=M\vec{x}$	& $\mb{\tilde{y}_t}= W \mb{x_t}$	\\
+Neuron activities after coupling	& $\vec{\bar{c}}=LM\vec{x}$	& $\mb{y_t}=M^{-1} W \mb{x_t} $	\\
+Learning rate of $M$			& $\mu$		& $\alpha_t$	\\
+Learning rate of $L$			& $\mu_L$	& $\tau^{-1} \alpha_t$	\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Their model couples neurons with matrix $L$, but it updates the matrix $L' = L^{-1}$. To avoid biologically unrealistic matrix inversions, the model uses the Taylor expansion ${L'}^{-1} = {L'}_d^{-1} - {L'}_d^{-1} L'_o {L'}_d^{-1}$, with ${L'}_d$ and ${L'}_o$ the diagonal and off-diagonal parts of $L'$, respectively. They show that $L'$ converges to a diagonal matrix in their algorithm, so this is a good approximation near the stationary solution. Moreover, they introduce a constant diagonal matrix $\Lambda$, to break degeneracy between PCA eigenvectors found by the algorithm. This matrix sets eigenvector norms: $\Lambda_{kk}$ is the dot product $\vec{u}_k^T \vec{u}_k$ of eigenvector $\vec{u}_k$. This is a model parameter which we are free to set; we use their choice $\Lambda_{kk} = 1 - \frac{3(k-1)}{10(n_I - 1)}$, where, recall, $n_I$ is the number of inhibitory neurons. 
+
+With these quantities defined, their model updates the projection weights $M$ and coupling weights $L'$ as
+\begin{align}
+\frac{dM}{dt} &= \mu \left(\vec{\bar{c}} \,\vec{x}^{\,T} - M \right)	\label{eq:biopca_m}	\\
+\frac{dL'}{dt} &=  \mu_L \left( \vec{\bar{c}} \, \vec{\bar{c}}^{\,\, T} - \Lambda L' \Lambda \right)	\label{eq:biopca_w}	\\
+\mathrm{where} \quad \vec{\bar{c}} &= \left({L'}_d^{-1} - {L'}_d^{-1} L'_o {L'}_d^{-1}\right) M \vec{x}	\label{eq:biopca_c}	\\
+\end{align}
+
+Lemma 3 in their paper tells us what we need to know: at a fixed point of this learning rule, the rows of the projector matrix $F = {L'}^{-1}M = LM$ contains the principal component vectors, i.e., the eigenvectors of the covariance matrix $\braket{ \vec{x} \vec{x}^T}$, scaled such that $F F^T = \Lambda^2$. Moreover, $L'$ is diagonal at the fixed point, with diagonal entries equal to the principal values, i.e., the eigenvalues of the covariance matrix. Hence, the vector $\vec{\bar{c}} = LM \vec{x}$ is the projection of the input vector $\vec{x}$ on the PCA decomposition of the background process after habituation. 
+
+We notice there will be a problem with the inverse matrix $L = {L'}^{-1}$ if there are zero-valued eigenvalues, that is, if $n_I$ is larger than the background dimensionality $n_B$. We are thus generous with this model by setting $n_I = n_B$ for all simulations. This is different from the IBCM model where we just need $n_I \gg n_B$ to make sure all background components are covered. An extra mechanism would be needed with this BioPCA rule to ensure ``useless'' PCA neurons are silenced, but for the moment we fine-tune $n_I$ to the choice of background. 
+
+We notice that this model truly performs PCA if the inputs have zero mean, such that $\braket{ \vec{x} \vec{x}^T}$ is really the covariance. Therefore, I have added an option in my numerical simulations of this model which learns the average background and subtracts it from $\vec{x}$ before projection, and subtracts it from the PN activity $\vec{s}$ as well. The average background is simply learnt as 
+\beq
+\frac{d \vec{w}_{\mathrm{avg}}}{dt} = \mu (\vec{x} - \vec{w}_{\mathrm{avg}}) \,\, . \label{eq:average_w_learning}
+\eeq
+Whether we subtract the background or not turns out not to make any visible difference in the performance of BioPCA for background inhibition. 
+
+\subsubsection{Analytical result: background reduction, toy model}
+\label{subsec:pca_toy}
+We consider the two-odor background toy model of section \ref{sec:ibcm_simple_examples}, $\vec{x}_b(t) = \vec{x}_d + \nu(t) \vec{x}_s$, with $\nu(t)$ obeying the Ornstein-Uhlenbeck process with mean $0$, variance $\sigma^2$, and correlation time $\tau_c \ll \tau_{\Theta}$. We suppose the average background $\vec{x}_d$ is subtracted from the input received by the PCA model, and subtracted from the projection neurons' $\vec{s}$ too, hence the effective background here is $\nu(t) \vec{x}_s$. 
+
+We assume there is only one PCA neuron, since extra neurons would have rows of zeros in $L'$ and make no difference (or worse, degrade performance by fluctuating). 
+
+
+
+% BioNICA algorithm is not very stable, it never worked as announced. 
+%\subsection{Biologically plausible online ICA}
+% Introduce offline ICA first
+% Then online ICA from Lipshutz, if I can get it to work well enough. 
+% Results on test cases, simple backgrounds
+
+
+
+
+\subsection{Average background subtraction}
+\subsubsection{Model equations}
+
+We use the average subtraction model introduced in section \ref{sect:basic_model}. 
+
+
+

@@ -1,0 +1,73 @@
+
+% Introduction to IBCM model alone. Goal: show how this model promises to learn more than the average. 
+	% Equations, definitions
+	% Intuition behind: competition between successive patterns. 
+	% How it follows from a cost function favouring bimodal projections of data
+	% Classical results: alternating backgrounds, specificity. Fluctuations of inputs are essential to converge to fixed points of the model, it needs to see statistics of the inputs. 
+	% Network with mean field inhibition. Rewrite in terms of bar variables. "Parallel projection search"?
+	% Oscillations
+
+In 1982, Bienenstock, Cooper and Munro developed a model of synaptic plasticity -- subsequently called the BCM model after its authors -- to explain how neurons in the visual cortex become specifically responsive to certain visual patterns \cite{bienenstock_theory_1982}. The IBCM model, proposed 10 years later by Intrator and Cooper \cite{intrator_objective_1992}, modifies the threshold definition of the BCM model to have more robust dynamics. Moreover, Intrator and Cooper show that their modified model can be derived as a maximization problem of a cost function favouring the search of non-Gaussian projections of the input stimuli distribution. 
+%The plasticity described by this model therefore drives neurons to form synapses that reinforce their response to some components of the visual stimulus and reduce their response to others. The hope is these properties of the model to components of fluctuating olfactory backgrounds. 
+
+\subsection{Model equations}
+\label{subsect:ibcm_equations}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\linewidth]{figures/cooper-bear2012_neuron_model.png}
+	\caption{Description of a neuron in terms of its synaptic inputs $\vec{x}$ (denoted $\vec{d}$ on the figure) and weights $\vec{m}$and its activity $c$. Figure reproduced from \cite{cooper_bcm_2012}. }
+	\label{fig:ibcm_neuron}
+\end{figure}
+
+An IBCM neuron is described by its $n_R$-dimensional synaptic weight vector $\vec{m}$ and its activity $c$, as depicted on figure~\ref{fig:ibcm_neuron}. The neuron receives input stimuli $\vec{x}(t)$, which can vary (quickly, randomly) over time, and its activity in response is the dot product of its weight vector and the input, $c(t) = \vec{m}(t) \cdot \vec{x}(t)$. The synaptic weights also evolve (slowly) over time in response to the stimuli and the IBCM neuron's own activity. 
+
+The IBCM neuron's synaptic weights evolve according to \cite{intrator_objective_1992, udeigwe_emergent_2017}
+
+\beq
+	\frac{d \vec{m}}{d t} = \mu c \left(c - \Theta \right) \vec{x}
+	\label{eq:ibcm_equation}
+\eeq
+
+where the threshold $\Theta$ tracks the recent average of the squared activity $c^2$:
+
+\beq
+	\frac{d \Theta}{dt} = \frac{1}{\tau_{\Theta}} (c^2 - \Theta)  
+	\label{eq:ibcm_threshold}
+\eeq
+
+where we recall that $c(t) = \vec{m}(t) \cdot \vec{x}(t)$. 
+The non-linear threshold evolves on a time scale $\tau_{\Theta}$ intermediate between the slow time scale of the synaptic weights learning, $\frac{1}{\mu}$, and the fast time scale of the input fluctuations, $\tau_b$. There are hence three time scales: $\tau_b \ll \tau_{\Theta} \ll  1 / \mu$, corresponding to the background process fluctuations, threshold averaging, and synaptic weights learning, respectively. The first condition ensures that the thresholds $\ovl{\Theta}^j$ properly average over the background distribution, while the latter ensures these thresholds reflect the average activity for the current $\vec{m}$, which can then evolve slowly in response. Undesirable oscillations of the synaptic weights occur if $\tau_{\Theta}$ and $1 / \mu$ are not different enough \cite{udeigwe_emergent_2017}. 
+
+\subsection{Principles and properties of the model}
+\label{subsect:ibcm_principles}
+
+How does this model work? To begin with, notice that a quasi-static approximation on equation~\eqref{eq:ibcm_threshold} gives $\Theta = \esper{c^2} = \esper{(\vec{m} \cdot \vec{x})^2}$, where the synaptic vector $\vec{m}$ is approximately constant on the averaging time scale $\tau_\Theta$. The average is therefore mainly an average over the distribution of inputs $\vec{x}$. However, on a slow time scale, $\Theta$ evolves as the synaptic weights $\vec{m}$ change according to equation~\eqref{eq:ibcm_equation}. 
+
+% Would probably need a simulation sample or some analytical calculation to support this claim and properly demonstrate this principle of the model. 
+This change in the synaptic weights is driven by the rapid fluctuations of the input stimuli $\vec{x}$, in response to which the IBCM activity $c$ takes values above or below the average threshold $\Theta$. In the authors' words, ``whether synaptic strength increases or decreases depends upon the magnitude of the postsynaptic response as compared with a variable modification threshold.'' \cite{bienenstock_theory_1982}. In particular, as soon as the neuron starts to respond more to some stimuli than others, this nascent specificity is reinforced because those stimuli make the term $(c - \Theta)$ positive in eq.~\eqref{eq:ibcm_equation}, hence reinforcing the connections matching those inputs $\vec{x}$. Other stimuli cause below-average activation, hence $(c - \Theta)$ is negative and synaptic weights are suppressed in the direction of those hypostimulating $\vec{x}$. The threshold $\Theta$ evolves until the separation between specific and non-specific stimuli is maximized. Therefore, the IBCM neuron is driven to a specific state by the fast temporal competition between specific and non-specific stimuli causing reinforcement or depression of the synaptic weights, respectively. 
+
+
+\subsection{IBCM fixed points for alternating inputs}
+\label{subsect:ibcm_alternating}
+The specificity property of the IBCM model is formalized by the following mathematical result, proved in the original article about the IBCM model \cite{intrator_objective_1992}. Let the input process $\vec{x}(t)$ be a random sequence of vectors in the set of linearly independent vectors $\{ \vec{x}_1, \vec{x}_2, \ldots, \vec{x}_{n_B} \}$, chosen independently at each time step with probabilities $\{p_k\}$. Then, the model has $n_B$ stable fixed points (degenerate if $n_B < n_R$)  for the synaptic weights $\vec{m}$, defined by null dot products with all but one of the input vectors, and a dot product $\vec{m} \cdot \vec{x}_k = 1/p_k$ with one of the $n_B$ input vectors; there is one stable fixed point for each input vector. In other words, in one of those fixed points, the IBCM neuron has zero response to all of the possible input components except one, call it $\vec{x}_k$, to which it responds specifically with amplitude $1/p_k$. 
+
+
+\subsection{Cost function associated to the IBCM model}
+\label{subsect:cost_function}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\linewidth]{figures/ibcm_loss_function_fixed_theta.pdf}
+	\caption{In black: loss function minimized by the IBCM model equation, which is the gradient of the loss function with respect to $\vec{m}$. In grey: idealized distribution of the input stimuli projected on $\vec{m}$, that is, of the neuron's activity $c = \vec{m} \cdot \vec{x}$. The synaptic weights evolve to capture non-Gaussian (scalar) projections of the input (vector) distribution. }
+	\label{fig:loss_function}
+\end{figure}
+
+The specificity property of IBCM  neurons can also be understood in the light of the objective function minimized by  equation~\eqref{eq:ibcm_equation} derives. This loss function is designed to find synaptic weights $\vec{m}$ on which the projection of the distribution of stimuli $\vec{x}$ is non-Gaussian or even multimodal. Hence, it involves higher moments of the distribution of neuron activities: 
+
+\beq
+	L_{m}(c, \Theta) = -\mu \left(\frac13 c^3 - \frac14 \Theta c^2 \right)   \quad \mathrm{where \, we \, set} \, \Theta = \esper{c^2}
+	\label{eq:loss_function}
+\eeq
+
+Taking the gradient of this loss function, illustrated in figure \ref{fig:loss_function}, with respect to $\vec{m}$ and setting it equal to $\frac{d\vec{m}}{dt}$ yields equation \eqref{eq:ibcm_equation}. This loss function goes to $-\infty$ for large $c$, so it looks like it has no minimum, but one must recall that the threshold $\Theta$, and hence the barrier at $c=\Theta/2$, moves with the average $c$. The successive stimuli must cause activation levels $c$ that fluctuate from one side to the other of $\Theta/2$. The only way to minimize the average cost function is to have most stimuli landing on the local minimum, at $c=0$, and a few landing to the right of $c > 3\Theta/4$, where the loss function takes large negative values: these are the non-specific and the specific stimuli, respectively. When $\vec{m}$ is at steady-state and the threshold $\Theta$ is constant, the distribution of values of $c$ tends to have one mode at $c=0$ and another at $c > 3\Theta/4$, as illustrated on figure \ref{fig:loss_function}. 

@@ -62,7 +62,8 @@ def plot_loss_vs_1_param(tau, n_r, p, figax=None):
         fig, ax = plt.subplots()
     else:
         fig, ax = figax
-    strat_names = {"vw":r"Combined $v, W$", "w":r"$W$ only", "v":r"$v$ only"}
+    strat_names = {"vw":r"Combined, $\mathcal{L}_{v, W}$", 
+        "w":r"$W$ only, $\mathcal{L}_W$", "v":r"$v$ only, $\mathcal{L}_v$"}
     strat_styles = {"vw":"-", "w":"--", "v":":"}
     strat_clrs = {"vw":"tab:purple", "w":"tab:red", "v":"tab:blue"}
     if isinstance(tau, np.ndarray):

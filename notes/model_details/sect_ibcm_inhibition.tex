@@ -1,0 +1,205 @@
+Now that we have defined a generic learning rule for the $W$ inhibitory weights (section \ref{sect:inhib_network}) and introduced the IBCM model (section \ref{sect:ibcm}) of neuronal specificity, we can show how that model can be used for the neurons in the inhibitory layer of the feedforward inhibition network of figure \ref{fig:inhibition_network}. The intuition is that IBCM neurons slowly become specific (through $M$) to odor components of the olfactory background and suppress them via the $W$ synapses, while new odors are not suppressed because no IBCM neuron has become specific to them yet. We will also give details on how this network's learning process can be numerically simulated for various stochastic input processes $\vec{x}_b(t)$ representing the olfactory background. 
+
+Table \ref{tab:symbols} summarizes the notation used thus far and introduced below. 
+
+\begin{table}[p]
+\centering
+\input{tables/olfaction_table_symbols.tex}
+\caption{Definition of notation in this model: abbreviations, variables, parameters and time scales. }
+\label{tab:symbols}
+\end{table}
+
+
+\subsection{Nonlinear response function}
+\label{subsect:nonlinear_neuron}
+For large simulations, the IBCM model is more stable numerically if we apply a nonlinear saturating function to the activity $c$ of the neuron. Specifically, we choose a tanh function with a high threshold for saturation. Thus, the activity of a neuron in response to stimulus $\vec{x}$ becomes
+\beq
+c = \sigma(\vec{m} \cdot \vec{x}) = c_{\mathrm{sat}} \tanh{\left( \frac{\vec{m} \cdot \vec{x}}{c_{\mathrm{sat}}}\right)}
+\label{eq:nonlinear_neuron}
+\eeq
+
+We make $c_{\mathrm{sat}}$ quite large, typically $c_{\mathrm{sat}} \approx 50$. Thus, for small neuron responses $\vec{m} \cdot \vec{x}$, the tanh function is in the linear regime, $c \approx \vec{m} \cdot \vec{x}$, such that most analytical calculations assuming a linear response still hold true; the nonlinearity only prevents very large neuron responses which otherwise would cause divergences in numerical simulations with strong fluctuations. 
+
+The dynamical equations get modified accordingly. By taking the gradient of the cost function introduced above, with $c$ including the tanh activation function, the time derivative of $\vec{m}$ becomes (with $\frac{d \tanh(u)}{du} = 1 - \tanh^2(u)$)
+
+\beq
+	\frac{d \vec{m}}{d t} = \mu c \left(c - \Theta \right) \vec{x} \sigma'(\vec{x} \cdot \vec{m}) = \mu c \left(c - \Theta \right) \vec{x} (1 - c^2) \,\,.
+	\label{eq:ibcm_equation_nonlinear}
+\eeq
+
+
+
+\subsection{Network of IBCM neurons with feedforward coupling}
+\label{subsect:ibcm_network}
+
+We now imagine a network of $n_I$ IBCM neurons, each connected to the $n_R$ input nodes and weakly coupled to the other IBCM neurons. 
+% Idea: have different neurons connected to subparts of the inputs. So each neuron sees different components, maybe that is more efficient? Could help convergence speed a lot, but might lose some inhibition ability. But not if number of components much smaller than number of dimensions; actually the number of connections per IBCM neurons would set the max number of components the network can learn to inhibit (e.g. if each IBCM is connected to 6 input nodes, that's n_R=6 dimensions per IBCM, so at most specific to one of six components). 
+% Is that dividing and conquering the problem, or would it fail equally/more than fully connected case? 
+They can repress each other such that the activity of the $j$th neuron after inhibition is
+
+\beq
+	\ovl{c}^j = c^j - \eta \sum_{k \neq j} c^k = c^j(1 + \eta) -  \eta \sum_k c^k 
+	\label{eq:inhibited_activity}
+\eeq
+
+%(
+where $\eta$ is a coupling parameter $\in [0, 1)$ %]
+and $c^k = \vec{m}^k \cdot \vec{x}$ is the activity of neuron $k$ before coupling is applied. Equation \eqref{eq:inhibited_activity} corresponds to a lateral connection matrix $L$ that has $1$ on its diagonal and $-\eta$ elsewhere. 
+Such lateral weights can also be derived as a mean-field approximation for other choices of $L$. If we let $\vec{m}^k$ be the $k$th \emph{row} of the matrix $M$ ($n_I \times n_R$), then equation \eqref{eq:inhibited_activity} can simply be written in matrix form as 
+
+\beq
+	\vec{\ovl{c}}= L M \vec{x}
+	\label{eq:inhibited_activity_matrix}
+\eeq
+which matches the inhibitory layer of the network structure presented in figure \ref{fig:inhibition_network}. 
+
+In turn, the appropriate thresholds for neurons, which we call $\ovl{\Theta}^j$, are based on the inhibited activities $\ovl{c}^j$:
+
+\beq
+	\frac{d \ovl{\Theta}^j}{dt} = \frac{1}{\tau_{\Theta}} ((\ovl{c}^j)^2 - \ovl{\Theta}^j)
+	\label{eq:inhibited_theta}
+\eeq
+
+To derive proper dynamical equations for the learning of $\vec{m}^k$ (rows of $M$) in the inhibition network with IBCM neurons, we start from the total cost function $L^{tot}_m(\{\ovl{c}^j\})$, which is the sum of single-neuron costs with $\ovl{c}^k$ replacing $c^k$:
+
+\beq
+	L^{tot}_m(\{\ovl{c}^j\}) = -\mu \sum_j  \left(\frac13 (\ovl{c}^j)^3 - \frac14 \ovl{\Theta}^j (\ovl{c}^j)^2 \right)
+	\label{eq:inhibited_cost}
+\eeq
+
+Taking the gradient of $L_m$ with respect to $\vec{m}^j$ gives rise to two terms, because each $\ovl{c}^k$, $k \neq j$, also depends on $\vec{m}^j$ in the $-\eta \sum_{l\neq k} \ovl{c}^k$ part. The proper dynamical equations are then
+
+\beq
+	\frac{d \vec{m}^j}{dt} = \mu \left[ \ovl{c}^j(\ovl{c}^j - \ovl{\Theta}^j) - \eta \sum_{k \neq j} \ovl{c}^k (\ovl{c}^k - \ovl{\Theta}^k )  \right] \vec{x}
+	\label{eq:ibcm_equation_coupled}
+\eeq
+
+
+The feedforward coupling through $L$ has been reported to favor steady-states where different neurons are specific to different input components \cite{castellani_solutions_1999}. Presumably, it enlarges the basins of attraction of those network steady-states, but this is hard to show numerically or analytically (because the complete phase space is $n_I \times n_R$-dimensional). 
+
+
+\subsection{General rules to find IBCM fixed points analytically}
+\label{subsect:general_fixed_points}
+The fixed points of the IBCM equations are important to understand, because they tell what projections will be learnt by the inhibitory neurons. 
+
+We say an IBCM neuron in the network has reached a fixed point when its input synaptic weights $\vec{m}$ are stationary, i.e. \emph{on average} constant over time; fluctuations in $\vec{x}(t)$ mean that $\vec{m}(t)$ will also be stochastic. From equation \eqref{eq:ibcm_equation_coupled}, 
+
+\beq
+	\frac{d \esper{\vec{m}^j}}{dt} = 0 = \esper{\ovl{c}^j(\ovl{c}^j - \ovl{\Theta}^j)}  - \eta \sum_{k \neq j} \esper{\ovl{c}^k(\ovl{c}^k - \ovl{\Theta}^k)} \quad \forall j
+	\label{eq:ibcm_general_steady}
+\eeq
+
+Defining terms $A^j = \esper{\ovl{c}^j(\ovl{c}^j - \ovl{\Theta}^j)}$, this system of equations can be put in matrix form, 
+\beq
+	L A = 0
+	\label{eq:ibcm_general_steady_matrix}
+\eeq
+where $A$ is the $n_I$-dimensional vector of the $A^j$ just defined and $L$ is the $n_I \times n_I$ matrix of lateral connection weights with $1$ on the diagonal and $-\eta$ everywhere else. $L$ is a circulant matrix: each row is a cyclic permutation of the previous row by one element to the right. Its eigenvectors and eigenvalues have an analytic form, from which we can compute the determinant and tell whether $L$ is invertible{\protect
+\footnote{See Wikipedia page \url{https://en.wikipedia.org/wiki/Circulant_matrix} and Scipy's function to solve circulant systems of equations \url{https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_circulant.html} 
+}}. It turns out that $L$'s eigenvalues are $1 - (n_I-1)\eta$ (once) and $\eta + 1$ (degenerate $n_I-1$ times). Hence, unless we are in the pathological cases $\eta = -1$ or $\eta = \frac{1}{n_I-1}$, $L$ is invertible and the unique solution is $A = L^{-1} 0 = 0$. Therefore, in general, the fixed points of the IBCM network are found by setting each term to zero individually:
+\beq
+	\esper{\ovl{c}^j(\ovl{c}^j - \ovl{\Theta}^j)} = 0 \quad \forall j \in \{1, 2, \ldots, M\}
+	\label{eq:ibcm_fixed_points}
+\eeq
+
+Then, defining new ``reduced'' synaptic weights
+
+\beq
+	\vec{\ovl{m}}^j = \vec{m}^j - \eta \sum_{k \neq j} \vec{m}^k 
+	\label{eq:reduced_synaptic_weights}
+\eeq
+
+such that $\ovl{c}^j = \vec{\ovl{m}}^j \cdot \vec{x}$ allows one to decouple the steady-state equations \eqref{eq:ibcm_fixed_points} by solving in terms of the $\vec{\ovl{m}}^j$. In terms of those reduced variables, the problem of finding fixed points for the IBCM network with feedforward inhibition reduces to finding the fixed points for a single IBCM neuron. 
+%Network fixed points are just all possible combinations of single-neuron fixed points, combined independently (if one neuron has $S$ stable fixed points, there are $S^M$ possible combinations). 
+
+%% TODO: show a bit more how to develop this equation, inserting the dot product, etc? Maybe not relevant, depends too much on x(t)? But we can at least mention some approximations on neglecting correlations, no?
+
+
+% Recovering the synaptic weight vectors \vec{m} from the \vec{\ovl{m}}
+Afterwards, the actual synaptic weights $\vec{m}^j$ can be found from the $\vec{\ovl{m}}^j$ solutions by inverting the matrix equation
+\beq
+	\ovl{M} = L M
+\eeq
+
+where $M$ and $\ovl{M}$ are $n_I \times n_R$ matrices where each row is a vector $\vec{m}^j$ or $\vec{\ovl{m}}^j$ and $L$ is the circulant matrix of lateral weights. This matrix, applied to the input $\vec{x}$, directly gives the projections computed by the inhibitory neurons in the network of figure \ref{fig:inhibition_network}, $\vec{\ovl{c}} = LM \vec{c} = \ovl{M} \vec{x}$. 
+
+From the eigenvectors and eigenvalues of $L$, one can compute that elements of $L^{-1}$ are 
+\beq
+	L^{-1}_{ij} = \left\{ 
+		\begin{array}{ll}
+			\frac{(n_I-2)\eta - 1}{(n_I-1)\eta^2 + (n_I-2) \eta - 1} 	& \text{on the diagonal} \\
+			\frac{-\eta}{(n_I-1)\eta^2 + (n_I-2) \eta - 1}			& \text{off-diagonal} \\
+		\end{array}
+	\right.
+	\label{eq:inverse_circulant_elements}
+\eeq
+
+Hence, the synaptic weights $M$ can be recovered from the reduced ones, if necessary, as
+
+\beq
+	\vec{m}^j = \frac{[(n_I-2) \eta - 1] \vec{\ovl{m}}^j - \eta \sum_{k \neq j} \vec{\ovl{m}}^k}{(n_I-1)\eta^2 + (n_I-2) \eta - 1}  \quad \mathrm{if} \, \eta \neq \frac{1}{n_I-1} \,\,\mathrm{or}\,\, -1 \,\, .
+	\label{eq:inverse_circulant_mvecs}
+\eeq
+
+There is no need to invert $L$ when using this network of IBCM neurons to inhibit a fluctuating background; $\ovl{M} = LM$ is the relevant projection matrix to apply to inputs. But it may be useful to compute $M$ from $\ovl{M}$ when comparing analytical predictions to simulations. 
+
+%The eigenvalues of $L$ are $1 - (n_I-1)\eta$ and $n_I-1$ times $\eta + 1$, so if $\eta = \frac{1}{n_I-1}$, there are zero eigenvalues and the matrix is not invertible; this is the pathological case for fixed points already noted above. 
+
+
+
+\subsection{IBCM habituation network equations}
+\label{subsect:network_equations}
+
+Here, we summarize the network equations when inhibitory neurons evolve according to the IBCM model. 
+
+First, in a linear approximation (to be improved in future work with better models of ORN activation), the input process at the ORN layer, $\vec{x}_b(t)$, will generally be a mixture of odor vectors $\vec{x}_{\gamma}$ present simultaneously at varying concentrations:
+\beq
+	\vec{x}_b(t) = \sum_{\gamma} \nu_{\gamma}(t) \vec{x}_{\gamma}
+	\label{eq:background_mixture}
+\eeq
+during the background learning phase. When a new odor $\vec{x}_n$ is introduced at some time $T$, the input will then be a mixture $\vec{x}(T) = \vec{x}_b(T) + f \vec{x}_n$, where $f$ controls the concentration of that odor compared to the background. This is different from the alternating stimuli usually studied in the IBCM literature (section \ref{subsect:ibcm_alternating}). Increasingly complex input processes will be described and analyzed in the following sections. Generally speaking, the background $\vec{x}(t)$ will fluctuate with a fast correlation time scale $\tau_b$. 
+
+The IBCM neurons receive the input process $\vec{x}(t)$ from the ORN layer and evolve according to the IBCM network equations with constant feedforward coupling $L$ as stated in section \ref{subsect:ibcm_network}:
+
+\begin{align*}
+	\frac{d \vec{m}^j}{dt} &= \mu \left[ \ovl{c}^j (\ovl{c}^j - \ovl{\Theta}^j) - \eta \sum_{k \neq j} \ovl{c}^k (\ovl{c}^k - \ovl{\Theta}^k )  \right] \vec{x}(t) 			\tag{\ref{eq:ibcm_equation_coupled}} \\
+	\frac{d \ovl{\Theta}^j}{dt} &= \frac{1}{\tau_{\Theta}} ((\ovl{c}^j)^2 - \ovl{\Theta}^j)  \tag{\ref{eq:inhibited_theta}}  \\
+	\vec{\ovl{c}}(t) &= L M \vec{x}(t)		\tag{\ref{eq:inhibited_activity_matrix}}
+\end{align*}
+
+with $L$ having $1$ on the diagonal and $-\eta$ off-diagonal and $\vec{m}^j$ being the $j$th row of $M$. 
+
+Then, the inhibitory weights $W$ evolve to minimize the activity of projection neurons, $\vec{s}$, during exposition to the olfactory background, as derived in section \ref{subsect:optimal_inhib_weights}:
+
+\begin{align*}
+	\frac{d \vec{w}_j}{dt} &= \alpha \ovl{c}^j \vec{s} - \beta \vec{w}_j  	\tag{\ref{eq:learning_rule_w}} \\
+	\vec{s} &= R(\vec{x}_{in} -  W\vec{\ovl{c}})   \tag{\ref{eq:pn_relu}}
+\end{align*}
+where $R$ is either the identity or the ReLU function, so $R'$ could be omitted from \eqref{eq:learning_rule_w}. 
+
+The inhibition vector $W \vec{\ovl{c}} = WLM\vec{x}(t)$ is subtracted from $\vec{x}(t)$, at any time $t$. Once the $\vec{m}^j$ and $\vec{w}_j$ have reached their steady-state, fluctuations of the background should be continually suppressed as they come, since $WLM\vec{x}(t)$ instantaneously track variations of $\vec{x}(t)$ in the olfactory background subspace, on the fast time scale $\tau_b$. The exact configuration of $W$ that optimizes inhibition will depend strongly on the input process and the $\vec{m}^j$ learnt, but the general idea is that each IBCM neuron will become specific to one odor in the background (e.g. for an alternating background), so the associated $\vec{w}_j$ will learn an image of that odor and subtract it when the IBCM neuron fires (i.e. detects the presence of that odor). 
+
+\subsection{Simulation details}  % Will give some intuition about how the system works, the different time scales combined, etc. 
+\label{subsect:network_simulation}
+There are four well separated time scales in this inhibitory network model: $\tau_b \ll \tau_\Theta \ll 1/\mu \leq 1/\alpha$. We need to run simulations with small time steps on the order of $\tau_b$ at most, because the thresholds $\Theta$ need to ``see'' multiple values of the background process to perform proper averaging, and the synaptic weight vectors $\vec{m}$ need to ``see'' temporal competition between different background vectors to become specific. We set the time step $\Delta t = 1$ and define other time scales relative to this unit. The number of neurons $n_I$ should be the expected number of background odor components $n_B$, to ensure that each component can be learnt and inhibited. We use weak feedforward coupling $\eta$ between IBCM neurons, because strong coupling blocks the network near the origin and delays habituation too long. Table \ref{tab:parameter_values} lists typical parameter values used in simulations. 
+	% Note: could use some tau-leaping algorithm to update m only once in a while? Or at least update theta only once in a while. Unclear how to update m only once in a while because need temporal competition between patterns. Maybe take one every tau_b and make a larger dt so the impact of each is more significant? 
+
+\begin{table}
+	\centering
+	\input{tables/typical_ibcm_parameter_values.tex}
+	\caption{Typical parameter values for simulation of the IBCM inhibition network. Some dimensions ($n_R$, $n_B$) and other parameters depend on the choice of background process. }
+	\label{tab:parameter_values}
+\end{table}
+
+The model equations are solved using a simple Euler scheme with step size $\Delta t$. At every step, variables are updated to $t+\Delta t$ based on their derivatives evaluated at time $t$. Therefore, when only the current value of a variable is recorded (to avoid memory issues), one must be careful to update some variable $A$ only after all other variables depending on it have been updated. Otherwise, incorrect time correlations are introduced. For our inhibition network, variables can be updated in the following order (decreasing order of dependency):
+\begin{enumerate}
+	\item Update the inhibition weights $\vec{w}_j$ to $t+\Delta t$ based on equation \eqref{eq:learning_rule_w}, using the projection neurons activity $\vec{s}(t)$ and the IBCM neurons' activities $\ovl{c}^j(t)$ available from the previous iteration. 
+	\item Update the IBCM synaptic weights $\vec{m}^j$ based on equation \eqref{eq:ibcm_equation_coupled}, using $\ovl{c}^j(t)$ and $\ovl{\Theta}^j(t)$ from the previous iteration.
+	\item Update the IBCM thresholds $\ovl{\Theta}^j$ with equation \eqref{eq:inhibited_theta} using the $\ovl{c}^j(t)$ from the previous iteration. 
+	\item Update the input process to $\vec{x}(t + \Delta t)$. 
+	\item Evaluate the activity of IBCM neurons $\vec{\ovl{c}}(t + \Delta t)$ in response to $\vec{x}(t+\Delta t)$ with $\vec{m}^j(t+\Delta t)$ and the constant coupling $L$ as in equation \eqref{eq:inhibited_activity}.  	
+	\item Apply inhibition on the PN neurons layer by evaluating equation \eqref{eq:pn_relu} with $\vec{w}_j(t+\Delta t)$ and $\ovl{c}^j(t+\Delta t)$. 
+\end{enumerate}
+
+
+
