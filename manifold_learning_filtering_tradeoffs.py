@@ -1,5 +1,5 @@
 """
-Plots of the cost function for optimal new odor recognition in fluctuating
+Plots of the loss function for optimal new odor recognition in fluctuating
 olfactory backgrounds combining predictive filtering and manifold learning.
 
 @author: frbourassa
@@ -9,58 +9,170 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def cost_vw_ou(tau, p):
+def loss_vw_ou(tau, n_r, p):
     """
-    Cost function with both W and v strategies, for a special case
+    Loss function with both W and v strategies, for a special case
     where background odors are orthogonal and iid, new odors are a
     concentration iid to the background times a vector uniformly
     sampled on the unit hypersphere.
 
     tau (float, np.ndarray): time constant of the exponentially decaying
         autocorrelation function (O-U process' autocorrelation) of each odor.
+    n_r (float, np.ndarray): N_R, number of olfactory receptor dimensions
     p (dict): parameters,
-        N_R: number of olfactory receptor dimensions
         sigma^2: variance of odor concentrations
         K: number of background odors
     """
     expo = 1.0 - np.exp(-2.0/tau)
-    cost = p["sigma^2"] * p["K"] * expo / (1.0 + p["N_R"]*expo)
-    return cost
+    loss = p["sigma^2"] * p["K"] * expo / (1.0 + n_r*expo)
+    return loss
 
 
-def cost_v_ou(tau, p):
-    """ Cost with only predictive filtering v.
+def loss_v_ou(tau, n_r, p):
+    """ Loss with only predictive filtering v.
     """
-    cost = p["K"] * p["sigma^2"] * (1.0 - np.exp(-2.0/tau))
-    return cost
+    loss = p["K"] * p["sigma^2"] * (1.0 - np.exp(-2.0/tau))
+    if hasattr(n_r, "shape"):
+        loss = np.ones(n_r.shape) * loss  # Ensure full array shape
+    return loss   
 
 
-def cost_w_ou(tau, p):
-    """ Cost with only manifold learning W.
+def loss_w_ou(tau, n_r, p):
+    """ Loss with only manifold learning W.
     """
-    cost = p["K"] * p["sigma^2"] / (p["N_R"] + 1.0)
-    return cost * np.ones(tau.shape)
+    loss = p["K"] * p["sigma^2"] / (n_r+ 1.0)
+    if hasattr(tau, "shape"):
+        loss = np.ones(tau.shape) * loss  # Ensure full array shape
+    return loss 
 
+def phase_boundary_v_w(tau_range):
+    n_r = 1.0 / (np.exp(2.0/tau_range) - 1.0)
+    return n_r
+
+def plot_loss_vs_1_param(tau, n_r, p, figax=None):
+    # Compute losses
+    loss_lines = {}
+    loss_fcts = {"vw":loss_vw_ou, "w":loss_w_ou, "v":loss_v_ou}
+    norm_fact = p["K"] * p["sigma^2"]
+    for strat in loss_fcts.keys():
+        loss_lines[strat] = loss_fcts[strat](tau, n_r, p)
+
+    # Plot
+    if figax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig, ax = figax
+    strat_names = {"vw":r"Combined $v, W$", "w":r"$W$ only", "v":r"$v$ only"}
+    strat_styles = {"vw":"-", "w":"--", "v":":"}
+    strat_clrs = {"vw":"tab:purple", "w":"tab:red", "v":"tab:blue"}
+    if isinstance(tau, np.ndarray):
+        xrange = tau
+        xlbl = r"Autocorrelation time, $\tau$"
+    else:
+        xrange = n_r
+        xlbl = r"Olfactory space dimension, $N_R$"
+
+    for strat in ["v", "w", "vw"]:
+        ax.plot(
+            xrange, loss_lines[strat] / norm_fact, 
+            label=strat_names[strat], ls=strat_styles[strat],
+            lw=2.5, color=strat_clrs[strat]
+        )
+    ax.set(
+        xlabel=xlbl,
+        ylabel=r"Normalized minimized loss, $\mathcal{L} \, / K \sigma^2$", 
+        yscale="log", xscale="log"
+    )
+    ax.legend()
+    return [fig, ax]
+
+def phase_w_v_heatmap(tau_range, n_r_range, p, figax=None):
+    # First, compute the costs at each grid point. 
+    loss_maps = {}
+    loss_fcts = {"vw":loss_vw_ou, "w":loss_w_ou, "v":loss_v_ou}
+    norm_fact = p["K"] * p["sigma^2"]
+    tau_grid, n_r_grid = np.meshgrid(tau_range, n_r_range, indexing="xy")
+    for strat in loss_fcts.keys():
+        loss_maps[strat] = loss_fcts[strat](tau_grid, n_r_grid, p) / norm_fact
+    loss_ratio_v = np.log(loss_maps["v"] - loss_maps["vw"])
+    loss_ratio_w = np.log(loss_maps["w"] - loss_maps["vw"])
+    phase = loss_ratio_w - loss_ratio_v
+    max_ampli = np.amax(np.abs(phase))
+    if figax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig, ax = figax
+    xtent = (tau_grid.min(), tau_grid.max(), n_r_grid.min(), n_r_grid.max())
+    im = ax.imshow(phase, cmap="RdBu", vmin=-max_ampli, vmax=max_ampli,
+        extent=xtent, origin="lower", 
+    )
+    # Analytical boundary
+    nr_boundary = phase_boundary_v_w(tau_range)
+    ax.plot(tau_range, nr_boundary, ls="--", color="k")
+    ax.set_xlim(xtent[0], xtent[1])
+    ax.set_ylim(xtent[2], xtent[3])
+    ax.set_xlabel(r"Autocorrelation time, $\tau$")
+    ax.set_ylabel(r"Olfactory space dimension, $N_R$")
+
+    cbar = fig.colorbar(im, ax=ax, 
+        label=(r"Phase: $\Phi = \log(\mathcal{L}_W - \mathcal{L}_{v,W})"
+            + r"- \log(\mathcal{L}_v - \mathcal{L}_{v,W})$"), 
+        shrink=0.7
+    )
+    return [fig, ax], cbar
+    
 
 if __name__ == "__main__":
-    cost_params = {
-        "N_R": 50,
+    loss_params = {
         "sigma^2": 0.16,  # Useless, just an overall scale in the end
-        "K": 5  # number of odors, useless in the end, cost = k * 1-d back. cost
+        "K": 5  # number of odors, useless in the end, 
+                # since general loss = k * 1-d back. loss
     }
+    do_save = True
 
-    tau_range = np.linspace(0.01, 100.0, 100)
-    cost_lines = {}
-    cost_fcts = {"vw":cost_vw_ou, "w":cost_w_ou, "v":cost_v_ou}
-    for strat in cost_fcts.keys():
-        cost_lines[strat] = cost_fcts[strat](tau_range, cost_params)
+    fig, axes = plt.subplots(1, 2, sharey="row")
+    fig.set_size_inches(6, 3.25)
+    # Plot as a function of tau, fixed N_R
+    tau_range = np.linspace(1.0, 200.0, 400)
+    n_r_fix = 50
+    figax = (fig, axes.flat[0])
+    plot_loss_vs_1_param(tau_range, n_r_fix, loss_params, figax=figax)
 
-    fig, ax = plt.subplots()
-    strat_names = {"vw":r"Combined $v, W$", "w":r"$W$ only", "v":r"$v$ only"}
-    for strat in cost_fcts.keys():
-        ax.plot(tau_range, cost_lines[strat], label=strat_names[strat])
-    ax.set(xlabel=r"Autocorrelation time, $\tau$",
-        ylabel=r"Minimized cost, $\mathcal{L}$", yscale="log")
-    ax.legend()
+    # Plot as a function of N_R, tau fixed. 
+    n_r_range = np.linspace(1, 200, 400)
+    tau_fix = 100
+    figax = (fig, axes.flat[1])
+    plot_loss_vs_1_param(tau_fix, n_r_range, loss_params, figax=figax)
+
+    fig.tight_layout()
+    if do_save:
+        fig.savefig(
+            "figures/noise_struct/loss_lineplots_manifold_vs_predictive.pdf",
+            transparent=True, bbox_inches="tight"
+        )
+    plt.show()
+    plt.close()
+
+    # Now, phase diagram. Plot min(log(L_v/L_{v,W}), log(L_W/L_{v,W}))
+    # with a different color depending on which term is smallest. 
+
+    figax = plt.subplots()
+    figax[0].set_size_inches(4.25, 4.25)
+    [fig, ax], cbar = phase_w_v_heatmap(tau_range, n_r_range, loss_params, figax)
+    tau_mid = tau_range[tau_range.shape[0] // 2]
+    ax.annotate(r"$N_R \sim \frac{1}{2} \tau - 1$", 
+                (tau_mid, tau_mid/2.0 - 15.0), rotation=25)
+    ax.annotate(r"$W$ dominates", 
+        (tau_range[tau_range.shape[0] // 4],
+          n_r_range[n_r_range.shape[0]//4 * 3]))
+    ax.annotate(r"$v$ dominates", 
+        (tau_range[-10], n_r_range[n_r_range.shape[0]//20]), 
+        ha="right", va="bottom")
+    fig.tight_layout()
+    if do_save:
+        fig.savefig(
+            "figures/noise_struct/loss_strategy_phase_diagram_heatmap.pdf",
+            transparent=True, bbox_inches="tight"
+        )
     plt.show()
     plt.close()
