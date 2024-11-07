@@ -61,12 +61,13 @@ def concat_lmats(f, model="PCA"):
 def main_plot_histograms():
     # Compare all algorithms
     folder = os.path.join("results", "performance")
-    models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
+    models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
     model_nice_names = {
         "ibcm": "IBCM",
         "biopca": "BioPCA",
         "avgsub": "Average",
         "ideal": "Ideal",
+        "optimal": "Manifold W",
         "orthogonal": "Orthogonal",
         "none": "None"
     }
@@ -79,6 +80,7 @@ def main_plot_histograms():
         "biopca": "xkcd:orangey brown",
         "avgsub": "xkcd:navy blue",
         "ideal": "xkcd:powder blue",
+        "optimal": "xkcd:light green",
         "orthogonal": "xkcd:pale rose",
         "none": "grey"
     }
@@ -125,7 +127,7 @@ def main_plot_histograms():
 def main_export_jaccards(dest_name):
     # Compare all algorithms
     folder = os.path.join("results", "performance")
-    models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
+    models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
     model_file_choices = {
         a:os.path.join(folder, a+"_performance_results.h5")
         for a in models
@@ -156,7 +158,7 @@ def main_export_jaccards(dest_name):
 def main_export_new_back_distances(dest_name):
     # Compare all algorithms
     folder = os.path.join("results", "performance")
-    models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
+    models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
     model_file_choices = {
         a:os.path.join(folder, a+"_performance_results.h5")
         for a in models
@@ -168,7 +170,7 @@ def main_export_new_back_distances(dest_name):
             backs[m] = f.get("odors").get("back_odors")[()]
             news[m] = f.get("odors").get("new_odors")[()]
             activ_fct = f.get("parameters").attrs.get("activ_fct")
-            n_backs, n_news = f.get("parameters").get("repeats")[[0, 3]]
+            n_backs, n_news = f.get("parameters").get("repeats")[[0, 3]]  # type: ignore
     assert np.all([backs["ibcm"] == backs[m] for m in backs]), "Different backs"
     assert np.all([news["ibcm"] == news[m] for m in news]), "Different news"
     backs = backs["ibcm"]
@@ -190,9 +192,9 @@ def main_export_new_back_distances(dest_name):
 
 if __name__ == "__main__":
     main_plot_histograms()
-    main_export_jaccards(
-        os.path.join("results", "for_plots", "jaccard_similarities")
-    )
-    main_export_new_back_distances(
-        os.path.join("results", "for_plots", "new_back_distances")
-    )
+    #main_export_jaccards(
+    #    os.path.join("results", "for_plots", "jaccard_similarities")
+    #)
+    #main_export_new_back_distances(
+    #    os.path.join("results", "for_plots", "new_back_distances")
+    #)

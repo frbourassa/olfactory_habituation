@@ -325,8 +325,7 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
     # moments of the background vectors too
     avg_back = moments_conc[0] * np.sum(back_odors, axis=0)
     # \sum_\rho s_\rho s_\rho^T
-    covmat_back = np.sum([np.outer(back_odors[i], back_odors[i]) 
-                            for i in range(back_odors.shape[0])], axis=0)
+    covmat_back = np.sum(back_odors[:, :, None]*back_odors[:, :, None], axis=0)
     covmat_back = moments_conc[1] * covmat_back + np.outer(avg_back, avg_back)
     # With these components, we are ready to compute W optimal for each background
     optimal_ws = []
@@ -336,7 +335,7 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
             + np.outer(avg_back, avg_new_odors[i])
         )
         right_mat = np.outer(avg_back, avg_new_odors[i]) + covmat_back
-        w_opt = np.linalg.pinv(m).dot(right_mat)
+        w_opt = right_mat.dot(np.linalg.pinv(m))
         optimal_ws.append(w_opt)
     optimal_ws = np.asarray(optimal_ws)
 

@@ -119,11 +119,11 @@ if __name__ == "__main__":
         "decay": True
     }
     print("Starting IBCM simulations")
-    main_habituation_runs(ibcm_file_name, ibcm_attrs,
-                          ibcm_params, ibcm_options)
-    print("Starting IBCM recognition tests")
-    main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
-                          ibcm_options, projection_arguments)
+    #main_habituation_runs(ibcm_file_name, ibcm_attrs,
+    #                      ibcm_params, ibcm_options)
+    #print("Starting IBCM recognition tests")
+    #main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
+    #                      ibcm_options, projection_arguments)
 
     ### BIOPCA RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -156,11 +156,11 @@ if __name__ == "__main__":
         "remove_lambda": False
     }
     print("Starting BioPCA simulations")
-    main_habituation_runs(pca_file_name, biopca_attrs,
-                          biopca_params, biopca_options)
+    #main_habituation_runs(pca_file_name, biopca_attrs,
+    #                      biopca_params, biopca_options)
     print("Starting BioPCA recognition tests")
-    main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
-                          biopca_options, projection_arguments)
+    #main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
+    #                      biopca_options, projection_arguments)
 
     ### AVERAGE INHIBITION RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -188,15 +188,16 @@ if __name__ == "__main__":
         "activ_fct": activ_fct_choice
     }
     print("Starting average subtraction simulations")
-    main_habituation_runs(avg_file_name, avg_attrs,
-                          avg_params, avg_options)
+    #main_habituation_runs(avg_file_name, avg_attrs,
+    #                      avg_params, avg_options)
     print("Starting average subtraction recognition tests")
-    main_recognition_runs(avg_file_name, avg_attrs, avg_params,
-                          avg_options, projection_arguments)
+    #main_recognition_runs(avg_file_name, avg_attrs, avg_params,
+    #                      avg_options, projection_arguments)
 
 
     ### IDEAL AND NO INHIBITION ###
-    for kind in ["orthogonal", "ideal", "optimal", "none"]:
+    #for kind in ["orthogonal", "ideal", "optimal", "none"]:
+    for kind in ["optimal"]:
         print("Starting idealized habituation of kind "
                 +"{} recognition tests".format(kind))
         ideal_file_name = os.path.join(folder, kind+"_performance_results.h5")
