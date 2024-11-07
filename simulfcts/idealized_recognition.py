@@ -248,14 +248,14 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
         new_odor_tags[i, list(new_tag)] = True
         for k in range(n_new_concs):
             mixtures = back_samples + new_concs[k]*new_odors[i]
-            mixture_svecs[i, :, k] = (factors[k]*back_samples
-                        + new_concs[k] * (factors[k]*x_par + x_ort))
             # We actually don't want to apply ReLU to understand what
             # happens if some svec is zero.
             #if str(activ_fct).lower() == "relu":
             #    mixture_svecs[i, :, k] = relu_inplace(mixture_svecs[i, :, k])
             for j in range(n_times):
                 for l in range(n_back_samples):
+                    mixture_svecs[i, j, k, l] = (factors[k]*back_samples[j, l]
+                        + new_concs[k] * (factors[k]*x_par + x_ort))
                     mix_tag = project_neural_tag(
                         mixture_svecs[i, j, k, l], mixtures[j, l],
                         projmat, **proj_kwargs
@@ -325,7 +325,7 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
     # moments of the background vectors too
     avg_back = moments_conc[0] * np.sum(back_odors, axis=0)
     # \sum_\rho s_\rho s_\rho^T
-    covmat_back = np.sum(back_odors[:, :, None]*back_odors[:, :, None], axis=0)
+    covmat_back = np.sum(back_odors[:, :, None]*back_odors[:, None, :], axis=0)
     covmat_back = moments_conc[1] * covmat_back + np.outer(avg_back, avg_back)
     # With these components, we are ready to compute W optimal for each background
     optimal_ws = []
@@ -334,8 +334,8 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
             + np.outer(avg_new_odors[i], avg_back)
             + np.outer(avg_back, avg_new_odors[i])
         )
-        right_mat = np.outer(avg_back, avg_new_odors[i]) + covmat_back
-        w_opt = right_mat.dot(np.linalg.pinv(m))
+        left_mat = np.outer(avg_back, avg_new_odors[i]) + covmat_back
+        w_opt = left_mat.dot(np.linalg.pinv(m))
         optimal_ws.append(w_opt)
     optimal_ws = np.asarray(optimal_ws)
 
