@@ -69,9 +69,12 @@ def plot_loss_vs_1_param(tau, n_r, p, figax=None):
     if isinstance(tau, np.ndarray):
         xrange = tau
         xlbl = r"Autocorrelation time, $\tau$"
+        annot_lbl = r"Fixed $\frac{\sigma^2}{\sigma_x^2} N_R = " 
+        annot_lbl += "{:d}$".format(n_r) 
     else:
         xrange = n_r
-        xlbl = r"Olfactory space dimension, $N_R$"
+        xlbl = r"Scaled olfactory dimension, $\frac{\sigma^2}{\sigma_x^2} N_R$"
+        annot_lbl = r"Fixed $\tau = {:d}$".format(tau) 
 
     for strat in ["v", "w", "vw"]:
         ax.plot(
@@ -79,6 +82,7 @@ def plot_loss_vs_1_param(tau, n_r, p, figax=None):
             label=strat_names[strat], ls=strat_styles[strat],
             lw=2.5, color=strat_clrs[strat]
         )
+    ax.set_title(annot_lbl, fontsize=ax.xaxis.label.get_size())
     ax.set(
         xlabel=xlbl,
         ylabel=r"Normalized minimized loss, $\mathcal{L} \, / K \sigma^2$", 
@@ -97,14 +101,14 @@ def phase_w_v_heatmap(tau_range, n_r_range, p, figax=None):
         loss_maps[strat] = loss_fcts[strat](tau_grid, n_r_grid, p) / norm_fact
     loss_ratio_v = np.log(loss_maps["v"] - loss_maps["vw"])
     loss_ratio_w = np.log(loss_maps["w"] - loss_maps["vw"])
-    phase = loss_ratio_w - loss_ratio_v
+    phase = loss_ratio_v - loss_ratio_w
     max_ampli = np.amax(np.abs(phase))
     if figax is None:
         fig, ax = plt.subplots()
     else:
         fig, ax = figax
     xtent = (tau_grid.min(), tau_grid.max(), n_r_grid.min(), n_r_grid.max())
-    im = ax.imshow(phase, cmap="RdBu", vmin=-max_ampli, vmax=max_ampli,
+    im = ax.imshow(phase, cmap="RdBu_r", vmin=-max_ampli, vmax=max_ampli,
         extent=xtent, origin="lower", 
     )
     # Analytical boundary
@@ -113,14 +117,14 @@ def phase_w_v_heatmap(tau_range, n_r_range, p, figax=None):
     ax.set_xlim(xtent[0], xtent[1])
     ax.set_ylim(xtent[2], xtent[3])
     ax.set_xlabel(r"Autocorrelation time, $\tau$")
-    ax.set_ylabel(r"Olfactory space dimension, $N_R$")
+    ax.set_ylabel(r"Scaled olfactory dimension, $\frac{\sigma^2}{\sigma_x^2} N_R$")
 
     cbar = fig.colorbar(im, ax=ax, 
-        label=(r"Phase: $\Phi = \log(\mathcal{L}_W - \mathcal{L}_{v,W})"
-            + r"- \log(\mathcal{L}_v - \mathcal{L}_{v,W})$"), 
+        label=(r"Regime: $\Phi = \log(\mathcal{L}_v - \mathcal{L}_{v,W})"
+            + r"- \log(\mathcal{L}_W - \mathcal{L}_{v,W})$"), 
         shrink=0.7
     )
-    return [fig, ax], cbar
+    return [fig, ax], cbar, loss_maps
     
 
 if __name__ == "__main__":
@@ -129,18 +133,18 @@ if __name__ == "__main__":
         "K": 5  # number of odors, useless in the end, 
                 # since general loss = k * 1-d back. loss
     }
-    do_save = True
+    do_save = False
 
     fig, axes = plt.subplots(1, 2, sharey="row")
     fig.set_size_inches(6, 3.25)
     # Plot as a function of tau, fixed N_R
-    tau_range = np.linspace(1.0, 200.0, 400)
+    tau_range = np.geomspace(1.0, 200.0, 400)
     n_r_fix = 50
     figax = (fig, axes.flat[0])
     plot_loss_vs_1_param(tau_range, n_r_fix, loss_params, figax=figax)
 
     # Plot as a function of N_R, tau fixed. 
-    n_r_range = np.linspace(1, 200, 400)
+    n_r_range = np.geomspace(1, 200, 400)
     tau_fix = 100
     figax = (fig, axes.flat[1])
     plot_loss_vs_1_param(tau_fix, n_r_range, loss_params, figax=figax)
@@ -156,17 +160,18 @@ if __name__ == "__main__":
 
     # Now, phase diagram. Plot min(log(L_v/L_{v,W}), log(L_W/L_{v,W}))
     # with a different color depending on which term is smallest. 
-
+    tau_range = np.linspace(4.0, 200.0, 400)
+    n_r_range = np.linspace(4, 200, 400)
     figax = plt.subplots()
     figax[0].set_size_inches(4.25, 4.25)
-    [fig, ax], cbar = phase_w_v_heatmap(tau_range, n_r_range, loss_params, figax)
+    [fig, ax], cbar, lossgrids = phase_w_v_heatmap(tau_range, n_r_range, loss_params, figax)
     tau_mid = tau_range[tau_range.shape[0] // 2]
-    ax.annotate(r"$N_R \sim \frac{1}{2} \tau - 1$", 
+    ax.annotate(r"$\tau \sim 2\left(\frac{\sigma^2}{\sigma_x^2} N_R + 1\right)$", 
                 (tau_mid, tau_mid/2.0 - 15.0), rotation=25)
-    ax.annotate(r"$W$ dominates", 
+    ax.annotate("Manifold learning", #r"$W$ dominates", 
         (tau_range[tau_range.shape[0] // 4],
           n_r_range[n_r_range.shape[0]//4 * 3]))
-    ax.annotate(r"$v$ dominates", 
+    ax.annotate("Predictive filtering", #r"$v$ dominates", 
         (tau_range[-10], n_r_range[n_r_range.shape[0]//20]), 
         ha="right", va="bottom")
     fig.tight_layout()
@@ -177,3 +182,11 @@ if __name__ == "__main__":
         )
     plt.show()
     plt.close()
+
+    # Also save the heatmap data for final figure plotting
+    np.savez(
+        "results/for_plots/manifold_learning_heatmap_data.npz",
+        **lossgrids, 
+        tau_range=tau_range,
+        n_r_range=n_r_range
+    )

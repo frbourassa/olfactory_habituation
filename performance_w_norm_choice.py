@@ -39,6 +39,7 @@ from simulfcts.habituation_recognition import (
     main_habituation_runs,
     main_recognition_runs
 )
+from utils.metrics import l2_norm
 
 # Save full x, c time series to re-integrate, also save m snapshots already
 # Update: doesn't work due to memory usage of full simulations,
@@ -81,8 +82,8 @@ def integrate_w_given_xc(xser, cser, w_init, inhib_params, dt, **options):
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
     w_norms = options.get("w_norms", (2, 2))
     skp = options.get("skp", 1)
-    n_neu = c_init.shape[1]  # Number of neurons
-    n_orn = x_init.shape[1]
+    n_neu = cser.shape[1]  # Number of neurons
+    n_orn = xser.shape[1]
     nsteps = xser.shape[0]
     assert nsteps == cser.shape[0]
 
@@ -92,8 +93,8 @@ def integrate_w_given_xc(xser, cser, w_init, inhib_params, dt, **options):
     alpha, beta = inhib_params
 
     # Containers for the solution over time
-    w_series = np.zeros([tseries.shape[0], n_orn, n_neu])  # Inhibitory weights
-    s_series = np.zeros([tseries.shape[0], n_orn])
+    w_series = np.zeros([xser.shape[0], n_orn, n_neu])  # Inhibitory weights
+    s_series = np.zeros([xser.shape[0], n_orn])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
     bkvec = xser[0]

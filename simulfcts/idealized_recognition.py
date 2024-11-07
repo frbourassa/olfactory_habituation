@@ -19,7 +19,8 @@ from modelfcts.ideal import (
     find_projector,
     find_parallel_component,
     ideal_linear_inhibitor,
-    compute_optimal_factor
+    compute_optimal_factor, 
+    relu_inplace
 )
 from modelfcts.tagging import (
     project_neural_tag,
@@ -281,6 +282,113 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
     return sim_id, test_results, projmat
 
 
+def optimal_recognition_one_sim(sim_id, filename_ref):
+    """Load new odors, background samples and projection matrix
+    for a given simulation in ref_file, and test odor recognition
+    after optimal habituation where the projection matrix W
+    is the optimum to minimize the distance between the 
+    background and the subtracted vector, <||b - W(b + s_n)||>^2. 
+
+    This is the true optimum for manifold learning, 
+    it should be in principle even better than the "ideal" case
+    above, which simplified the process to targeting the parallel
+    component of the new odor only. 
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    sim_gp = ref_file.get(id_to_simkey(sim_id))
+    projmat = hdf5_to_csr_matrix(sim_gp.get("kc_proj_mat"))
+    new_odors = ref_file.get("odors").get("new_odors")[()]
+    back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
+    new_concs = ref_file.get("parameters").get("new_concs")[()]
+    moments_conc = ref_file.get("parameters").get("moments_conc")[()]
+    # IBCM factor: this can be too much reduction compared to the optimum.
+    #factor = w_rates[1] / (2*w_rates[0] + w_rates[1])
+
+    # Dimensions, etc.
+    n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
+    (n_times, n_back_samples, n_new_odors,
+        n_new_concs) = ref_file.get("parameters").get("repeats")[1:5]
+    proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
+    activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU").lower()
+
+    # Get the average of background samples to set the KC thresholds
+    back_samples = sim_gp.get("test_results").get("back_samples")[()]
+
+    # Compute optimal matrix for each new concentration. Need to compute
+    # the average new odor <s_n>, and average <s_n s_n^T> first. 
+    avg_new_odors = [c * np.mean(new_odors, axis=0) for c in new_concs]
+    # Outer product of each new odor with itself: s_n s_n^T
+    avg_new_odor_mat = np.mean(new_odors[:, :, None] * new_odors[:, None, :], axis=0)
+    # Multiply by <c^2> = <c>^2 + sigma^2 for each new c
+    covmats_new_odors = [avg_new_odor_mat * (c**2 + moments_conc[1]) for c in new_concs]
+    del avg_new_odor_mat
+    # moments of the background vectors too
+    avg_back = moments_conc[0] * np.sum(back_odors, axis=0)
+    # \sum_\rho s_\rho s_\rho^T
+    covmat_back = np.sum([np.outer(back_odors[i], back_odors[i]) 
+                            for i in range(back_odors.shape[0])], axis=0)
+    covmat_back = moments_conc[1] * covmat_back + np.outer(avg_back, avg_back)
+    # With these components, we are ready to compute W optimal for each background
+    optimal_ws = []
+    for i in range(len(new_concs)):
+        m = (covmats_new_odors[i] + covmat_back 
+            + np.outer(avg_new_odors[i], avg_back)
+            + np.outer(avg_back, avg_new_odors[i])
+        )
+        right_mat = np.outer(avg_back, avg_new_odors[i]) + covmat_back
+        w_opt = np.linalg.pinv(m).dot(right_mat)
+        optimal_ws.append(w_opt)
+    optimal_ws = np.asarray(optimal_ws)
+
+    # Containers for the results
+    jaccard_scores = np.zeros([n_new_odors, n_times,
+                                n_new_concs, n_back_samples])
+    new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
+    mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
+                                n_back_samples, n_kc), dtype=bool)
+    mixture_svecs = np.zeros([n_new_odors, n_times,
+                                n_new_concs, n_back_samples, n_r])
+
+    # Treat one new odor at a time, one new conc. at a time, etc.
+    for i in range(n_new_odors):
+        new_tag = project_neural_tag(
+                    new_odors[i], new_odors[i], projmat, **proj_kwargs)
+        new_odor_tags[i, list(new_tag)] = True
+        for k in range(n_new_concs):
+            mixtures_ik = back_samples + new_concs[k]*new_odors[i]
+            for j in range(n_times):
+                for l in range(n_back_samples):
+                    mixture_svecs[i, j, k, l] = (
+                        mixtures_ik[j, l] - optimal_ws[k].dot(mixtures_ik[j, l])
+                    )
+                    if activ_fct == "relu":
+                        mixture_svecs[i, j, k, l] = relu_inplace(mixture_svecs[i, j, k, l])
+                    mix_tag = project_neural_tag(
+                        mixture_svecs[i, j, k, l], mixtures_ik[j, l],
+                        projmat, **proj_kwargs
+                    )
+                    try:
+                        mixture_tags[i, j, k, l, list(mix_tag)] = True
+                    except ValueError as e:
+                        print(mix_tag)
+                        print(mixture_svecs[i, j, k, l])
+                        print(projmat.dot(mixture_svecs[i, j, k, l]))
+                        raise e
+                    jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+    ref_file.close()
+
+    # Prepare simulation results dictionary
+    new_odor_tags = new_odor_tags.tocsr()
+    test_results = {
+        "new_odor_tags": new_odor_tags,
+        "mixture_svecs": mixture_svecs,
+        "mixture_tags": mixture_tags,
+        "jaccard_scores": jaccard_scores,
+        "optimal_ws": optimal_ws
+    }
+    return sim_id, test_results, projmat
+
+
 def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
     """ After having performed several habituation runs and tested them
     for recognition with some model, compute the ideal inhibition
@@ -291,7 +399,7 @@ def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
         filename_ref (str): name of the file with other simulation results
             All necessary information is extracted from there.
         kind (str): the kind of idealized habituation considered,
-            either "orthogonal", "none", or "ideal".
+            either "orthogonal", "none", "optimal", or "ideal".
 
     Args: same as main_habituation_runs
     Be careful to create a new random number generator, not re-creating
@@ -334,7 +442,8 @@ def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
     func_choices = {
         "none": no_habituation_one_sim,
         "orthogonal": orthogonal_recognition_one_sim,
-        "ideal": ideal_recognition_one_sim
+        "ideal": ideal_recognition_one_sim, 
+        "optimal": optimal_recognition_one_sim
     }
     recognition_one_sim = func_choices.get(kind, no_habituation_one_sim)
 

@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
 
     ### IDEAL AND NO INHIBITION ###
-    for kind in ["orthogonal", "ideal", "none"]:
+    for kind in ["orthogonal", "ideal", "optimal", "none"]:
         print("Starting idealized habituation of kind "
                 +"{} recognition tests".format(kind))
         ideal_file_name = os.path.join(folder, kind+"_performance_results.h5")

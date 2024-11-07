@@ -88,23 +88,23 @@ def compute_optimal_factor(
     Also assuming background concentrations are i.i.d. with average avgnu
     and variance sigma2_nu.
     This factor depends on the new concentration, nu_new.
-    dims = [n_B, n_R].
+    dims = [n_B, n_S].
     moments = [avgnu, sigma2_nu]
     reps (int): number of samples scales as reps**2: backgrounds x new odors
     """
     avgnu, sigma2_nu = moments
-    n_b, n_r = dims
+    n_b, n_s = dims
     # Compute the average odor vector. Use 10^5 samples
     n_samples = reps**2
-    vec_samples = odor_gen_fct([n_r, n_samples], *gen_args)
+    vec_samples = odor_gen_fct([n_s, n_samples], *gen_args)
     vec_samples = vec_samples / l2_norm(vec_samples, axis=0)
     mean_vec_element = np.mean(vec_samples)  # All elements equal by symmetry
-    mean_vec_norm2 = n_r * mean_vec_element**2
+    mean_vec_norm2 = n_s * mean_vec_element**2
 
     # Compute the average norm^2 of the parallel component of new odors
     # in a background of n_b odors. Generate new background vectors,
     # use a subsample of vec_samples above as new odors
-    back_samples = odor_gen_fct([n_r, reps*n_b], *gen_args)
+    back_samples = odor_gen_fct([n_s, reps*n_b], *gen_args)
     back_samples = back_samples / l2_norm(back_samples, axis=0)
     x_par_norms2 = np.zeros(reps**2)  # Container for all x_{n, par}^2 samples
     for n in range(reps):
@@ -128,16 +128,16 @@ def compute_optimal_factor(
     return optimal_factor
 
 
-def compute_optimal_factor_toy(nu_new, sigma2, n_r, odor_gen_fct, gen_args):
+def compute_optimal_factor_toy(nu_new, sigma2, n_s, odor_gen_fct, gen_args):
     """ Like compute_optimal_factor but for the toy background model,
     $x_B = x_d + \nu x_s$.
     """
     # Compute the average vector. Use 10^5 samples
     # TODO: fix with an estimate of x_n^2 norm
-    vec_samples = odor_gen_fct([n_r, int(1e5)], *gen_args)
+    vec_samples = odor_gen_fct([n_s, int(1e5)], *gen_args)
     vec_samples = vec_samples / l2_norm(vec_samples, axis=0)
     mean_vec_element = np.mean(vec_samples)  # All elements equal
-    mean_vec_norm2 = n_r * mean_vec_element**2
+    mean_vec_norm2 = n_s * mean_vec_element**2
     cross_product = nu_new*mean_vec_norm2
     mean_back2 = 0.5 + (0.5 - 2*sigma2)*mean_vec_norm2 + 2*sigma2
 
@@ -187,7 +187,7 @@ def rerun_w_dynamics(w_init, xc_series, inhib_params, dt, skp=1, scale=1.0, **op
     cbar = cbarser[0] * scale
     bkvec = bkvecser[0]
     xavg = xavgser[0]
-    svec = bk_vec_init - wmat.dot(cbar)
+    svec = bkvecser[0] - wmat.dot(cbar)
     if activ_fct == "relu":
         relu_inplace(svec)
     elif activ_fct == "identity":
