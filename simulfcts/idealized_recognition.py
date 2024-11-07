@@ -467,23 +467,20 @@ def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
     # Create a projection matrix, save to HDF file.
     # Against n_back_samples backgrounds, including the simulation one.
     # and test at 20 % or 50 % concentration
-    all_returns = []
     pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
         # then create and save the proj. mat., and initialize arguments
-        sim_gp = res_file.get(id_to_simkey(sim_id))
         apply_args = (sim_id, filename_ref)
-        res = pool.apply_async(recognition_one_sim, args=apply_args,
+        pool.apply_async(recognition_one_sim, args=apply_args,
                         callback=callback, error_callback=error_callback)
-        all_returns.append(res)
-
-    # Get results, callback is applied
-    for p in all_returns:
-        try: p.get()
-        except RuntimeError: pass
-
+    
+    # Close and join the pool
+    # No need to .get() results: the callback takes care of it
+    # and in fact we don't want to get them, else they get stuck in the
+    # parent process memory and fill it up...
+    pool.close()
+    pool.join()
     # Finally, close the results file
     res_file.close()
-    pool.close()
     return 0

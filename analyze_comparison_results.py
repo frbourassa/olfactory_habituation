@@ -192,9 +192,9 @@ def main_export_new_back_distances(dest_name):
 
 if __name__ == "__main__":
     main_plot_histograms()
-    #main_export_jaccards(
-    #    os.path.join("results", "for_plots", "jaccard_similarities")
-    #)
-    #main_export_new_back_distances(
-    #    os.path.join("results", "for_plots", "new_back_distances")
-    #)
+    main_export_jaccards(
+        os.path.join("results", "for_plots", "jaccard_similarities")
+    )
+    main_export_new_back_distances(
+        os.path.join("results", "for_plots", "new_back_distances")
+    )
