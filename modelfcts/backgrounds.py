@@ -29,7 +29,7 @@ def generate_odorant(n_rec, rgen, lambda_in=0.1):
 ### ORNSTEIN-UHLENBECK PROCESSES ###
 # Function to update the fluctuating background variable
 def update_ou_kinputs(nu_bk, params_bk, noises, dt):
-    """
+    r"""
     Update a background made of L odorants with concentrations combined linearly:
         x(t) = \sum_{\alpha} \nu_{\alpha} x_{\alpha}
     The concentrations nu_alpha fluctuate according to a multivariate
@@ -113,7 +113,7 @@ def update_ou_2inputs_clip(nu_bk, params_bk, noise, dt):
 
 ### NON-NORMAL PROCESSES BASED ON TRANSFORMATIONS OF ORNSTEIN-UHLENBECK ###
 def update_thirdmoment_kinputs(x_bk, params_bk, noises, dt):
-    """
+    r"""
     Update a background made of L odorants with concentrations combined linearly:
         x(t) = \sum_{\alpha} \nu_{\alpha} x_{\alpha}
     The concentrations nu_alpha are given by
@@ -173,7 +173,7 @@ def sample_background_thirdmoment(means_nu, covmat_nu, epsil, vecs_nu, size=1, r
 # LOG-NORMAL PROCESS (simulate the log with Ornstein-Uhlenbeck)
 logof10 = np.log(10.0)
 def update_logou_kinputs(nu_bk, params_bk, noises, dt):
-    """
+    r"""
     Update a background made of L odorants with concentrations combined linearly:
         x(t) = \sum_{\alpha} 10**{\nu_{\alpha}} x_{\alpha}
     The logarithm of concentrations, nu_alpha, fluctuate according to a

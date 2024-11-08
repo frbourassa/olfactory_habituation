@@ -12,7 +12,7 @@ from utils.metrics import l2_norm, l1_norm, lp_norm
 ### IBCM NEURON alone, no inhibition
 def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
                    learnrate, seed=14345124, noisetype="normal", tavg=10):
-    """ Integrate the IBCM equation when the input updated by the derivative
+    r""" Integrate the IBCM equation when the input updated by the derivative
     function update_bk, which takes pre-generated noise and bk_params.
     The intended usage here is for an input that is a linear
     combination of two LI vectors, and the proportion of each
@@ -111,7 +111,7 @@ def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
 ### IBCM NETWORK alone, no inhibition model for now
 def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
         learnrate, seed=14345124, noisetype="normal", tavg=10, coupling=0.1):
-    """ Integrate the IBCM equation when the input updated by the derivative
+    r""" Integrate the IBCM equation when the input updated by the derivative
     function update_bk, which takes pre-generated noise and bk_params.
     The intended usage here is for an input that is a linear
     combination of two LI vectors, and the proportion of each
@@ -233,7 +233,7 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
 def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     ibcm_params, inhib_params, bk_params, tmax, dt,
     seed=None, noisetype="normal", skp=1, **options):
-    """ Integrate the IBCM equation when the input updated by the derivative
+    r""" Integrate the IBCM equation when the input updated by the derivative
     function update_bk, which takes pre-generated noise and bk_params.
 
     The intended usage here is for an input that is a general linear
@@ -630,7 +630,7 @@ def ibcm_respond_new_odors(odors, mmat, wmat, ibcm_rates, options={}):
 
 
 def compute_mbars_cgammas_cbargammas(ms, eta, backvecs):
-    """
+    r"""
     Compute the time series of \bar{m} = m_i - \eta \sum_{j\neq i} m_j,
     of c_{\gamma} = \vec{m} \cdot \vec{x}_{\gamma},
     and of \bar{c}_{\gamma} = \vec{\bar{m}} \cdot \vec{x}_{\gamma}

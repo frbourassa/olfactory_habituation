@@ -7,7 +7,7 @@ import numpy as np
 import itertools
 
 def l2_norm(vecs, axis=-1):
-    """ Computes l2 norm of vectors stored along the last axis of vecs.
+    r""" Computes l2 norm of vectors stored along the last axis of vecs.
     Args:
         vecs can be either a single vector (1d) or an  arbitrary array of vectors,
             where the last dimension indexes elements of vectors.
@@ -19,11 +19,11 @@ def l2_norm(vecs, axis=-1):
     return np.sqrt(np.sum(vecs**2, axis=axis))
 
 def l1_norm(vecs, axis=-1):
-    """ |x| = \sum_i |x_i|"""
+    r""" |x| = \sum_i |x_i|"""
     return np.sum(np.abs(vecs), axis=axis)
 
 def lp_norm(vecs, p, axis=-1):
-    """ |x| = (\sum_i |x_i|^p)**(1.0/p) """
+    r""" |x| = (\sum_i |x_i|^p)**(1.0/p) """
     # Use numpy implementation
     return np.linalg.norm(vecs, ord=p, axis=axis)
 
@@ -32,7 +32,7 @@ def linf_norm(vecs, axis=-1):
     return np.max(np.abs(vecs), axis=axis)
 
 def cosine_dist(x, y, axis=-1):
-    """ d(x, y) = 1 - (x \cdot y)/(|x| |y|)"""
+    r""" d(x, y) = 1 - (x \cdot y)/(|x| |y|)"""
     xnorm, ynorm = l2_norm(x), l2_norm(y)
     return 1.0 - x.dot(np.moveaxis(y, axis, 0)) / xnorm / ynorm
 

@@ -198,7 +198,7 @@ def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9,
 
 # To analyze a simulation of 1 IBCM neuron and find convergence time
 def find_convergence_time(tpts, mdd, mds, sigm2, alph=0.9, lambd=1.0):
-    """
+    r"""
     Args:
         tpts (np.ndarray): time points
         mdd (np.ndarray): time series of m \cdot \vec{x}_d
@@ -227,7 +227,7 @@ def fixedpoint_thirdmoment_onecval(avgnu, variance, epsilon, nb, m3=1.0, lambd=1
 
 
 def fixedpoint_thirdmoment_perturbtheory(avgnu, variance, epsilon, k1, k2, m3=1.0, order=1, lambd=1.0):
-    """ Calculate the two possible values taken by the dot product of a neuron's \vec{\bar{m}}
+    r""" Calculate the two possible values taken by the dot product of a neuron's \vec{\bar{m}}
     with each component, from a perturbation solution at first order in the magnitude
     of the third moment m_3 of the \nu_{\alpha}. It depends on $k_1$ and $k_2$, the number
     of components that have either of the two possible dot product values with \vec{\bar{m}}.
@@ -399,7 +399,7 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False, lambd=1.0):
 
 # Exact W fixed points for general distribution of neurons across odors
 def ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, specif_gammas):
-    """ Exact analytical steady-state solution for the matrix W,
+    r""" Exact analytical steady-state solution for the matrix W,
     given the specificity of each neuron, and the values of c_n and c_s.
     The latter can be either from the analytical M solution, or from
     numerical solution -- allowing to compare W simulations to prediction
@@ -555,6 +555,48 @@ def ibcm_all_largest_eigenvalues(
         max_idx = np.argmax(np.real(eigvals))
         all_largest_eigenvalues[specif] = eigvals[max_idx]
     return all_largest_eigenvalues
+
+
+def lambda_pca_equivalent(h_dots, moments_conc, n_b, w_alpha_beta, verbose=False):
+    """ Compute the Lambda scaling factor for the BioPCA model
+    so its magnitude of background reduction is equivalent to
+    that of the IBCM models. We impose equal prefactors rather
+    than perfectly equal PN squared activities, <y^2>, since
+    they are hard to compare anyways since PCA is helped
+    by a separate average subtraction circuit. 
+    
+    Args:
+        h_dots: [h_s, h_]: dot products of IBCM m with specific and
+            non-specific components, respectively
+        moments_conc (list): [mean, variance] concentration moments
+        n_b (int): number of background components
+        w_alpha_beta (list): [alpha, beta] W rates. 
+        verbose (bool): if True, print details of the calculation
+    """
+    # Compute IBCM reduction factor first
+    b_ov_a = w_alpha_beta[1] / w_alpha_beta[0]
+    hs, hn = h_dots
+    hd = moments_conc[0] * (hs + (n_b-1)*hn)
+    b_ov_a = w_alpha_beta[1] / w_alpha_beta[0]
+    ibcm_a = hd**2 + moments_conc[1]/moments_conc[0]*hd*hn + moments_conc[1]*hn*(hs - hn)
+    ibcm_b = b_ov_a + moments_conc[1]*(hs - hn)**2
+    ibcm_b_over_a = ibcm_b / (ibcm_b + n_b*ibcm_a)
+    ibcm_fact = ibcm_b_over_a * b_ov_a / (b_ov_a + moments_conc[1]*(hs - hn)**2)
+    lambda_pca = np.sqrt(b_ov_a * (1 - ibcm_fact) / ibcm_fact / moments_conc[1])
+    if verbose:
+        print("***Calculation details for the PCA Lambda scaling factor***")
+        print("IBCM: hs and hn = ", hs, hn)
+        print("IBCM: hd = <c> * (hs - (n_b-1) h_n) =", hd)
+        print("IBCM: A = ", ibcm_a)
+        print("IBCM: B = ", ibcm_b)
+        print("IBCM beta / (beta + alpha*sigma^2*(hs-hn)^2) factor:", 
+              b_ov_a / (b_ov_a + moments_conc[1]*(hs - hn)**2))
+        print("IBCM extra factor: B / (B + N_B*A) =", ibcm_b_over_a)
+        print("IBCM combined factor: f=", ibcm_fact)
+        print("Lambda_PCA = sqrt(beta/alpha / sigma^2 * (1-f)/f) =", lambda_pca)
+        print("*** ***")
+    return lambda_pca
+    
 
 # Test the function computing the W analytical prediction
 if __name__ == "__main__":

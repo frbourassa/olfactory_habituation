@@ -1,4 +1,4 @@
-""" Module with a few home-made statistics functions.
+r""" Module with a few home-made statistics functions.
 
 # Basic covariance estimator
 
@@ -238,7 +238,7 @@ def build_symmetric(flatmat):
 
 
 def cholesky_variance(chol, n):
-    """ Given a Cholesky decomposition chol = L_{ij} = T / \sqrt(n), where
+    r""" Given a Cholesky decomposition chol = L_{ij} = T / \sqrt(n), where
     TT^T = S the sample covariance matrix, taken as a statistical estimator
     of \Psi, the Cholesky decomposition of the true covariance \Sigma,
     and a number of population sample points, compute the variance of each
