@@ -20,7 +20,7 @@ import os
 from modelfcts.ideal import relu_inplace, rerun_w_dynamics
 from modelfcts.ibcm import integrate_inhib_ibcm_network_options
 from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
-from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact
+from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact, lambda_pca_equivalent
 
 from modelfcts.distribs import truncexp1_average
 from modelfcts.backgrounds import sample_ss_conc_powerlaw
@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_lambda_test = 20
+    n_lambda_test = 30
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -98,7 +98,6 @@ if __name__ == "__main__":
     # Compute prediction of fixed points for IBCM,
     # to estimate the baseline Lambda for BioPCA
     ibcm_preds = fixedpoint_thirdmoment_exact(moments_conc, 1, n_b-1)
-    cs_minus_cn = abs(ibcm_preds[0] - ibcm_preds[1])
 
     ### Run IBCM simulations for each Lambda choice
     ibcm_file_name = os.path.join(folder, "ibcm_performance_lambda.h5")
@@ -148,11 +147,10 @@ if __name__ == "__main__":
         "main_seed": str(common_seed)
     }
     # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
-    # After a first try, it seems that PCA with Lambda = 10 is pretty
-    # much like IBCM with Lambda=1,
-    lambda_pca = cs_minus_cn
-    print(lambda_pca)
-    raise ValueError()
+    # After a first try, it seems that PCA with Lambda = hs-hn is pretty
+    # much like IBCM with Lambda=1, but I have computed a slighly better estimate
+    hs_and_hn = [max(ibcm_preds[:2]), min(ibcm_preds[:2])]
+    lambda_pca = lambda_pca_equivalent(hs_and_hn, moments_conc, n_b, w_alpha_beta, verbose=True)
     biopca_rates = np.asarray([1e-4, 2.0, lambda_pca, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,

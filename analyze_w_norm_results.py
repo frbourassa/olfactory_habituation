@@ -14,7 +14,8 @@ from analyze_comparison_results import (
     concat_jaccards,
     concat_sstats,
     concat_wmats,
-    concat_mmats
+    concat_mmats, 
+    concat_lmats
 )
 from modelfcts.backgrounds import sample_background_powerlaw
 from simulfcts.habituation_recognition import (
@@ -393,18 +394,18 @@ def main_plot_m_w_magnitudes(df_ibcm, df_pca):
 if __name__ == "__main__":
     # Create or load statistics dfs
     ibcm_df_f = os.path.join("results", "performance_w", "df_w_stats_ibcm.h5")
-    #df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
+    df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
     pca_df_f = os.path.join("results", "performance_w", "df_w_stats_biopca.h5")
-    #df_stats_biopca = create_or_load(pca_df_f, "PCA")
+    df_stats_biopca = create_or_load(pca_df_f, "PCA")
 
     # Now, plot results
     print("Starting to plot results...")
-    #main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
+    main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
 
     # Compare W and M magnitudes in IBCM and PCA, see if one more realistic
     folder = os.path.join("results", "performance_w")
-    df_m_w_ibcm = main_compare_m_w_magnitudes(folder, "IBCM")
-    df_m_w_pca = main_compare_m_w_magnitudes(folder, "PCA")
+    df_m_w_ibcm = main_compare_lm_w_magnitudes(folder, "IBCM")
+    df_m_w_pca = main_compare_lm_w_magnitudes(folder, "PCA")
     main_plot_m_w_magnitudes(df_m_w_ibcm, df_m_w_pca)
 
     print("Done!")

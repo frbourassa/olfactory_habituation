@@ -357,7 +357,9 @@ def analyze_pca_learning(xser, mser, lser, lambda_diag, demean=False):
     learntvecs = ((1.0/lambda_diag[None, :, None]) * fser)
     # Each row of learntvecs[t] is an eigenvector learnt at time t
 
-    # Values on the diagonal of L are supposed to be eigenvalues
+    # Values on the diagonal of L' are supposed to be eigenvalues
+    # Recall lser returned by PCA integration is really lprime_ser, L'=L^{-1} 
+    # so we can directly take the diagonal of this lser to get eigenvalues
     learntvals = np.diagonal(lser, axis1=1, axis2=2)
     # Sort them in decreasing order
     sort_arg = np.argsort(np.mean(learntvals[nt//2:], axis=0))[::-1]

@@ -42,7 +42,7 @@ def concat_mmats(f):
 
 
 def concat_lmats(f, model="PCA"):
-    n_r, n_b, n_i, n_k = f.get("parameters").get("dimensions")[0]
+    n_r, n_b, n_i, n_k = f.get("parameters").get("dimensions")
     if model == "IBCM":
         eta = f.get("parameters").get("m_rates")[2]
         lmat = np.full([n_i, n_i], -eta)

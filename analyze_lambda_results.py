@@ -34,6 +34,7 @@ def main_plot_performance():
         "biopca": "BioPCA",
         "avgsub": "Average",
         "ideal": "Ideal",
+        "optimal": "Optimal", 
         "orthogonal": "Orthogonal",
         "none": "None"
     }
@@ -45,7 +46,8 @@ def main_plot_performance():
         "ibcm": "xkcd:turquoise",
         "biopca": "xkcd:orangey brown",
         "avgsub": "xkcd:navy blue",
-        "ideal": "xkcd:powder blue",
+        "ideal": "xkcd:light green",
+        "optimal": "xkcd:powder blue",
         "orthogonal": "xkcd:pale rose",
         "none": "grey"
     }
@@ -82,36 +84,43 @@ def main_plot_performance():
         axes[i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
         axes[i].set_ylabel(r"Statistic of $\| \vec{s} \|$")
         axes[i].set_xscale("log")
-    axes[0].legend()
+    axes[0].legend(loc="upper right")
     fig.tight_layout()
     fig.savefig("figures/detection/s_stats_vs_lambda.pdf", transparent=True,
                 bbox_inches="tight")
     plt.close()
 
-    # Second, plots of Jaccard median similarity, for each new conc.
+    # Second, plots of Jaccard median and mean similarities, for each new conc.
     # One plot per new odor concentration
-    fig, axes = plt.subplots(1, n_new_concs, sharex=True)
-    fig.set_size_inches(9.5, 4)
-    axes = axes.flatten()
+    fig, axes = plt.subplots(2, n_new_concs, sharex=True)
+    fig.set_size_inches(9.5, 7.5)
+    # Top row: median, bottom row: mean
     for m in models[::-1]:  # Plot IBCM last
         f = h5py.File(model_file_choices[m], "r")
         lambd_axis = f.get("parameters").get("lambd_range")[()]
         all_jacs = concat_jaccards(f)
         median_jacs = np.median(all_jacs, axis=[1, 2, 4])
-        # Rescale lambda axis by the default value? 1 for IBCM, 10 for PCA
+        mean_jacs = np.mean(all_jacs, axis=[1, 2, 4])
+        # Rescale lambda axis by the default value? 1 for IBCM, ~12 for PCA
         lambd_0 = get_lambda0(f)
         f.close()
         for i in range(n_new_concs):
-            axes[i].plot(lambd_axis / lambd_0, median_jacs[:, i],
+            axes[0, i].plot(lambd_axis / lambd_0, median_jacs[:, i],
+                        label=model_nice_names.get(m, m),
+                        color=model_colors.get(m), lw=2.0)
+            axes[1, i].plot(lambd_axis / lambd_0, mean_jacs[:, i], 
                         label=model_nice_names.get(m, m),
                         color=model_colors.get(m), lw=2.0)
     # Labeling the graphs, etc.
     for i in range(n_new_concs):
-        ax = axes[i]
-        axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
-        axes[i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
-        axes[i].set_ylabel("Median Jaccard similarity")
-        axes[i].set_xscale("log")
+        axes[0, i].set_title("Medians, new conc. = {:.1f}".format(new_concs[i]))
+        axes[0, i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
+        axes[0, i].set_ylabel("Median Jaccard similarity")
+        axes[0, i].set_xscale("log")
+        axes[1, i].set_title("Means, new conc. = {:.1f}".format(new_concs[i]))
+        axes[1, i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
+        axes[1, i].set_ylabel("Mean Jaccard similarity")
+        axes[1, i].set_xscale("log")
     axes[0].legend()
     fig.tight_layout()
     fig.savefig("figures/detection/jaccard_vs_lambda.pdf", transparent=True,
