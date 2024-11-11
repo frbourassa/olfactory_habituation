@@ -99,8 +99,8 @@ def main_plot_performance():
         f = h5py.File(model_file_choices[m], "r")
         lambd_axis = f.get("parameters").get("lambd_range")[()]
         all_jacs = concat_jaccards(f)
-        median_jacs = np.median(all_jacs, axis=[1, 2, 4])
-        mean_jacs = np.mean(all_jacs, axis=[1, 2, 4])
+        median_jacs = np.median(all_jacs, axis=(1, 2, 4))
+        mean_jacs = np.mean(all_jacs, axis=(1, 2, 4))
         # Rescale lambda axis by the default value? 1 for IBCM, ~12 for PCA
         lambd_0 = get_lambda0(f)
         f.close()
@@ -121,7 +121,7 @@ def main_plot_performance():
         axes[1, i].set_xlabel(r"Scale $\Lambda / \Lambda_0$")
         axes[1, i].set_ylabel("Mean Jaccard similarity")
         axes[1, i].set_xscale("log")
-    axes[0].legend()
+    axes[0, 0].legend(loc="lower left")
     fig.tight_layout()
     fig.savefig("figures/detection/jaccard_vs_lambda.pdf", transparent=True,
                 bbox_inches="tight")
@@ -174,7 +174,7 @@ def main_export_new_back_distances(dest_name):
             backs[m] = f.get("odors").get("back_odors")[()]
             news[m] = f.get("odors").get("new_odors")[()]
             activ_fct = f.get("parameters").attrs.get("activ_fct")
-            n_backs, n_news = f.get("parameters").get("repeats")[[0, 3]]
+            n_backs, n_news = f.get("parameters").get("repeats")[[0, 3]]  # type: ignore
     assert np.all([backs["ibcm"] == backs[m] for m in backs]), "Different backs"
     assert np.all([news["ibcm"] == news[m] for m in news]), "Different news"
     backs = backs["ibcm"]

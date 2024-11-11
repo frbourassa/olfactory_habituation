@@ -61,7 +61,7 @@ if __name__ == "__main__":
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
-    w_alpha_beta = np.asarray([1e-4, 2e-5])
+    w_alpha_beta = np.asarray([6e-5, 1e-5])
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         "dimensions": dimensions_array,
         "repeats": repeats_array,
         # learnrate, tau_avg, eta, lambda, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.00125, 1600.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
+        "m_rates": np.asarray([0.001, 1600.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,
@@ -126,13 +126,13 @@ if __name__ == "__main__":
         "decay": True
     }
     print("Running IBCM simulation for various Lambdas and saving to hdf5")
-    #main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
-    #                       ibcm_params, ibcm_options)
+    main_habituation_runs_lambda(ibcm_file_name, ibcm_attrs,
+                           ibcm_params, ibcm_options)
 
     print("Running IBCM performance tests as a function of Lambda")
     # filename, attributes, parameters, model_options
-    #main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
-    #                       ibcm_options, projection_arguments)
+    main_performance_lambda(ibcm_file_name, ibcm_attrs, ibcm_params,
+                           ibcm_options, projection_arguments)
 
 
     ### Run one BioPCA simulation for each Lambda value
