@@ -138,8 +138,8 @@ def main_plot_performance():
             axes[1, i].plot(lambd_axis / lambd_0, mean_jacs[:, i], 
                         label=model_nice_names.get(m, m),
                         color=model_colors.get(m), lw=2.0)
-            axes[0, i].axvline(lambda_limits[m], ls="--", color=model_colors.get(m))
-            axes[1, i].axvline(lambda_limits[m], ls="--", color=model_colors.get(m))
+            axes[0, i].axvline(lambda_limits[m] / lambd_0, ls="--", color=model_colors.get(m))
+            axes[1, i].axvline(lambda_limits[m] / lambd_0, ls="--", color=model_colors.get(m))
     # Labeling the graphs, etc.
     for i in range(n_new_concs):
         axes[0, i].set_title("Medians, new conc. = {:.1f}".format(new_concs[i]))
