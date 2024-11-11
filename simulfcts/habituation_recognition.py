@@ -730,10 +730,9 @@ def save_simul_results_lambda(id, res, attrs, gp, snap_i):
             # Save maximum cbar encountered, to trace back blowups to
             # large cbar causing instability of the W numerical integrator
             dset = res[i][snap_i]
-            cbar_max_norm = np.max(l2_norm(res[i], axis=1))
-            print("Simulation {}".format(id))
-            print(res[i])
-            print(cbar_max_norm)
+            cbar_norm_ser = np.max(l2_norm(res[i], axis=1))
+            # Take the average 5 largest cbar norms
+            cbar_max_norm = np.mean(np.sort(cbar_norm_ser)[:-5])
             gp.create_dataset("cbar_max_norm", data=np.asarray([cbar_max_norm]))
         else:
             dset = res[i][snap_i]
@@ -969,7 +968,8 @@ def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs)
     # Create a projection matrix, save to HDF file.
     # Against n_back_samples backgrounds, including the simulation one.
     # and test at 20 % or 50 % concentration
-    all_seeds = main_seed_seq.spawn(repeats[0])
+    # We want the same test seed for all Lambdas, for better direct comparison
+    all_seeds = [main_seed_seq.spawn(1)[0],]*repeats[0]
     pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
