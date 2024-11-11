@@ -844,12 +844,12 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
         apply_args, apply_kwargs = initialize_integration_lambda(
                     sim_id, lambd, sim_gp, attributes, parameters,
                     model_options, back_odors, all_inits, spawned_seed
-                    )
+        )
         pool.apply_async(
-                            func_wrapper_with_id, args=apply_args,
-                            kwds=apply_kwargs, callback=callback,
-                            error_callback=error_callback
-                        )
+                    func_wrapper_with_id, args=apply_args,
+                    kwds=apply_kwargs, callback=callback,
+                    error_callback=error_callback
+        )
 
     # No need to .get() results: the callback takes care of it
     # and in fact we don't want to get them, else they get stuck in the

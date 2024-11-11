@@ -61,7 +61,7 @@ if __name__ == "__main__":
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
-    w_alpha_beta = np.asarray([6e-5, 1e-5])
+    w_alpha_beta = np.asarray([1e-4, 2e-5])
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
