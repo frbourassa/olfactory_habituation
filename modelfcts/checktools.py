@@ -243,6 +243,8 @@ def stability_row_wmat_l2_instant(cvec, w_rates, dt):
     W^{t+1} = W^t + dt * alpha*x.c^T - dt*(alpha*c.c^T + beta*identity).W
     so the matrix of which to check eigenvalues and ensure they are < 1 is
         A = 1 - dt*(alpha*c.c^T + beta*identity)
+    since the term dt * alpha*x.c^T doesn't contain W and thus doesn't enter
+    the linear stability analysis. 
 
     Args:
         cvec (np.ndarray): vector of inhibitory neurons' activities,
@@ -265,6 +267,33 @@ def stability_row_wmat_l2_instant(cvec, w_rates, dt):
     eigvals = np.full(n_i, fill_value=1.0 - dt*beta)
     eigvals[0] = 1.0 - dt*beta - dt*alpha*l2_norm(cvec)**2
     return eigvals
+
+
+def compute_max_lambda_w_stability(hvec_norm_lambda0, w_rates, dt):
+    """ Compute the maximum scaling factor Lambda multiplying the
+    average (or RMS, etc.) default cvec norm when Lambda is equal to its
+    default value, Lambda_0, at which the numerical integrator
+    becomes unstable. 
+
+    Args:
+        hvec_norm_lambda0 (np.ndarray): typical norm of the LN activity vector, 
+            either average or RMS or average absolute value, whatever, 
+            when Lambda is equal to its default value. 
+        w_rates (list of floats): alpha, beta
+        dt (float): time step
+    
+    Returns:
+        lambda_limit (float): Lambda factor multiplying hvec_norm_lambda0
+        at which the integrator starts being unstable. 
+        (so this is really the max. Lambda/Lambda_0 factor). 
+    """
+    alpha, beta = w_rates
+    # Largest eigenvalue is 1.0 - dt*beta - dt*alpha*l2_norm(cvec)**2
+    # Set it to zero (limit of instability), invert for cvec_norm2
+    hvec_norm2_limit = (1.0 - dt*beta) / (dt * alpha)
+    # Compare this limit cvec2 norm to cvec_lambda0, extract the scale
+    lambda_limit = np.sqrt(hvec_norm2_limit) / l2_norm(hvec_norm_lambda0)
+    return lambda_limit
 
 
 ### Functions to analyze biologically plausible online PCA results

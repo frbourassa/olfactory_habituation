@@ -111,7 +111,7 @@ if __name__ == "__main__":
         "dimensions": dimensions_array,
         "repeats": repeats_array,
         # learnrate, tau_avg, eta, lambda, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.001, 1600.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
+        "m_rates": np.asarray([0.00125, 1600.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,

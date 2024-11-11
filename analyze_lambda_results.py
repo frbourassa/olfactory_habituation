@@ -11,6 +11,7 @@ from analyze_comparison_results import (
     concat_jaccards,
     concat_sstats
 )
+from modelfcts.checktools import compute_max_lambda_w_stability
 
 
 def get_lambda0(f):
@@ -22,6 +23,18 @@ def get_lambda0(f):
         raise KeyError("Model {} not available for Lambda"
                         .format(f.attrs.get("model")))
     return lambd_0
+
+def get_hnorm_at_lambda0(f):
+    # Find LN activity (h) RMS norm at the smallest tested Lambda
+    # since it's mostly likely stable numerically, and Lambda_0
+    # itself hasn't been exactly tested
+    hvec_norm = np.sqrt(np.sum(f.get("sim0000").get("cbar_snaps")[()]**2, axis=1))
+    hvec_norm_mean = np.mean(hvec_norm)
+    lambd_min = f.get("parameters").get("lambd_range")[0]
+    lambd_0 = get_lambda0(f)
+    # Infer h norm at Lambda_0
+    hnorm_lambda0 = lambd_0 * hvec_norm_mean / lambd_min
+    return hnorm_lambda0
 
 
 def main_plot_performance():
@@ -57,6 +70,17 @@ def main_plot_performance():
         n_new_concs = f.get("parameters").get("repeats")[4]
         new_concs = f.get("parameters").get("new_concs")[()]
         activ_fct = f.get("parameters").attrs.get("activ_fct")
+    
+    # Get expected Lambda at which numerical instabilities arise
+    lambda_limits = {a:0.0 for a in models}
+    for mod in model_file_choices:
+        with h5py.File(model_file_choices[mod], "r") as f:
+            hnorm0 = get_hnorm_at_lambda0(f)
+            w_rates = f.get("parameters").get("w_rates")[()]
+            dt = f.get("parameters").get("time_params")[1]
+            lambda_lim = compute_max_lambda_w_stability(hnorm0, w_rates, dt)
+            # Absolute Lambda limit
+            lambda_limits[mod] = lambda_lim * get_lambda0(f)
 
     # First, plots of statistics vs lambda
     fig, axes = plt.subplots(1, 3, sharex=True)
@@ -188,9 +212,13 @@ def main_export_new_back_distances(dest_name):
             new_par = find_parallel_component(news[j], backs[i], back_proj)
             new_ort = news[j] - new_par
             new_back_distances[i, j] = l2_norm(new_ort)
+    # Compute the limit Lambdas based on the RMS PN activity at lambda = Lambda0
+    # TODO
+    lambda_limits = np.asarray([1.0, 1.0])
     np.savez_compressed(
         dest_name + "_" + str(activ_fct) + ".npz",
-        new_back_distances=new_back_distances
+        new_back_distances=new_back_distances, 
+        lambda_limits_ibcm_pca=lambda_limits
     )
     return None
 
