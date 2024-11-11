@@ -28,12 +28,15 @@ def get_hnorm_at_lambda0(f):
     # Find LN activity (h) RMS norm at the smallest tested Lambda
     # since it's mostly likely stable numerically, and Lambda_0
     # itself hasn't been exactly tested
-    hvec_norm = np.sqrt(np.sum(f.get("sim0000").get("cbar_snaps")[()]**2, axis=1))
-    hvec_norm_mean = np.mean(hvec_norm)
+    #hvec_norm = np.sqrt(np.sum(f.get("sim0000").get("cbar_snaps")[()]**2, axis=1))
+    # Take the max. mean encountered
+    #hvec_norm_mean = np.max(hvec_norm)
+    # Simulations should have saved the max cbar seen in the whole time series
+    hvec_max_norm = f.get("sim0000").get("cbar_max_norm")[()]
     lambd_min = f.get("parameters").get("lambd_range")[0]
     lambd_0 = get_lambda0(f)
     # Infer h norm at Lambda_0
-    hnorm_lambda0 = lambd_0 * hvec_norm_mean / lambd_min
+    hnorm_lambda0 = lambd_0 * hvec_max_norm / lambd_min
     return hnorm_lambda0
 
 
@@ -135,6 +138,8 @@ def main_plot_performance():
             axes[1, i].plot(lambd_axis / lambd_0, mean_jacs[:, i], 
                         label=model_nice_names.get(m, m),
                         color=model_colors.get(m), lw=2.0)
+            axes[0, i].axvline(lambda_limits[m], ls="--", color=model_colors.get(m))
+            axes[1, i].axvline(lambda_limits[m], ls="--", color=model_colors.get(m))
     # Labeling the graphs, etc.
     for i in range(n_new_concs):
         axes[0, i].set_title("Medians, new conc. = {:.1f}".format(new_concs[i]))

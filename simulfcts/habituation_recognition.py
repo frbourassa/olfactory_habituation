@@ -726,6 +726,15 @@ def save_simul_results_lambda(id, res, attrs, gp, snap_i):
                 np.mean((snorm - np.mean(snorm))**3)
             ])
             gp.create_dataset("s_stats", data=s_stats)
+        elif lbl == "cbar_snaps":
+            # Save maximum cbar encountered, to trace back blowups to
+            # large cbar causing instability of the W numerical integrator
+            dset = res[i][snap_i]
+            cbar_max_norm = np.max(l2_norm(res[i], axis=1))
+            print("Simulation {}".format(id))
+            print(res[i])
+            print(cbar_max_norm)
+            gp.create_dataset("cbar_max_norm", data=np.asarray([cbar_max_norm]))
         else:
             dset = res[i][snap_i]
         gp.create_dataset(lbl, data=dset.copy())

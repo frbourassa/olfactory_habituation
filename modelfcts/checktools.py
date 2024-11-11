@@ -277,8 +277,7 @@ def compute_max_lambda_w_stability(hvec_norm_lambda0, w_rates, dt):
 
     Args:
         hvec_norm_lambda0 (np.ndarray): typical norm of the LN activity vector, 
-            either average or RMS or average absolute value, whatever, 
-            when Lambda is equal to its default value. 
+            (either average or RMS or max) when Lambda is equal to its default. 
         w_rates (list of floats): alpha, beta
         dt (float): time step
     
@@ -289,10 +288,10 @@ def compute_max_lambda_w_stability(hvec_norm_lambda0, w_rates, dt):
     """
     alpha, beta = w_rates
     # Largest eigenvalue is 1.0 - dt*beta - dt*alpha*l2_norm(cvec)**2
-    # Set it to zero (limit of instability), invert for cvec_norm2
-    hvec_norm2_limit = (1.0 - dt*beta) / (dt * alpha)
+    # Set it to magnitude 1 (limit of instability), invert for cvec_norm2
+    hvec_norm2_limit = (2.0 - dt*beta) / (dt * alpha)
     # Compare this limit cvec2 norm to cvec_lambda0, extract the scale
-    lambda_limit = np.sqrt(hvec_norm2_limit) / l2_norm(hvec_norm_lambda0)
+    lambda_limit = np.sqrt(hvec_norm2_limit) / hvec_norm_lambda0
     return lambda_limit
 
 
