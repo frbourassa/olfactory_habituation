@@ -730,9 +730,11 @@ def save_simul_results_lambda(id, res, attrs, gp, snap_i):
             # Save maximum cbar encountered, to trace back blowups to
             # large cbar causing instability of the W numerical integrator
             dset = res[i][snap_i]
-            cbar_norm_ser = np.max(l2_norm(res[i], axis=1))
-            # Take the average 5 largest cbar norms
-            cbar_max_norm = np.mean(np.sort(cbar_norm_ser)[:-5])
+            # Take the maximum norm; this could either over or under-estimate
+            # the stability threshold, depending on 1) how long the whiff 
+            # causing max hnorm lasted, and 2) whether a larger even has been
+            # discarded when skipping steps in saved time courses. 
+            cbar_max_norm = np.max(l2_norm(res[i], axis=1))
             gp.create_dataset("cbar_max_norm", data=np.asarray([cbar_max_norm]))
         else:
             dset = res[i][snap_i]
@@ -871,7 +873,7 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
 
 
 def initialize_recognition_lambda(id, gp, odors_gp,
-    attrs, params, modopt, rgen, spseed, projkw):
+    attrs, params, modopt, p_matrix, spseed, projkw):
     """ Function to arrange the arguments of multiprocessing pool apply
     for new odor detection tests
     """
@@ -888,9 +890,6 @@ def initialize_recognition_lambda(id, gp, odors_gp,
     params_adjusted["m_rates"] = adjusted_m_rates
 
     # Create projection matrix
-    p_matrix = create_sparse_proj_mat(
-                    params["dimensions"][3], params["dimensions"][0], rgen
-                )
     try:
         csr_matrix_to_hdf5(gp.create_group("kc_proj_mat"), p_matrix)
     except ValueError:
@@ -945,6 +944,10 @@ def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs)
     new_odors /= l2_norm(new_odors).reshape(*new_odors.shape[:-1], 1)
     odors_group = results_file.get("odors")
 
+    # Create a unique KC projection matrix for all Lambda values 
+    p_matrix = create_sparse_proj_mat(
+                    params["dimensions"][3], params["dimensions"][0], main_rgen
+                )
     # Save the new odors and the projection kwargs to disk
     try:
         odors_group.create_dataset("new_odors", data=new_odors)
@@ -969,7 +972,7 @@ def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs)
     # Against n_back_samples backgrounds, including the simulation one.
     # and test at 20 % or 50 % concentration
     # We want the same test seed for all Lambdas, for better direct comparison
-    all_seeds = [main_seed_seq.spawn(1)[0],]*repeats[0]
+    testing_seed = main_seed_seq.spawn(1)[0]
     pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
@@ -978,7 +981,7 @@ def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs)
         # Lambda parameter gets adjusted in the initialization
         apply_args = initialize_recognition_lambda(
                     sim_id, sim_gp, odors_group, attrs, params,
-                    model_options, main_rgen, all_seeds[sim_id], proj_kwargs
+                    model_options, p_matrix, testing_seed, proj_kwargs
                     )
         pool.apply_async(func_wrapper_with_id, args=apply_args,
                         callback=callback, error_callback=error_callback)
