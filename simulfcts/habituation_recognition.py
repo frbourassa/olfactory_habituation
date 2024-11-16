@@ -976,7 +976,7 @@ def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs)
     pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
-        # then create and s ave the proj. mat., and initialize arguments
+        # then create and save the proj. mat., and initialize arguments
         sim_gp = results_file.get(id_to_simkey(sim_id))
         # Lambda parameter gets adjusted in the initialization
         apply_args = initialize_recognition_lambda(

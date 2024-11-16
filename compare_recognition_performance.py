@@ -16,6 +16,8 @@ from simulfcts.habituation_recognition import (
 from simulfcts.idealized_recognition import idealized_recognition_from_runs
 from modelfcts.distribs import truncexp1_average
 from modelfcts.backgrounds import sample_ss_conc_powerlaw
+from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact, lambda_pca_equivalent
+
 
 if __name__ == "__main__":
     # Results folder
@@ -136,9 +138,15 @@ if __name__ == "__main__":
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seed)
     }
+    # After a first try, it seems that PCA with Lambda = hs-hn is pretty
+    # much like IBCM with Lambda=1, but I have computed a slighly better estimate
+    # Compute prediction of fixed points for IBCM,
+    # to estimate the baseline Lambda for BioPCA
+    ibcm_preds = fixedpoint_thirdmoment_exact(moments_conc, 1, n_b-1)
+    hs_and_hn = [max(ibcm_preds[:2]), min(ibcm_preds[:2])]
+    lambda_pca = lambda_pca_equivalent(hs_and_hn, moments_conc, n_b, w_alpha_beta, verbose=True)
     # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
-    # Using default Lambda = 1; could improve performance with another choice
-    biopca_rates = np.asarray([1e-4, 2.0, 1.0, 0.5, 1e-4])
+    biopca_rates = np.asarray([1e-4, 2.0, lambda_pca, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,
         "repeats": repeats_array,

@@ -303,11 +303,11 @@ if __name__ == "__main__":
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seed)
     }
-    # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
     # After a first try, it seems that PCA with Lambda = hs-hn is pretty
     # much like IBCM with Lambda=1, but I have computed a slighly better estimate
     hs_and_hn = [max(ibcm_preds[:2]), min(ibcm_preds[:2])]
     lambda_pca = lambda_pca_equivalent(hs_and_hn, moments_conc, n_b, w_alpha_beta, verbose=True)
+    # learnrate, rel_lrate, lambda_max, lambda_range, xavg_rate
     biopca_rates = np.asarray([1e-4, 2.0, lambda_pca, 0.5, 1e-4])
     biopca_params = {
         "dimensions": dimensions_array,
