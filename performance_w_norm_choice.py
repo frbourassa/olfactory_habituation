@@ -291,9 +291,6 @@ if __name__ == "__main__":
 
     ### Run n_runs BioPCA simulation for each p, q, alpha, beta choice
     # Change number of inhibitory neurons, need less with PCA
-    print("Stopping before BioPCA; launch separate script on other cluster")
-    raise NotImplementedError()
-
     n_i = n_b + 4  # some overfitting
     dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
     pca_file_name = os.path.join(folder, "biopca_performance_lambda.h5")
