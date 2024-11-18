@@ -14,7 +14,7 @@ from utils.export import csr_matrix_to_hdf5, hdf5_to_csr_matrix
 ### SPARSE STORAGE CLASS ###
 
 def get_2dshape(ndshape):
-    return (np.product(ndshape[:-1]), ndshape[-1])
+    return (np.prod(ndshape[:-1]), ndshape[-1])
 
 class SparseNDArray(sparse.lil_array):
     """ Sparse ndarray internally stored in memory as a 2D lil_array.
@@ -48,7 +48,7 @@ class SparseNDArray(sparse.lil_array):
             if ndshape is None:
                 raise ValueError("Cannot create from existing 2D array "
                                     + "without specifying ndshape")
-            elif np.product(ndshape) != np.product(arg1.shape):
+            elif np.prod(ndshape) != np.prod(arg1.shape):
                 raise ValueError("Inconsistent ndshape {}".format(ndshape)
                             + "and underyling 2d shape {}".format(arg1.shape))
             self.ndshape = tuple(ndshape)
@@ -79,7 +79,7 @@ class SparseNDArray(sparse.lil_array):
 
     # Class function, call SparseNDArray.read_from_hdf(hdf_group)
     def read_from_hdf(self, hdf_gp):
-        csrmat = hdf5_to_csr_matrix(gp)
+        csrmat = hdf5_to_csr_matrix(hdf_gp)
         ndarr = SparseNDArray(csrmat, ndshape=hdf_gp.get("ndshape"))
         return ndarr
 
@@ -183,7 +183,7 @@ def tags_list_to_csr_matrix(tag_list, n_neu):
     tag_lengths = list(map(len, tag_list))
     tags_indptr = np.concatenate([[0], np.cumsum(tag_lengths)])
     tags_indices = np.concatenate(list(map(list, tag_list)), axis=0)
-    tags_data = np.ones(len(indices), dtype=bool)
+    tags_data = np.ones(len(tags_indices), dtype=bool)
     tags_matrix = sp.sparse.csr_matrix((tags_data, tags_indices, tags_indptr),
                                    shape=[len(tag_list), n_neu])
     return tags_matrix

@@ -76,7 +76,7 @@ def ideal_linear_inhibitor(x_n_par, x_n_ort, x_back, f, factor, **opt):
     return s
 
 
-def compute_optimal_factor(
+def compute_ideal_factor(
         nu_new, moments, dims, odor_gen_fct, gen_args, reps=1000
     ):
     """Optimal reduction factor of the parallel component to minimize
@@ -128,8 +128,8 @@ def compute_optimal_factor(
     return optimal_factor
 
 
-def compute_optimal_factor_toy(nu_new, sigma2, n_s, odor_gen_fct, gen_args):
-    """ Like compute_optimal_factor but for the toy background model,
+def compute_ideal_factor_toy(nu_new, sigma2, n_s, odor_gen_fct, gen_args):
+    """ Like compute_ideal_factor but for the toy background model,
     $x_B = x_d + \nu x_s$.
     """
     # Compute the average vector. Use 10^5 samples
@@ -144,6 +144,60 @@ def compute_optimal_factor_toy(nu_new, sigma2, n_s, odor_gen_fct, gen_args):
     optimal_factor = cross_product + nu_new**2
     optimal_factor /= (mean_back2 + 2*cross_product + nu_new**2)
     return optimal_factor
+
+
+### Optimal matrices for manifold learning, iid odor concentrations
+def compute_optimal_matrices(back_odors, new_odors, moments_conc, new_concs):
+    """ Optimal matrix for manifold learning in a background with
+    iid odor concentrations with moments_conc, back_odor vectors, 
+    geared towards response to new_odors at concentrations new_concs. 
+    For background odor mixture s and new odor x, the optimum is
+    W = LM^+ with L = <s(x + s)^T>, M = <(s+x)(s+x)^T> """
+    # Compute optimal matrix for each new concentration. Need to compute
+    # the average new odor <s_n>, and average <s_n s_n^T> first. 
+    avg_new_odors = [c * np.mean(new_odors, axis=0) for c in new_concs]
+    # Outer product of each new odor with itself: s_n s_n^T
+    if new_odors.shape[0] <= 1e4:
+        avg_new_odor_mat = np.mean(new_odors[:, :, None] * new_odors[:, None, :], axis=0)
+        # Multiply by <c^2> = <c>^2 + sigma^2 for each new c
+    else:  # Too many odors at once, need to loop over chunks
+        chunksize = int(1e4)
+        nchunks = new_odors.shape[0] // chunksize
+        nchunks += min(1, new_odors.shape[0] % chunksize)
+        last_chunksize = new_odors.shape[0] % chunksize
+        avg_new_odor_mat = np.zeros([chunksize, new_odors.shape[1], new_odors.shape[1]])
+        for i in range(nchunks):
+            istart = i*chunksize
+            iend = (i+1)*chunksize
+            avg_new_odor_mat += np.sum(
+                new_odors[istart:iend, :, None] * new_odors[istart:iend, None, :], 
+                axis=0) / new_odors.shape[0]
+        if last_chunksize > 0:
+            istart = nchunks*chunksize
+            avg_new_odor_mat += np.sum(
+                new_odors[istart:, :, None] * new_odors[istart:, None, :], 
+                axis=0) / new_odors.shape[0]
+    covmats_new_odors = [avg_new_odor_mat * (c**2 + moments_conc[1]) for c in new_concs]
+            
+    print(covmats_new_odors[0])
+    del avg_new_odor_mat
+    # moments of the background vectors too
+    avg_back = moments_conc[0] * np.sum(back_odors, axis=0)
+    # \sum_\rho s_\rho s_\rho^T
+    covmat_back = np.sum(back_odors[:, :, None]*back_odors[:, None, :], axis=0)
+    covmat_back = moments_conc[1] * covmat_back + np.outer(avg_back, avg_back)
+    # With these components, we are ready to compute W optimal for each background
+    optimal_ws = []
+    for i in range(len(new_concs)):
+        m = (covmats_new_odors[i] + covmat_back 
+            + np.outer(avg_new_odors[i], avg_back)
+            + np.outer(avg_back, avg_new_odors[i])
+        )
+        left_mat = np.outer(avg_back, avg_new_odors[i]) + covmat_back
+        w_opt = left_mat.dot(np.linalg.pinv(m))
+        optimal_ws.append(w_opt)
+    optimal_ws = np.asarray(optimal_ws)
+    return optimal_ws
 
 
 ### Re-run W for any model

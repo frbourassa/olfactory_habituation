@@ -306,7 +306,7 @@ def save_simul_results(id, res, attrs, gp, snap_i):
                  "w_snaps", "s_snaps"]
     }
     try:
-        item_names = result_items.get(attrs["model"])
+        result_items[attrs["model"]]
     except KeyError:
         raise NotImplementedError("Treat output of other models")
     for i, lbl in enumerate(result_items[attrs["model"]]):

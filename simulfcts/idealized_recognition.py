@@ -19,7 +19,7 @@ from modelfcts.ideal import (
     find_projector,
     find_parallel_component,
     ideal_linear_inhibitor,
-    compute_optimal_factor, 
+    compute_ideal_factor, 
     relu_inplace
 )
 from modelfcts.tagging import (
@@ -227,7 +227,7 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
 
     # Compute optimal factor for each new concentration
     dummy_rgen = np.random.default_rng(0x6e3e2886c30163741daaaf7c8b8a00e6)
-    factors = [compute_optimal_factor(c, moments_conc[:2], [n_b, n_r],
+    factors = [compute_ideal_factor(c, moments_conc[:2], [n_b, n_r],
                     generate_odorant, (dummy_rgen,)) for c in new_concs]
 
     # Containers for the results
