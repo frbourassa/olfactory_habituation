@@ -296,7 +296,7 @@ def select_model_functions(attrs):
     return integrate, update_bk, noise_dist
 
 
-def save_simul_results(id, res, attrs, gp, snap_i):
+def save_simul_results(id, res, attrs, gp, snap_i, full_file=None):
     result_items = {
         "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
                  "cbar_snaps", "theta_snaps", "w_snaps", "s_snaps"],
@@ -316,6 +316,9 @@ def save_simul_results(id, res, attrs, gp, snap_i):
         else:
             dset = res[i][snap_i]
         gp.create_dataset(lbl, data=dset.copy())
+    if full_file is not None:
+        np.savez_compressed(full_file, 
+            **dict(zip(result_items[attrs["model"]], res)))
     return gp
 
 
@@ -412,7 +415,7 @@ def initialize_integration(id, gp, attrs, params, modopt, back, rgen, spseed):
 
 def main_habituation_runs(
     filename, attributes, parameters, model_options,
-    save_fct=save_simul_results
+    save_fct=save_simul_results, full_example_file=False
 ):
     """
     Args: everything in the .attrs and parameters group of the HDF file that
@@ -436,6 +439,8 @@ def main_habituation_runs(
             in the parameters group attrs in HDF5 file.
         save_fct (callable): default is save_simul_results, but can be changed
             if we need to save different things for other kinds of simulations
+        full_example_file (str): if a filename is passed, save one full 
+            habituation run in that location, for illustration purposes. 
     Returns:
         Saves an HDF file.
         0
@@ -482,8 +487,10 @@ def main_habituation_runs(
         sim_id, sim_results = result
         # Get the group created at launch time for this simulation id
         sim_gp = results_file.get(id_to_simkey(sim_id))
-        # Save results, dpending on model type the structure changes a bit
-        save_fct(sim_id, sim_results, attributes, sim_gp, snap_idx)
+        # Save results, depending on model type the structure changes a bit
+        full_file = full_example_file if sim_id == 0 else None
+        save_fct(sim_id, sim_results, attributes, sim_gp, snap_idx, 
+                 full_file=full_file)
         print("Habituation run {} saved".format(sim_id))
         del sim_results, result
         return sim_id

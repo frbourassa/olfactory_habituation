@@ -96,6 +96,8 @@ if __name__ == "__main__":
 
     ### IBCM RUNS ###
     ibcm_file_name = os.path.join(folder, "ibcm_performance_results.h5")
+    ibcm_full_file = os.path.join("results", "for_plots", 
+                        "ibcm_full_habituation_run_example.npz")
     ibcm_attrs = {
         "model": "IBCM",
         "background": "turbulent",
@@ -122,7 +124,7 @@ if __name__ == "__main__":
     }
     print("Starting IBCM simulations")
     main_habituation_runs(ibcm_file_name, ibcm_attrs,
-                          ibcm_params, ibcm_options)
+        ibcm_params, ibcm_options, full_example_file=ibcm_full_file)
     print("Starting IBCM recognition tests")
     main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
                           ibcm_options, projection_arguments)
@@ -132,6 +134,8 @@ if __name__ == "__main__":
     n_i = n_b
     dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
     pca_file_name = os.path.join(folder, "biopca_performance_results.h5")
+    pca_full_file = os.path.join("results", "for_plots", 
+                        "pca_full_habituation_run_example.npz")
     biopca_attrs = {
         "model": "PCA",
         "background": "turbulent",
@@ -165,7 +169,7 @@ if __name__ == "__main__":
     }
     print("Starting BioPCA simulations")
     main_habituation_runs(pca_file_name, biopca_attrs,
-                          biopca_params, biopca_options)
+        biopca_params, biopca_options, full_example_file=pca_full_file)
     print("Starting BioPCA recognition tests")
     main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
                           biopca_options, projection_arguments)
@@ -175,6 +179,8 @@ if __name__ == "__main__":
     n_i = 1
     dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
     avg_file_name = os.path.join(folder, "avgsub_performance_results.h5")
+    avg_full_file = os.path.join("results", "for_plots", 
+                        "avgsub_full_habituation_run_example.npz")
     avg_attrs = {
         "model": "AVG",
         "background": "turbulent",
@@ -197,7 +203,7 @@ if __name__ == "__main__":
     }
     print("Starting average subtraction simulations")
     main_habituation_runs(avg_file_name, avg_attrs,
-                          avg_params, avg_options)
+        avg_params, avg_options, full_example_file=avg_full_file)
     print("Starting average subtraction recognition tests")
     main_recognition_runs(avg_file_name, avg_attrs, avg_params,
                           avg_options, projection_arguments)
