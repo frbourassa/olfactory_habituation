@@ -161,11 +161,10 @@ def compute_optimal_matrices(back_odors, new_odors, moments_conc, new_concs):
         avg_new_odor_mat = np.mean(new_odors[:, :, None] * new_odors[:, None, :], axis=0)
         # Multiply by <c^2> = <c>^2 + sigma^2 for each new c
     else:  # Too many odors at once, need to loop over chunks
-        chunksize = int(1e4)
+        chunksize = int(1e3)
         nchunks = new_odors.shape[0] // chunksize
-        nchunks += min(1, new_odors.shape[0] % chunksize)
         last_chunksize = new_odors.shape[0] % chunksize
-        avg_new_odor_mat = np.zeros([chunksize, new_odors.shape[1], new_odors.shape[1]])
+        avg_new_odor_mat = np.zeros([new_odors.shape[1], new_odors.shape[1]])
         for i in range(nchunks):
             istart = i*chunksize
             iend = (i+1)*chunksize
@@ -179,7 +178,6 @@ def compute_optimal_matrices(back_odors, new_odors, moments_conc, new_concs):
                 axis=0) / new_odors.shape[0]
     covmats_new_odors = [avg_new_odor_mat * (c**2 + moments_conc[1]) for c in new_concs]
             
-    print(covmats_new_odors[0])
     del avg_new_odor_mat
     # moments of the background vectors too
     avg_back = moments_conc[0] * np.sum(back_odors, axis=0)

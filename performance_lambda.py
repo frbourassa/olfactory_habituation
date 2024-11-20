@@ -34,14 +34,14 @@ if __name__ == "__main__":
     folder = os.path.join("results", "performance")
 
     # Global seed, used for all models to get exact same backgrounds
-    common_seed = 0xe4a1f15c70ecc52736db51e441a451df
+    common_seed = 0xe4a1f15c70ecc52736db51e441a451dd
 
     # Dimensionalities
-    n_r = 25  # n_R: choose 25 (half of full Drosophila dimensionality)
+    n_s = 300  # n_R: choose 25 (half of full Drosophila dimensionality)
     n_b = 6   # n_B: check against 6 background odors.
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
-    n_k = 1000  # n_K: number of Kenyon cells for neural tag generation
-    dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
+    n_k = 1000 * n_s // 25  # n_K: number of Kenyon cells for neural tag generation
+    dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
-    skip_steps = 20
+    skip_steps = 200
     repeats_array = np.asarray([
                         n_lambda_test, n_test_times, n_back_samples,
                         n_new_odors, len(new_test_concs), skip_steps
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     ### Run one BioPCA simulation for each Lambda value
     # Change number of inhibitory neurons, need less with PCA
     n_i = n_b
-    dimensions_array = np.asarray([n_r, n_b, n_i, n_k])
+    dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
     pca_file_name = os.path.join(folder, "biopca_performance_lambda.h5")
     biopca_attrs = {
         "model": "PCA",

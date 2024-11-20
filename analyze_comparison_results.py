@@ -16,6 +16,14 @@ def concat_jaccards(f):
     all_jacs = np.stack(all_jacs)
     return all_jacs
 
+def concat_mixtures(f):
+    all_mixes = []
+    for i in range(f.get("parameters").get("repeats")[0]):
+        all_mixes.append(f.get(id_to_simkey(i)).get("test_results")
+                            .get("mixture_svecs")[()])
+    all_mixes = np.stack(all_mixes)
+    return all_mixes
+
 
 def concat_sstats(f):
     all_stats = []
@@ -190,11 +198,59 @@ def main_export_new_back_distances(dest_name):
     )
     return None
 
-if __name__ == "__main__":
-    main_plot_histograms()
-    main_export_jaccards(
-        os.path.join("results", "for_plots", "jaccard_similarities")
+
+def main_export_new_mix_distances(dest_name):
+    # Compare all algorithms
+    folder = os.path.join("results", "performance")
+    models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
+    model_file_choices = {
+        a:os.path.join(folder, a+"_performance_results.h5")
+        for a in models
+    }
+    # Check that all models were exposed to the same background indeed
+    # Get all PN responses to mixtures: each array in mixes will have shape
+    # [sim_id, n_new_odors, n_times, n_new_concs, n_back_samples, n_r]
+    backs, news, mixes = {}, {}, {}
+    for m in model_file_choices.keys():
+        with h5py.File(model_file_choices[m], "r") as f:
+            backs[m] = f.get("odors").get("back_odors")[()]
+            news[m] = f.get("odors").get("new_odors")[()]
+            mixes[m] = concat_mixtures(f)  # concat simulations
+            activ_fct = f.get("parameters").attrs.get("activ_fct")
+            new_concs = f.get("parameters").get("new_concs")[()]
+            # n_runs, n_test_times, n_back_samples, n_new_odors, n_new_concs, skp
+            n_news, n_concs = f.get("parameters").get("repeats")[[3, 4]]  # type: ignore
+    assert np.all([backs["ibcm"] == backs[m] for m in backs]), "Different backs"
+    assert np.all([news["ibcm"] == news[m] for m in news]), "Different news"
+    backs = backs["ibcm"]
+    news = news["ibcm"]
+
+    # Compute the distance between the response to the mixture
+    # and the new odor for each trial, each background, etc.
+    new_mix_distances = {"new_concs": new_concs}
+    for m in models[::-1]:  # Plot IBCM last
+        new_mix_distances[m] = np.zeros(mixes[m].shape[:5])
+        # One distance for each vector in mixes[m]
+        # Do one new odor at a time, news[i] broadcasts 
+        # against the OSN dimension, the last (5th) axis in mixes[m]
+        for i in range(n_news):
+            for j in range(n_concs):
+                new_mix_distances[m][:, i, :, j] = l2_norm(
+                    mixes[m][:, i, :, j] - new_concs[j]*news[i], axis=3)
+    np.savez_compressed(
+        dest_name + "_" + str(activ_fct) + ".npz",
+        **new_mix_distances
     )
-    main_export_new_back_distances(
-        os.path.join("results", "for_plots", "new_back_distances")
+    return None
+
+if __name__ == "__main__":
+    #main_plot_histograms()
+    #main_export_jaccards(
+    #    os.path.join("results", "for_plots", "jaccard_similarities")
+    #)
+    #main_export_new_back_distances(
+    #    os.path.join("results", "for_plots", "new_back_distances")
+    #)
+    main_export_new_mix_distances(
+        os.path.join("results", "for_plots", "new_mix_distances")
     )
