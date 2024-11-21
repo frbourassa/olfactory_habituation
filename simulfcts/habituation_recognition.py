@@ -630,7 +630,7 @@ def main_recognition_runs(
     def callback(result):
         sim_id, sim_results = result
         sim_gp = results_file.get(id_to_simkey(sim_id))
-        if sim_gp.get("sim_results") is None:
+        if sim_gp.get("test_results") is None:
             csr_matrix_to_hdf5(sim_gp.create_group("new_odor_tags"),
                             sim_results.pop("new_odor_tags"))
             sim_results.pop("mixture_tags").to_hdf(
@@ -638,7 +638,7 @@ def main_recognition_runs(
             dict_to_hdf5(sim_gp.create_group("test_results"), sim_results)
         else:  # Group already exists, skip
             print("test_results group for sim {}".format(sim_id)
-                    + "already exists; skipping")
+                    + " already exists; not saving")
         # Save sample response to new odors
         if sim_id == 0 and full_example_file is not None:
             try:
