@@ -98,6 +98,8 @@ if __name__ == "__main__":
     ibcm_file_name = os.path.join(folder, "ibcm_performance_results.h5")
     ibcm_full_file = os.path.join("results", "for_plots", 
                         "ibcm_full_habituation_run_example.npz")
+    ibcm_full_file = os.path.join("results", "for_plots", 
+                        "ibcm_full_habituation_run_example.npz")
     ibcm_attrs = {
         "model": "IBCM",
         "background": "turbulent",
@@ -172,7 +174,7 @@ if __name__ == "__main__":
         biopca_params, biopca_options, full_example_file=pca_full_file)
     print("Starting BioPCA recognition tests")
     main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
-                          biopca_options, projection_arguments)
+        biopca_options, projection_arguments, full_example_file=pca_full_file)
 
     ### AVERAGE INHIBITION RUNS ###
     # Change number of inhibitory neurons, need less with PCA

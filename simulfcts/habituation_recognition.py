@@ -317,8 +317,10 @@ def save_simul_results(id, res, attrs, gp, snap_i, full_file=None):
             dset = res[i][snap_i]
         gp.create_dataset(lbl, data=dset.copy())
     if full_file is not None:
-        np.savez_compressed(full_file, 
-            **dict(zip(result_items[attrs["model"]], res)))
+        full_results = dict(zip(result_items[attrs["model"]], res))
+        back_results = {k:full_results[k] 
+            for k in ["back_vec_snaps", "s_snaps"]}
+        np.savez_compressed(full_file, **back_results)
     return gp
 
 
@@ -587,13 +589,19 @@ def initialize_recognition(id, gp, odors_gp,
     return apply_args
 
 
-def main_recognition_runs(filename, attrs, params, model_options, proj_kwargs):
+def main_recognition_runs(
+        filename, attrs, params, model_options, proj_kwargs, 
+        full_example_file=None
+    ):
     """ After having performed several habituation runs and saved these
     results to HDF, load the results and test new odor recognition.
 
     Args: same as main_habituation_runs
     Be careful to create a new random number generator, not re-creating
     the generator with the same seed used in the previous main simulation.
+
+    full_example_file (str): .npz file name in which to save
+        all the PN response y vectors to mixtures in the first sim_id. 
     """
     # Some consistency checks
     assert params['snap_times'].size == params['repeats'][1]
@@ -627,6 +635,18 @@ def main_recognition_runs(filename, attrs, params, model_options, proj_kwargs):
         sim_results.pop("mixture_tags").to_hdf(
                                 sim_gp.create_group("mixture_tags"))
         dict_to_hdf5(sim_gp.create_group("test_results"), sim_results)
+        # Save sample response to new odors
+        if sim_id == 0 and full_example_file is not None:
+            try:
+                f = np.load(full_example_file)
+            except FileNotFoundError:
+                existing_arrays = {}
+            else:
+                existing_arrays = {k:f[k] for k in f.keys()}
+                f.close()
+            # Re-save existing arrays, add the mixture_svecs
+            existing_arrays["mixture_svecs"] = sim_results["mixture_svecs"]
+            np.savez_compressed(full_example_file, **existing_arrays)
         print("New odor recognition tested for simulation {}".format(sim_id))
         return sim_id
 
