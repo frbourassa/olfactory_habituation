@@ -112,7 +112,8 @@ from utils.export import (
     dict_to_hdf5,
     hdf5_to_dict,
     csr_matrix_to_hdf5,
-    hdf5_to_csr_matrix
+    hdf5_to_csr_matrix, 
+    add_to_npz
 )
 
 def select_sampling_functions(attrs):
@@ -641,16 +642,9 @@ def main_recognition_runs(
                     + " already exists; not saving")
         # Save sample response to new odors
         if sim_id == 0 and full_example_file is not None:
-            try:
-                f = np.load(full_example_file)
-            except FileNotFoundError:
-                existing_arrays = {}
-            else:
-                existing_arrays = {k:f[k] for k in f.keys()}
-                f.close()
-            # Re-save existing arrays, add the mixture_svecs
-            existing_arrays["mixture_svecs"] = sim_results["mixture_svecs"]
-            np.savez_compressed(full_example_file, **existing_arrays)
+            add_to_npz(full_example_file, 
+                {"mixture_svecs": sim_results["mixture_svecs"]})
+            
         print("New odor recognition tested for simulation {}".format(sim_id))
         return sim_id
 

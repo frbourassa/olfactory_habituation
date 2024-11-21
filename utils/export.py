@@ -107,6 +107,36 @@ def nice_dict_print(di):
     return di
 
 
+# Appending to .npz file
+def add_to_npz(filename, arrays_to_add):
+    """
+    Appending to npz file is not recommended,
+    because we need to load and save again. 
+    But sometimes it is convenient anyways. 
+
+    Args:
+        filename (str): name of the npz file to append to; 
+            will be created if it doesn't exist
+        arrays_to_add (dict): names and arrays to append
+    
+    Returns: 0 if appended, 1 if created new file
+    """
+    try:
+        f = np.load(filename)
+    except FileNotFoundError:
+        existing_arrays = {}
+        code_exit = 1
+    else:
+        existing_arrays = {k:f[k] for k in f.keys()}
+        f.close()
+        code_exit = 0
+    # Re-save existing arrays, add the mixture_svecs
+    existing_arrays.update(arrays_to_add)
+    np.savez_compressed(filename, **existing_arrays)
+    return code_exit
+
+
+
 # Reconstruct objects with .slope, .intercept, etc. attributes from saved dict.
 class LinRegRes():
     def __init__(self, di):

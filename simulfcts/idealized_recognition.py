@@ -277,7 +277,8 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
         "mixture_svecs": mixture_svecs,
         "mixture_tags": mixture_tags,
         "jaccard_scores": jaccard_scores,
-        "ideal_factors": factors
+        "ideal_factors": factors,
+        "projector": projector
     }
     return sim_id, test_results, projmat
 
@@ -388,7 +389,22 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
     return sim_id, test_results, projmat
 
 
-def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
+def save_examples(fname, kind, sim_res):
+    arrs = {"mixture_svecs": sim_res["mixture_svecs"]}
+    if kind == "ideal": 
+        arrs["ideal_factors"] = sim_res["ideal_factors"]
+        arrs["projector"] = sim_res["projector"]
+    elif kind == "optimal": 
+        arrs["optimal_ws"] = sim_res["optimal_ws"]
+    else: 
+        pass
+    np.savez_compressed(fname, **arrs)
+    return None
+
+
+def idealized_recognition_from_runs(
+        filename, filename_ref, kind="none", example_file=None
+    ):
     """ After having performed several habituation runs and tested them
     for recognition with some model, compute the ideal inhibition
     we could have achieved in these runs.
@@ -399,6 +415,8 @@ def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
             All necessary information is extracted from there.
         kind (str): the kind of idealized habituation considered,
             either "orthogonal", "none", "optimal", or "ideal".
+        example_file (str): if a npz filename is provided, save
+            the optimal matrix W or ideal factors are saved
 
     Args: same as main_habituation_runs
     Be careful to create a new random number generator, not re-creating
@@ -460,6 +478,9 @@ def idealized_recognition_from_runs(filename, filename_ref, kind="none"):
         sim_results.pop("mixture_tags").to_hdf(
                                 sim_gp.create_group("mixture_tags"))
         dict_to_hdf5(sim_gp.create_group("test_results"), sim_results)
+        # Save parts of the first sim. separately as an example to plot
+        if sim_id == 0 and example_file is not None:
+            save_examples(example_file, kind, sim_results)
         print("Ideal recognition tested for simulation {}".format(sim_id))
         return sim_id
 
