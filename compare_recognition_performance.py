@@ -129,7 +129,7 @@ if __name__ == "__main__":
         ibcm_params, ibcm_options, full_example_file=ibcm_full_file)
     print("Starting IBCM recognition tests")
     main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
-                          ibcm_options, projection_arguments)
+        ibcm_options, projection_arguments, full_example_file=ibcm_full_file)
 
     ### BIOPCA RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -208,7 +208,7 @@ if __name__ == "__main__":
         avg_params, avg_options, full_example_file=avg_full_file)
     print("Starting average subtraction recognition tests")
     main_recognition_runs(avg_file_name, avg_attrs, avg_params,
-                          avg_options, projection_arguments)
+        avg_options, projection_arguments, full_example_file=avg_full_file)
 
 
     ### IDEAL AND NO INHIBITION ###
