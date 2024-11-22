@@ -418,7 +418,7 @@ def initialize_integration(id, gp, attrs, params, modopt, back, rgen, spseed):
 
 def main_habituation_runs(
     filename, attributes, parameters, model_options,
-    save_fct=save_simul_results, full_example_file=False
+    save_fct=save_simul_results, full_example_file=None
 ):
     """
     Args: everything in the .attrs and parameters group of the HDF file that

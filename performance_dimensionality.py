@@ -142,7 +142,7 @@ if __name__ == "__main__":
         ibcm_params["dimensions"] = dimensions_array
         ibcm_attrs["main_seed"] = str(common_seeds[i])
         ibcm_file_name = os.path.join(folder, 
-                            "ibcm_performance_results_ns_{}.h5".format(n_s))
+                            "ibcm_performance_results_ns_{}.h5".format(n_s_i))
         all_ibcm_file_names[n_s_i] = str(ibcm_file_name)
         print("Starting IBCM simulation for N_S = {}".format(n_s_i))
         main_habituation_runs(ibcm_file_name, ibcm_attrs,
