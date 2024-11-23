@@ -17,14 +17,14 @@ January 2024
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from modelfcts.ideal import relu_inplace, rerun_w_dynamics
-from modelfcts.ibcm import integrate_inhib_ibcm_network_options
-from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
-from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact, lambda_pca_equivalent
+from modelfcts.ibcm_analytics import (
+    fixedpoint_thirdmoment_exact, 
+    lambda_pca_equivalent
+)
 
 from modelfcts.distribs import truncexp1_average
 from modelfcts.backgrounds import sample_ss_conc_powerlaw
-from simulfcts.habituation_recognition import (
+from simulfcts.habituation_recognition_lambda import (
     main_habituation_runs_lambda,
     main_performance_lambda
 )

@@ -55,7 +55,7 @@ if __name__ == "__main__":
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
-    skip_steps = 1000  # Need to skip a lot for high dimensions!
+    skip_steps = 2000  # Need to skip a lot for high dimensions!
     repeats_array = np.asarray([
                         n_runs, n_test_times, n_back_samples,
                         n_new_odors, len(new_test_concs), skip_steps
