@@ -13,7 +13,7 @@ from modelfcts.tagging import (
     SparseNDArray
 )
 from utils.statistics import seed_from_gen
-from utils.cpu_affinity import count_parallel_cpu
+from utils.cpu_affinity import count_parallel_cpu, count_threads_per_process
 from utils.metrics import l2_norm, jaccard
 from utils.export import (
     dict_to_hdf5,
@@ -23,7 +23,7 @@ from utils.export import (
 from simulfcts.habituation_recognition import (
     test_new_odor_recognition,
     test_new_odor_recognition_lean, 
-    func_wrapper_with_id, 
+    func_wrapper_with_id_threadpool, 
     find_snap_index, 
     id_to_simkey, 
     select_model_functions, 
@@ -36,7 +36,7 @@ from simulfcts.habituation_recognition import (
 
 
 def initialize_integration_lambda(
-        id, lambd, gp, attrs, params, modopt, back, inits, spseed
+        id,  nwork, lambd, gp, attrs, params, modopt, back, inits, spseed
     ):
     """ Create a list of args and dictionary of kwargs to launch
     the main habituation parallel runs.
@@ -61,8 +61,11 @@ def initialize_integration_lambda(
     else:
         raise ValueError("Lambda not in model {}".format(attrs["model"]))
 
+    # Threads per process
+    threads_per_process = count_threads_per_process(nwork)
     apply_args = (integrate,
                     id,
+                    threads_per_process,
                     adjusted_inits,
                     back_update,
                     back_init,
@@ -234,7 +237,8 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
     # Initialize and launch all simulations
     # Use the same seed for all Lambdas.
     spawned_seed = main_seed_seq.spawn(1)[0]
-    pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
+    n_workers = min(count_parallel_cpu(), repeats[0])
+    pool = multiprocessing.Pool(n_workers)
     for sim_id in range(repeats[0]):
         # Package simulation arguments and save initialization
         # to a new group for this simulation
@@ -243,11 +247,11 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
         sim_gp.attrs["lambd"] = lambd
         # id, lambd, gp, attrs, params, modopt, back, inits, spseed
         apply_args, apply_kwargs = initialize_integration_lambda(
-                    sim_id, lambd, sim_gp, attributes, parameters,
+                    sim_id, n_workers, lambd, sim_gp, attributes, parameters,
                     model_options, back_odors, all_inits, spawned_seed
         )
         pool.apply_async(
-                    func_wrapper_with_id, args=apply_args,
+                    func_wrapper_with_id_threadpool, args=apply_args,
                     kwds=apply_kwargs, callback=callback,
                     error_callback=error_callback
         )
@@ -263,7 +267,7 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
     return 0
 
 
-def initialize_recognition_lambda(id, gp, odors_gp,
+def initialize_recognition_lambda(id, nwork, gp, odors_gp, 
     attrs, params, modopt, p_matrix, spseed, projkw):
     """ Function to arrange the arguments of multiprocessing pool apply
     for new odor detection tests
@@ -306,7 +310,8 @@ def initialize_recognition_lambda(id, gp, odors_gp,
         "proj_kwargs": projkw,
         "model_options": modopt,
     }
-    apply_args = (test_new_odor_recognition, id, snaps_dict,
+    n_threads = count_threads_per_process(nwork)
+    apply_args = (test_new_odor_recognition, id, n_threads, snaps_dict,
                     attrs, params, sim_odors_dict, test_params)
     return apply_args
 
@@ -364,17 +369,18 @@ def main_performance_lambda(filename, attrs, params, model_options, proj_kwargs)
     # and test at 20 % or 50 % concentration
     # We want the same test seed for all Lambdas, for better direct comparison
     testing_seed = main_seed_seq.spawn(1)[0]
-    pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
+    n_workers = min(count_parallel_cpu(), repeats[0])
+    pool = multiprocessing.Pool()
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
         # then create and save the proj. mat., and initialize arguments
         sim_gp = results_file.get(id_to_simkey(sim_id))
         # Lambda parameter gets adjusted in the initialization
         apply_args = initialize_recognition_lambda(
-                    sim_id, sim_gp, odors_group, attrs, params,
+                    sim_id, n_workers, sim_gp, odors_group, attrs, params,
                     model_options, p_matrix, testing_seed, proj_kwargs
                     )
-        pool.apply_async(func_wrapper_with_id, args=apply_args,
+        pool.apply_async(func_wrapper_with_id_threadpool, args=apply_args,
                         callback=callback, error_callback=error_callback)
 
     # Close and join the Pool to finish processes, then close the file

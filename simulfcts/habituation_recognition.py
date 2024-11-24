@@ -446,9 +446,13 @@ def initialize_weights(attrs, dims, rgen, params):
     return all_init_weights, init_weight_names
 
 
-def initialize_integration(id, gp, nwork, attrs, params, modopt, back, rgen, spseed):
+def initialize_integration(
+        id, nwork, gp, attrs, params, modopt, back, rgen, spseed
+    ):
     """ Create a list of args and dictionary of kwargs to launch
     the main habituation parallel runs
+    nwork (int): number of Pool workers, to determine the
+        allowable number of threads per pool in numpy
     """
     # Select appropriate functions for the model and background
     # Yes we could do that outside of the loop, once for all repeats
@@ -584,14 +588,14 @@ def main_habituation_runs(
     # Then loop again to launch simulations in parallel.
 
     spawned_seeds = main_seed_seq.spawn(repeats[0])
-    nworkers = min(count_parallel_cpu(), repeats[0])
-    pool = multiprocessing.Pool(nworkers)
+    n_workers = min(count_parallel_cpu(), repeats[0])
+    pool = multiprocessing.Pool(n_workers)
     for sim_id in range(repeats[0]):
         # Package simulation arguments and save initialization
         # to a new group for this simulation
         sim_gp = results_file.create_group(id_to_simkey(sim_id))
         apply_args, apply_kwargs = initialize_integration(
-            sim_id, sim_gp, nworkers, attributes, parameters, model_options,
+            sim_id, n_workers, sim_gp, attributes, parameters, model_options,
             back_odors, main_rgen, spawned_seeds[sim_id]
         )
         pool.apply_async(
@@ -633,7 +637,7 @@ def get_data(g, k):
     return gp
 
 
-def initialize_recognition(id, gp, odors_gp,
+def initialize_recognition(id, nwork, gp, odors_gp, 
     attrs, params, modopt, rgen, spseed, projkw, lean=False):
     """ Function to arrange the arguments of multiprocessing pool apply
     for new odor detection tests
@@ -669,7 +673,8 @@ def initialize_recognition(id, gp, odors_gp,
     }
     test_fct = (test_new_odor_recognition_lean if lean 
                 else test_new_odor_recognition)
-    apply_args = (test_fct, id, snaps_dict,
+    n_threads = count_threads_per_process(nwork)
+    apply_args = (test_fct, id, n_threads, snaps_dict,
                     attrs, params, sim_odors_dict, test_params)
     return apply_args
 
@@ -739,18 +744,19 @@ def main_recognition_runs(
     # Against n_back_samples backgrounds, including the simulation one.
     # and test at 20 % or 50 % concentration
     all_seeds = main_seed_seq.spawn(repeats[0])
-    pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
+    n_workers = min(count_parallel_cpu(), repeats[0])
+    pool = multiprocessing.Pool(n_workers)
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
         # then create and s ave the proj. mat., and initialize arguments
         sim_gp = results_file.get(id_to_simkey(sim_id))
         apply_args = initialize_recognition(
-                    sim_id, sim_gp, odors_group, attrs, params,
+                    sim_id, n_workers, sim_gp, odors_group, attrs, params,
                     model_options, main_rgen, all_seeds[sim_id], 
                     proj_kwargs, lean=lean
         )
         pool.apply_async(
-            func_wrapper_with_id, args=apply_args, 
+            func_wrapper_with_id_threadpool, args=apply_args, 
             callback=callback, error_callback=error_callback
         )
 
