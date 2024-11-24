@@ -34,7 +34,7 @@ if __name__ == "__main__":
     folder = os.path.join("results", "performance_ns")
 
     # Dimensionalities -- will be updated for each launched simulation
-    n_s = 1000  # n_S: choose 25 (half of full Drosophila dimensionality)
+    n_s = 50  # n_S: choose 25 (half of full Drosophila dimensionality)
     n_b = 6   # n_B: check against 6 background odors.
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 32  # nb of habituation runs, each with a different background
+    n_runs = 64  # nb of habituation runs, each with a different background
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -147,7 +147,6 @@ if __name__ == "__main__":
         print("Starting IBCM simulation for N_S = {}".format(n_s_i))
         main_habituation_runs(ibcm_file_name, ibcm_attrs,
                             ibcm_params, ibcm_options, lean=True)
-        raise NotImplementedError()
         print("Starting IBCM recognition for N_S = {}".format(n_s_i))
         main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
                             ibcm_options, projection_arguments, lean=True)
