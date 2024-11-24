@@ -39,7 +39,7 @@ if __name__ == "__main__":
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    n_s_range = np.arange(n_s, 1000, 50)  # From 50 to 1000: 20 simulations
+    n_s_range = np.arange(n_s, 1050, 50)  # From 50 to 1000: 20 simulations
     n_k_range = n_k / n_s * n_s_range  # scale # KCs with number of OSN types. 
 
     # Common global seeds, one per dimensionality tested, 
@@ -146,10 +146,10 @@ if __name__ == "__main__":
         all_ibcm_file_names[n_s_i] = str(ibcm_file_name)
         print("Starting IBCM simulation for N_S = {}".format(n_s_i))
         main_habituation_runs(ibcm_file_name, ibcm_attrs,
-                            ibcm_params, ibcm_options)
+                            ibcm_params, ibcm_options, lean=True)
         print("Starting IBCM recognition for N_S = {}".format(n_s_i))
         main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
-                            ibcm_options, projection_arguments)
+                            ibcm_options, projection_arguments, lean=True)
 
     ### BIOPCA RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -196,10 +196,10 @@ if __name__ == "__main__":
             "biopca_performance_results_ns_{}.h5".format(n_s_i))
         print("Starting BioPCA recognition for N_S = {}".format(n_s_i))
         main_habituation_runs(pca_file_name, biopca_attrs,
-                          biopca_params, biopca_options)
+                          biopca_params, biopca_options, lean=True)
         print("Starting BioPCA recognition for N_S = {}".format(n_s_i))
         main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
-                          biopca_options, projection_arguments)
+                          biopca_options, projection_arguments, lean=True)
 
     ### AVERAGE INHIBITION RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -234,12 +234,12 @@ if __name__ == "__main__":
             "avgsub_performance_results_ns_{}.h5".format(n_s_i))
         print("Starting average sub. simulation for N_S = {}".format(n_s_i))
         main_habituation_runs(avg_file_name, avg_attrs,
-                            avg_params, avg_options)
+                            avg_params, avg_options, lean=True)
         print("Starting average sub. recognition for N_S = {}".format(n_s_i))
         main_recognition_runs(avg_file_name, avg_attrs, avg_params,
-                            avg_options, projection_arguments)
+                            avg_options, projection_arguments, lean=True)
 
-
+    raise NotImplemented("Need to code lean option for ideal recognition too")
     ### IDEAL AND NO INHIBITION ###
     for kind in ["orthogonal", "ideal", "optimal", "none"]:
         for n_s_i in n_s_range:

@@ -695,12 +695,11 @@ def main_recognition_runs(
     odors_group = results_file.get("odors")
 
     # Save the new odors and the projection kwargs to disk
-    if not lean:
-        try:
-            odors_group.create_dataset("new_odors", data=new_odors)
-            dict_to_hdf5(results_file.create_group("proj_kwargs"), proj_kwargs)
-        except ValueError:
-            pass  # already exists (for now)
+    try:
+        odors_group.create_dataset("new_odors", data=new_odors)
+        dict_to_hdf5(results_file.create_group("proj_kwargs"), proj_kwargs)
+    except ValueError:
+        pass  # already exists (for now)
 
     # Define callback functions
     def callback(result):
