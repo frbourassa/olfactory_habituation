@@ -28,9 +28,9 @@ def count_parallel_cpu():
 
 def count_threads_per_cpu():
     n_cpu = count_parallel_cpu()
-    n_threads = psutil.cpu_count() / n_cpu
+    n_threads = int(psutil.cpu_count() // n_cpu)
     return n_threads
 
 def count_threads_per_process(n_proc):
-    n_threads = psutil.cpu_count() / n_proc
+    n_threads = int(psutil.cpu_count() // n_proc)
     return n_threads
