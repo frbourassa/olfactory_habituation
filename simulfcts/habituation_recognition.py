@@ -90,7 +90,7 @@ from modelfcts.backgrounds import (
     update_alternating_inputs,
     update_thirdmoment_kinputs,
     update_logou_kinputs,
-    update_powerlaw_times_concs_saturate,
+    update_powerlaw_times_concs,
     sample_background_powerlaw,
     sample_ss_conc_powerlaw,
     generate_odorant
@@ -358,7 +358,7 @@ def select_model_functions(attrs):
 
     # Select background update function
     back_function_map = {
-        "turbulent": (update_powerlaw_times_concs_saturate, "uniform"),
+        "turbulent": (update_powerlaw_times_concs, "uniform"),
         "log-normal": (update_logou_kinputs, "normal"),
         "third_moment": (update_thirdmoment_kinputs, "normal"),
         "gaussian": (update_ou_kinputs, "normal"),
