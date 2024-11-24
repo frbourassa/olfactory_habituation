@@ -8,8 +8,6 @@ September 2021
 import numpy as np
 from modelfcts.ideal import relu_inplace
 from utils.metrics import l2_norm, l1_norm, lp_norm
-from utils.profiling import DeltaTimer, IterationProfiler
-from threadpoolctl import threadpool_limits
 
 
 ### IBCM NEURON alone, no inhibition
@@ -189,57 +187,42 @@ def integrate_ibcm_network(m_init, update_bk, bk_init, bk_params, tmax, dt,
         raise NotImplementedError("Noise option {} not implemented".format(noisetype))
 
     t = 0
-    ktests = [min(len(tseries)-3, 10000)]
     for k in range(0, len(tseries)-1):
         t += dt
         ### IBCM neurons
         # Update first their synaptic weights m to time k+1 before updating c, cbar,
         # because dm/dt depends on c, cbar, cbar2_avg at time k
         # Phi function for each neuron
-        if k in ktests:
-            timer = DeltaTimer()
-            timer.start()
         phiterms_vec = cbar * (cbar - cbar2_avg)
-        if k in ktests: print("Time to compute phiterms_vec:", timer.delta())
         # Now, careful with broadcast: for each neuron (dimension 0 of m and cbar), we need a scalar element
         # of phiterms_vec times the whole bkvec, for dimension 1 of m.
         # This can be done vectorially with a dot product (n_neu, 1)x(1, n_components)
         rhs_scalar = phiterms_vec - coupling*(np.sum(phiterms_vec) - phiterms_vec)
-        if k in ktests: print("Time to compute rhs_scalar:", timer.delta())
         # Euler integrator and learning rate
         m = m + learnrate*dt*rhs_scalar[:, np.newaxis].dot(bkvec[np.newaxis, :])
-        if k in ktests: print("Time to update m:", timer.delta())
         # Store the updated synaptic weights
         m_series[k+1] = m
-        if k in ktests: print("Time to store m:", timer.delta())
 
         # Now, update to time k+1 the threshold (cbar2_avg) using cbar at time k
         # to be used to update m in the next time step
         cbar2_avg = cbar2_avg + (cbar*cbar - cbar2_avg)/tavg * dt
-        if k in ktests: print("Time to update cbar2_avg:", timer.delta())
         # This Euler scheme could cause numerical stability problems if dt is too large,
         # or tavg too small, or the average vector too large.
 
         # Update background to time k+1, to be used in next time step
         bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k], dt)
-        if k in ktests: print("Time to update_bk:", timer.delta())
         bk_series[k+1] = bk_vari
         bkvec_series[k+1] = bkvec
-        if k in ktests: print("Time to store bkvec:", timer.delta())
 
         # Lastly, compute activity of IBCM neurons at next time step, k+1,
         # with the updated background and synaptic weight vector m
         # Compute un-inhibited activity of each neuron with current input (at time k)
         c = m.dot(bkvec)
-        if k in ktests: print("Time to compute m.dot(bkvec):", timer.delta())
         c_series[k+1] = c
-        if k in ktests: print("Time to store c:", timer.delta())
         cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
-        if k in ktests: print("Time to compute cbar:", timer.delta())
         # np.sum(c) is a scalar and c a vector, so it broadcasts properly.
         cbar_series[k+1] = cbar  # Save activity of neurons at time k+1
         theta_series[k+1] = cbar2_avg
-        if k in ktests: print("Time to store cbar:", timer.delta())
 
     return tseries, m_series, bk_series, c_series, cbar_series, theta_series, bkvec_series
 
@@ -417,17 +400,12 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
 
     t = 0
     newax = np.newaxis
-    ktests = np.arange(10000, len(tseries)*skp-1, 50000)
-    profiler = IterationProfiler(prof_name=str(seed.spawn_key))
     for k in range(0, len(tseries)*skp-1):
         t += dt
         ### Inhibitory  weights
         # They depend on cbar and svec at time step k, which are still in cbar, svec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
         # while svec, shape [n_orn], should broadcast across rows (copied on each column)
-        if k in ktests:
-            profiler.start(iter_name=str(k))  # profiler.reset() included
-        
         if w_norms[0] == 2:  # default L2 norm, nice and smooth
             alpha_term = alpha * cbar[newax, :] * svec[:, newax]
         elif w_norms[0] == 1:  # L1 norm
@@ -440,7 +418,6 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             alpha_term = alpha * cbar[newax, :] * sterm[:, newax]
         else:
             raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
-        if k in ktests: profiler.addpoint("compute alpha_term")
 
         if w_norms[1] == 2:
             beta_term = beta * wmat
@@ -452,10 +429,8 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             beta_term = beta * wterm * wnorm
         else:
             raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
-        if k in ktests: profiler.addpoint("compute beta_term")
 
         wmat += dt * (alpha_term - beta_term)
-        if k in ktests: profiler.addpoint("update wmat")
 
         ### IBCM neurons
         # Phi function for each neuron.
@@ -466,23 +441,19 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             phiterms_vec = cbar * (cbar - cbar2_avg) / (ktheta + cbar2_avg/lambd)
         else:
             raise ValueError("Unknown variant: {}".format(variant))
-        if k in ktests: profiler.addpoint("compute phiterms_vec")
 
         if saturation == "tanh":
             phiterms_vec *=  1.0 - (cbar/sat_abs)**2
-            if k in ktests: profiler.addpoint("saturate phiterms_vec")
         # Now, careful with broadcast: for each neuron (dimension 0 of m and cbar), we need a scalar element
         # of phiterms_vec times the whole bkvec, for dimension 1 of m.
         # This can be done vectorially with a dot product (n_neu, 1)x(1, n_components)
         rhs_scalar = phiterms_vec - coupling*(np.sum(phiterms_vec) - phiterms_vec)
-        if k in ktests: profiler.addpoint("compute rhs_scalar")
         # Euler integrator and learning rate
         # learnrate_t = learnrate if t < 150000 else learnrate / 5
         # Reducing learning rate after a while may help.
         # Consider feedback on mu through some metric of how well neurons
         # are inhibiting the background, e.g. s average activity.
         m += mu_abs*dt*rhs_scalar[:, np.newaxis].dot(bkvec[np.newaxis, :])
-        if k in ktests: profiler.addpoint("update m")
         # In principle, should add low decay to background subspace
         # To make sure 1) only learn the background space, 2) de-habituate after
         # The decay term is proportional to m, not m^2 like the IBCM term
@@ -492,15 +463,12 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             m -= dt * decay_relative * learnrate / (ktheta + cbar2_avg[:, np.newaxis]/lambd) * m
         elif decay and variant == "intrator":
             m -= dt * decay_relative * learnrate * m
-        if k in ktests: profiler.addpoint("add decay term to m")
         # Now, update to time k+1 the threshold (cbar2_avg) using cbar at time k
         # to be used to update m in the next time step
         cbar2_avg += dt * (cbar*cbar / lambd - cbar2_avg)/tavg
-        if k in ktests: profiler.addpoint("update cbar2_avg")
 
         # Update background to time k+1, to be used in next time step
         bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k], dt)
-        if k in ktests: profiler.addpoint("update_bk")
 
         # Then, compute activity of IBCM neurons at next time step, k+1,
         # with the updated background and synaptic weight vector m
@@ -509,27 +477,19 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         # and also at yvec calculation: turns out it's because of BLAS multithreading
         # So for multiprocessing, this function should be launched in a threadpool_limits
         c = m.dot(bkvec)
-        if k in ktests: profiler.addpoint("compute m.dot(bkvec)")
         cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
-        if k in ktests: profiler.addpoint("compute cbar")
         if saturation == "tanh":
             cbar = sat_abs * np.tanh(cbar / sat_abs)
-            if k in ktests: profiler.addpoint("saturate cbar")
         # np.sum(c) is a scalar and c a vector, so it broadcasts properly.
 
         # Lastly, projection neurons at time step k+1
         svec = bkvec - wmat.dot(cbar)
-        if k in ktests: profiler.addpoint("compute yvec (svec)")
         if activ_fct == "relu":
             relu_inplace(svec)
-            if k in ktests: profiler.addpoint("compute relu of svec")
 
         # Save current state only if at a multiple of skp
         if (k % skp) == (skp - 1):
             knext = (k+1) // skp
-            if knext == 1:
-                timer2 = DeltaTimer()
-                timer2.start()
             w_series[knext] = wmat
             m_series[knext] = m
             bk_series[knext] = bk_vari
@@ -537,11 +497,6 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             cbar_series[knext] = cbar  # Save activity of neurons at time k+1
             s_series[knext] = svec
             theta_series[knext] = cbar2_avg
-            if knext == 1:
-                print("Time to store snapshot:", timer2.delta())
-        if k in ktests:
-            profiler.end_iter()
-            
 
     return [tseries, bk_series, bkvec_series, m_series,
             cbar_series, theta_series, w_series, s_series]

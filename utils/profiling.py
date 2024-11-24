@@ -1,4 +1,4 @@
-""" Custom classes to profile duration of steps in iterative function. 
+""" Custom classes to profile the duration of steps in iterative functions. 
 
 @author: frbourassa
 November 2024
