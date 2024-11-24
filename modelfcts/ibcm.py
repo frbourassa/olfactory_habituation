@@ -8,22 +8,8 @@ September 2021
 import numpy as np
 from modelfcts.ideal import relu_inplace
 from utils.metrics import l2_norm, l1_norm, lp_norm
-from time import perf_counter
+from utils.profiling import DeltaTimer
 
-
-# Small utility class to compute time difference since last call 
-# with a single command
-class DeltaTimer():
-    def __init__(self):
-        self.t1 = 0.0
-        self.t2 = 0.0
-    def start(self):
-        self.t1 = perf_counter()
-    def delta(self):
-        self.t2 = perf_counter()
-        dt = self.t2 - self.t1
-        self.t1 = self.t2
-        return dt
 
 ### IBCM NEURON alone, no inhibition
 def integrate_ibcm(m_init, update_bk, bk_init, bk_params, tmax, dt,
@@ -549,6 +535,9 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             theta_series[knext] = cbar2_avg
             if knext == 1:
                 print("Time to store snapshot:", timer2.delta())
+            print("Stored snapshot at step k =", k)
+        if k == ktest:
+            print("Total step duration:", timer.total_time())
             
 
     return [tseries, bk_series, bkvec_series, m_series,
