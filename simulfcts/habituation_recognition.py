@@ -64,6 +64,8 @@ import pandas as pd
 import multiprocessing
 import gc
 import time
+from threadpoolctl import threadpool_limits
+
 
 # Local imports
 from modelfcts.ideal import relu_inplace
@@ -99,7 +101,7 @@ from modelfcts.tagging import (
     SparseNDArray
 )
 from utils.statistics import seed_from_gen
-from utils.cpu_affinity import count_parallel_cpu
+from utils.cpu_affinity import count_parallel_cpu, count_threads_per_process
 from utils.metrics import l2_norm, jaccard
 from utils.export import (
     dict_to_hdf5,
@@ -328,6 +330,13 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
 def func_wrapper_with_id(func, id, *args, **kwargs):
     return id, func(*args, **kwargs)
 
+# Launch in a pool of threads limited to the number of threads per CPU
+# since we are already running one process per CPU core. 
+def func_wrapper_with_id_threadpool(func, id, threadlim, *args, **kwargs):
+    with threadpool_limits(limits=threadlim, user_api='blas'):
+        res = func(*args, **kwargs)
+    return id, res
+
 def find_snap_index(dt, skip, times):
     """ Find nearest multiple of dt*skip to each time in times """
     return np.around(times / (dt*skip)).astype(int)
@@ -437,7 +446,7 @@ def initialize_weights(attrs, dims, rgen, params):
     return all_init_weights, init_weight_names
 
 
-def initialize_integration(id, gp, attrs, params, modopt, back, rgen, spseed):
+def initialize_integration(id, gp, nwork, attrs, params, modopt, back, rgen, spseed):
     """ Create a list of args and dictionary of kwargs to launch
     the main habituation parallel runs
     """
@@ -456,8 +465,10 @@ def initialize_integration(id, gp, attrs, params, modopt, back, rgen, spseed):
                     back_id, rgen
                 )
     back_params_sim = params["back_params"] + [back_id]
+    threads_per_process = count_threads_per_process(nwork)
     apply_args = (integrate,
                     id,
+                    threads_per_process,
                     init_weights,
                     back_update,
                     back_init_sim,
@@ -573,20 +584,20 @@ def main_habituation_runs(
     # Then loop again to launch simulations in parallel.
 
     spawned_seeds = main_seed_seq.spawn(repeats[0])
-    pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
+    nworkers = min(count_parallel_cpu(), repeats[0])
+    pool = multiprocessing.Pool(nworkers)
     for sim_id in range(repeats[0]):
         # Package simulation arguments and save initialization
         # to a new group for this simulation
         sim_gp = results_file.create_group(id_to_simkey(sim_id))
         apply_args, apply_kwargs = initialize_integration(
-                        sim_id, sim_gp, attributes, parameters, model_options,
-                        back_odors, main_rgen, spawned_seeds[sim_id]
-                        )
+            sim_id, sim_gp, nworkers, attributes, parameters, model_options,
+            back_odors, main_rgen, spawned_seeds[sim_id]
+        )
         pool.apply_async(
-                            func_wrapper_with_id, args=apply_args,
-                            kwds=apply_kwargs, callback=callback,
-                            error_callback=error_callback
-                        )
+            func_wrapper_with_id_threadpool, args=apply_args, kwds=apply_kwargs, 
+            callback=callback, error_callback=error_callback
+        )
 
     # No need to .get() results: the callback takes care of it
     # and in fact we don't want to get them, else they get stuck in the

@@ -9,6 +9,7 @@ import numpy as np
 from modelfcts.ideal import relu_inplace
 from utils.metrics import l2_norm, l1_norm, lp_norm
 from utils.profiling import DeltaTimer, IterationProfiler
+from threadpoolctl import threadpool_limits
 
 
 ### IBCM NEURON alone, no inhibition
@@ -322,6 +323,14 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         [tseries, bk_series, bkvec_series, m_series,
         cbar_series, theta_series, w_series, s_series]
     """
+    # The linear algebra package BLAS on which numpy relies uses
+    # multithreading for large enough matrix multiplications,
+    # but with many processes in parallel, this creates collisions between
+    # threads and slows down all parallel processes. 
+    # For multiprocessing, put the call to this function in a
+    # threadpool_limit. (more recent version of threadpoolctl package 
+    # would have a function decorator for this)
+
     # Get some of the keyword arguments
     saturation = options.get("saturation", "linear")
     variant = options.get("variant", "intrator")
@@ -504,6 +513,9 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         # Then, compute activity of IBCM neurons at next time step, k+1,
         # with the updated background and synaptic weight vector m
         # Compute un-inhibited activity of each neuron with current input (at time k)
+        # With too many simulations in parallel, there seems to be a bottleneck here
+        # and also at yvec calculation: turns out it's because of BLAS multithreading
+        # see comment above. 
         c = m.dot(bkvec)
         if k in ktests: profiler.addpoint("compute m.dot(bkvec)")
         cbar = c - coupling*(np.sum(c) - c)  # -c to cancel the subtraction of c[i] itself
