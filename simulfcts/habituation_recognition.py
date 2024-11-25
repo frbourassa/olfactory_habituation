@@ -272,9 +272,12 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     back_samples = conc_samples.dot(sim_odors["back"])
     back_samples = back_samples.reshape([n_times, n_back_samples-1, -1])
     # Append the background snapshots to them
-    # These samples will be returned and saved to disk afterwards
-    # Conc samples not immediately useful here, but nice for future analysis
     back_samples = np.concatenate([snaps["back"][:, None, :], back_samples], 
+                                  axis=1)
+    # The conc. samples will be returned and saved to disk afterwards
+    # to be able to reconstruct back samples for optimal recognition models
+    conc_samples = conc_samples.reshape([n_times, n_back_samples-1, -1])
+    conc_samples = np.concatenate([snaps["conc"][:, None, :], conc_samples], 
                                   axis=1)
     # Loop over new odors first
     n_new_odors = params['repeats'][3]
@@ -320,6 +323,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
     # Prepare simulation results dictionary
     test_results = {
+        "conc_samples": conc_samples,
         "jaccard_scores": jaccard_scores, 
         "y_l2_distances": y_l2_distances
     }
@@ -645,11 +649,11 @@ def initialize_recognition(id, nwork, gp, odors_gp,
     p_matrix = create_sparse_proj_mat(
                     params["dimensions"][3], params["dimensions"][0], rgen
                 )
-    if not lean:
-        try:
-            csr_matrix_to_hdf5(gp.create_group("kc_proj_mat"), p_matrix)
-        except ValueError:
-            pass  # Matrix already exists
+    # lean or not, need this matrix to compare tags in runs of optimal models
+    try:
+        csr_matrix_to_hdf5(gp.create_group("kc_proj_mat"), p_matrix)
+    except ValueError:
+        pass  # Matrix already exists
     # Load relevant snapshots.
     snaps_dict = {
         "m": get_data(gp, "m_snaps"),

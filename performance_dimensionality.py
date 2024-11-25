@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # Compute moments of the background concentration process
     dummy_rgen = np.random.default_rng(0x51bf7feb1fd2a3f61e1b1b59679f62c6)
     conc_samples = sample_ss_conc_powerlaw(
-                        *turbulent_back_params, size=int(1e5), rgen=dummy_rgen
+                        *turbulent_back_params, size=int(1e6), rgen=dummy_rgen
                     )
     mean_conc = np.mean(conc_samples)
     moments_conc = np.asarray([
@@ -239,7 +239,6 @@ if __name__ == "__main__":
         main_recognition_runs(avg_file_name, avg_attrs, avg_params,
                             avg_options, projection_arguments, lean=True)
 
-    raise NotImplemented("Need to code lean option for ideal recognition too")
     ### IDEAL AND NO INHIBITION ###
     for kind in ["orthogonal", "ideal", "optimal", "none"]:
         for n_s_i in n_s_range:
@@ -248,4 +247,5 @@ if __name__ == "__main__":
             ideal_file_name = os.path.join(folder, 
                     kind+"_performance_results_ns_{}.h5".format(n_s_i))
             ibcm_fname = all_ibcm_file_names[n_s_i]
-            idealized_recognition_from_runs(ideal_file_name, ibcm_fname, kind)
+            idealized_recognition_from_runs(
+                ideal_file_name, ibcm_fname, kind, lean=True)

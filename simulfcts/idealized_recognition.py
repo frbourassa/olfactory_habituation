@@ -15,6 +15,8 @@ import numpy as np
 from scipy import sparse
 import h5py
 import multiprocessing
+from threadpoolctl import threadpool_limits
+
 from modelfcts.ideal import (
     find_projector,
     find_parallel_component,
@@ -32,8 +34,8 @@ from utils.export import (
     hdf5_to_csr_matrix,
     csr_matrix_to_hdf5
 )
-from utils.metrics import jaccard
-from utils.cpu_affinity import count_parallel_cpu
+from utils.metrics import jaccard, l2_norm
+from utils.cpu_affinity import count_parallel_cpu, count_threads_per_process
 from simulfcts.habituation_recognition import (
     error_callback,
     id_to_simkey
@@ -41,7 +43,7 @@ from simulfcts.habituation_recognition import (
 from modelfcts.backgrounds import generate_odorant
 
 
-def no_habituation_one_sim(sim_id, filename_ref):
+def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     """ Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
     without any habituation.
@@ -60,58 +62,77 @@ def no_habituation_one_sim(sim_id, filename_ref):
     proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
 
-    # Get the average of background samples to set the KC thresholds
-    back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    # Get the background samples
+    if lean:
+        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+        back_samples = conc_samples.dot(back_odors)
+    else:
+        back_samples = sim_gp.get("test_results").get("back_samples")[()]
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
-                                n_new_concs, n_back_samples])
-    new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
-    mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
-                                n_back_samples, n_kc), dtype=bool)
-    mixture_svecs = np.zeros([n_new_odors, n_times,
-                                n_new_concs, n_back_samples, n_r])
+                            n_new_concs, n_back_samples])
+    if lean:  # only save scores and L2 distances 
+        y_l2_distances = np.zeros((n_new_odors, n_times, 
+                               n_new_concs, n_back_samples))
+    else:  # save the whole y vectors, jaccard scores, etc.
+        new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
+        mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
+                                    n_back_samples, n_kc), dtype=bool)
+        mixture_yvecs = np.zeros([n_new_odors, n_times,
+                                    n_new_concs, n_back_samples, n_r])
 
     # Treat one new odor at a time, one new conc. at a time, etc.
     for i in range(n_new_odors):
         new_tag = project_neural_tag(
                     new_odors[i], new_odors[i], projmat, **proj_kwargs)
-        new_odor_tags[i, list(new_tag)] = True
+        if not lean:
+            new_odor_tags[i, list(new_tag)] = True
         for k in range(n_new_concs):
-            mixtures = back_samples + new_concs[k]*new_odors[i]
-            mixture_svecs[i, :, k] = mixtures
-            # We actually don't want to apply ReLU to understand what
-            # happens if some svec is zero.
-            #if str(activ_fct).lower() == "relu":
-            #    mixture_svecs[i, :, k] = relu_inplace(mixture_svecs[i, :, k])
+            mixtures_ik = back_samples + new_concs[k]*new_odors[i]
+            if str(activ_fct).lower() == "relu":
+                mixtures_ik = relu_inplace(mixtures_ik)
+            if not lean:
+                mixture_yvecs[i, :, k] = mixtures_ik
+            else:
+                # Compute L2 distance between response to mixtures 
+                # with back_samples and new odor vector at the current conc. 
+                # ydiffs shaped [n_back_samples, n_s], compute norm along axis 1
+                ydiffs = mixtures_ik - new_concs[k] * new_odors[i]
+                y_l2_distances[i, :, k] = l2_norm(ydiffs, axis=2)
             for j in range(n_times):
                 for l in range(n_back_samples):
                     mix_tag = project_neural_tag(
-                        mixture_svecs[i, j, k, l], mixtures[j, l],
+                        mixtures_ik[j, l], mixtures_ik[j, l],
                         projmat, **proj_kwargs
                     )
-                    try:
-                        mixture_tags[i, j, k, l, list(mix_tag)] = True
-                    except ValueError as e:
-                        print(mix_tag)
-                        print(mixture_svecs[i, j, k, l])
-                        print(projmat.dot(mixture_svecs[i, j, k, l]))
-                        raise e
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    if not lean:
+                        try:
+                            mixture_tags[i, j, k, l, list(mix_tag)] = True
+                        except ValueError as e:
+                            print(mix_tag)
+                            print(mixture_yvecs[i, j, k, l])
+                            print(projmat.dot(mixture_yvecs[i, j, k, l]))
+                            raise e
+                    
     ref_file.close()
 
     # Prepare simulation results dictionary
-    new_odor_tags = new_odor_tags.tocsr()
-    test_results = {
-        "new_odor_tags": new_odor_tags,
-        "mixture_svecs": mixture_svecs,
-        "mixture_tags": mixture_tags,
-        "jaccard_scores": jaccard_scores
-    }
+    test_results = {"jaccard_scores": jaccard_scores}
+    if lean:
+        test_results["y_l2_distances"] = y_l2_distances
+    else:
+        new_odor_tags = new_odor_tags.tocsr()
+        test_results.update({
+            "new_odor_tags": new_odor_tags,
+            "mixture_yvecs": mixture_yvecs,
+            "mixture_tags": mixture_tags,
+        })
     return sim_id, test_results, projmat
 
 
-def orthogonal_recognition_one_sim(sim_id, filename_ref):
+def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
     """ Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
     after ideal habituation where all that is left is the new odor component
@@ -120,7 +141,7 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref):
     We don't need background samples: we assume the entire background
     is removed anyways. This changes a little bit dimensionalities:
         - We don't need back_samples or back_concs
-        - mixture_svecs has shape [n_new_odors, 1,  n_new_concs, 1, n_r]
+        - mixture_yvecs has shape [n_new_odors, 1,  n_new_concs, 1, n_r]
             as it is simply the orthogonal component of the new odor
         - mixture_tags has shape [n_new_odors, 1,  n_new_concs, 1, n_kc]
         - jaccard_scores has shape [n_new_odors, 1, n_new_concs, 1]
@@ -143,24 +164,32 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref):
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
 
     # Get the average of background samples to set the KC thresholds
-    average_back = np.mean(sim_gp.get("test_results").get("back_samples"),
-                        axis=(0, 1))
+    if lean:
+        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+        back_samples = conc_samples.dot(back_odors)
+    else:
+        back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    average_back = np.mean(back_samples, axis=(0, 1))
 
     # Projector to subtract the parallel component
     projector = find_projector(back_odors.T)
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, 1, n_new_concs, 1])
-    new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
-    mixture_tags = SparseNDArray(
+    if lean:
+        y_l2_distances = np.zeros((n_new_odors, 1, n_new_concs, 1))
+    else:
+        new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
+        mixture_tags = SparseNDArray(
                     (n_new_odors, 1, n_new_concs, 1, n_kc), dtype=bool)
-    mixture_svecs = np.zeros([n_new_odors, 1, n_new_concs, 1, n_r])
+        mixture_yvecs = np.zeros([n_new_odors, 1, n_new_concs, 1, n_r])
     # Treat one new odor at a time, one new conc. at a time, etc.
     for i in range(n_new_odors):
         x_par = find_parallel_component(new_odors[i], None, projector)
         new_tag = project_neural_tag(
                     new_odors[i], new_odors[i], projmat, **proj_kwargs)
-        new_odor_tags[i, list(new_tag)] = True
+        if not lean:
+            new_odor_tags[i, list(new_tag)] = True
         for j in range(n_new_concs):
             # Project new odor, project its perpendicular component
             svec = new_concs[j]*(new_odors[i] - x_par)
@@ -168,7 +197,6 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref):
             # happened if some s vector is zero
             #if str(activ_fct).lower() == "relu":
             #    svec = relu_inplace(svec)
-            mixture_svecs[i, 0, j, 0] = svec
             x_mix = average_back + new_concs[j]*new_odors[i]
             # TODO: the threshold scale should be determined from the
             # actual mixture of background + conc*new_odor,
@@ -177,22 +205,30 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref):
             perp_tag = project_neural_tag(
                         svec, x_mix, projmat, **proj_kwargs
                         )
-            mixture_tags[i, 0, j, 0, list(perp_tag)] = True
             jaccard_scores[i, 0, j, 0] = jaccard(new_tag, perp_tag)
+            if lean:
+                y_l2_distances[i, 0, j, 0] = l2_norm(new_concs[j]*x_par)
+            else:
+                mixture_yvecs[i, 0, j, 0] = svec
+                mixture_tags[i, 0, j, 0, list(perp_tag)] = True
+
     ref_file.close()
 
     # Prepare simulation results dictionary
-    new_odor_tags = new_odor_tags.tocsr()
-    test_results = {
-        "new_odor_tags": new_odor_tags,
-        "mixture_svecs": mixture_svecs,
-        "mixture_tags": mixture_tags,
-        "jaccard_scores": jaccard_scores
-    }
+    test_results = {"jaccard_scores": jaccard_scores}
+    if lean:
+        test_results["y_l2_distances"] = y_l2_distances
+    else:
+        new_odor_tags = new_odor_tags.tocsr()
+        test_results.update({
+            "new_odor_tags": new_odor_tags,
+            "mixture_yvecs": mixture_yvecs,
+            "mixture_tags": mixture_tags,
+        })
     return sim_id, test_results, projmat
 
 
-def ideal_recognition_one_sim(sim_id, filename_ref):
+def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
     """ Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
     after ideal habituation where the background and parallel
@@ -208,9 +244,6 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
     back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
     new_concs = ref_file.get("parameters").get("new_concs")[()]
     moments_conc = ref_file.get("parameters").get("moments_conc")[()]
-    w_rates = ref_file.get("parameters").get("w_rates")
-    # IBCM factor: this can be too much reduction compared to the optimum.
-    #factor = w_rates[1] / (2*w_rates[0] + w_rates[1])
 
     # Dimensions, etc.
     n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
@@ -219,25 +252,33 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
     proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
 
-    # Get the average of background samples to set the KC thresholds
-    back_samples = sim_gp.get("test_results").get("back_samples")[()]
-
+    # Get the background samples
+    if lean:
+        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+        back_samples = conc_samples.dot(back_odors)
+    else:
+        back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    
     # Projector to subtract the parallel component
     projector = find_projector(back_odors.T)
 
     # Compute optimal factor for each new concentration
     dummy_rgen = np.random.default_rng(0x6e3e2886c30163741daaaf7c8b8a00e6)
     factors = [compute_ideal_factor(c, moments_conc[:2], [n_b, n_r],
-                    generate_odorant, (dummy_rgen,)) for c in new_concs]
+                generate_odorant, (dummy_rgen,), reps=100) for c in new_concs]
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
                                 n_new_concs, n_back_samples])
-    new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
-    mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
-                                n_back_samples, n_kc), dtype=bool)
-    mixture_svecs = np.zeros([n_new_odors, n_times,
-                                n_new_concs, n_back_samples, n_r])
+    if lean:
+        y_l2_distances = np.zeros([n_new_odors, n_times,
+                                n_new_concs, n_back_samples])
+    else:
+        new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
+        mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
+                                    n_back_samples, n_kc), dtype=bool)
+        mixture_yvecs = np.zeros([n_new_odors, n_times,
+                                    n_new_concs, n_back_samples, n_r])
 
     # Treat one new odor at a time, one new conc. at a time, etc.
     for i in range(n_new_odors):
@@ -245,45 +286,55 @@ def ideal_recognition_one_sim(sim_id, filename_ref):
         x_ort = new_odors[i] - x_par
         new_tag = project_neural_tag(
                     new_odors[i], new_odors[i], projmat, **proj_kwargs)
-        new_odor_tags[i, list(new_tag)] = True
+        if not lean:
+            new_odor_tags[i, list(new_tag)] = True
         for k in range(n_new_concs):
-            mixtures = back_samples + new_concs[k]*new_odors[i]
-            # We actually don't want to apply ReLU to understand what
-            # happens if some svec is zero.
-            #if str(activ_fct).lower() == "relu":
-            #    mixture_svecs[i, :, k] = relu_inplace(mixture_svecs[i, :, k])
+            mixtures_ik = back_samples + new_concs[k]*new_odors[i]
             for j in range(n_times):
                 for l in range(n_back_samples):
-                    mixture_svecs[i, j, k, l] = (factors[k]*back_samples[j, l]
+                    yvec = (factors[k]*back_samples[j, l]
                         + new_concs[k] * (factors[k]*x_par + x_ort))
+                    if str(activ_fct).lower() == "relu":
+                        yvec = relu_inplace(yvec)
                     mix_tag = project_neural_tag(
-                        mixture_svecs[i, j, k, l], mixtures[j, l],
+                        yvec, mixtures_ik[j, l],
                         projmat, **proj_kwargs
                     )
-                    try:
-                        mixture_tags[i, j, k, l, list(mix_tag)] = True
-                    except ValueError as e:
-                        print(mix_tag)
-                        print(mixture_svecs[i, j, k, l])
-                        print(projmat.dot(mixture_svecs[i, j, k, l]))
-                        raise e
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    if lean:
+                        ydiff = yvec - new_concs[k]*new_odors[i]
+                        y_l2_distances[i, j, k, l] = l2_norm(ydiff)
+                    else:
+                        mixture_yvecs[i, j, k, l] = yvec
+                        try:
+                            mixture_tags[i, j, k, l, list(mix_tag)] = True
+                        except ValueError as e:
+                            print(mix_tag)
+                            print(mixture_yvecs[i, j, k, l])
+                            print(projmat.dot(mixture_yvecs[i, j, k, l]))
+                            raise e
+                    
     ref_file.close()
 
     # Prepare simulation results dictionary
-    new_odor_tags = new_odor_tags.tocsr()
     test_results = {
-        "new_odor_tags": new_odor_tags,
-        "mixture_svecs": mixture_svecs,
-        "mixture_tags": mixture_tags,
         "jaccard_scores": jaccard_scores,
         "ideal_factors": factors,
         "projector": projector
     }
+    if lean:
+        test_results["y_l2_distances"] = y_l2_distances
+    else:
+        new_odor_tags = new_odor_tags.tocsr()
+        test_results.update({
+            "new_odor_tags": new_odor_tags,
+            "mixture_yvecs": mixture_yvecs,
+            "mixture_tags": mixture_tags,
+        })
     return sim_id, test_results, projmat
 
 
-def optimal_recognition_one_sim(sim_id, filename_ref):
+def optimal_recognition_one_sim(sim_id, filename_ref, lean=False):
     """Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
     after optimal habituation where the projection matrix W
@@ -312,8 +363,12 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
     proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU").lower()
 
-    # Get the average of background samples to set the KC thresholds
-    back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    # Get the background samples
+    if lean:
+        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+        back_samples = conc_samples.dot(back_odors)
+    else:
+        back_samples = sim_gp.get("test_results").get("back_samples")[()]
 
     # Compute optimal matrix for each new concentration. Need to compute
     # the average new odor <s_n>, and average <s_n s_n^T> first. 
@@ -343,54 +398,68 @@ def optimal_recognition_one_sim(sim_id, filename_ref):
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
                                 n_new_concs, n_back_samples])
-    new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
-    mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
-                                n_back_samples, n_kc), dtype=bool)
-    mixture_svecs = np.zeros([n_new_odors, n_times,
-                                n_new_concs, n_back_samples, n_r])
+    if lean:
+        y_l2_distances = np.zeros([n_new_odors, n_times,
+                                n_new_concs, n_back_samples])
+    else:
+        new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
+        mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
+                                    n_back_samples, n_kc), dtype=bool)
+        mixture_yvecs = np.zeros([n_new_odors, n_times,
+                                    n_new_concs, n_back_samples, n_r])
 
     # Treat one new odor at a time, one new conc. at a time, etc.
     for i in range(n_new_odors):
         new_tag = project_neural_tag(
                     new_odors[i], new_odors[i], projmat, **proj_kwargs)
-        new_odor_tags[i, list(new_tag)] = True
+        if not lean:
+            new_odor_tags[i, list(new_tag)] = True
         for k in range(n_new_concs):
             mixtures_ik = back_samples + new_concs[k]*new_odors[i]
             for j in range(n_times):
                 for l in range(n_back_samples):
-                    mixture_svecs[i, j, k, l] = (
+                    yvec = (
                         mixtures_ik[j, l] - optimal_ws[k].dot(mixtures_ik[j, l])
                     )
                     if activ_fct == "relu":
-                        mixture_svecs[i, j, k, l] = relu_inplace(mixture_svecs[i, j, k, l])
+                        yvec = relu_inplace(yvec)
                     mix_tag = project_neural_tag(
-                        mixture_svecs[i, j, k, l], mixtures_ik[j, l],
-                        projmat, **proj_kwargs
+                        yvec, mixtures_ik[j, l], projmat, **proj_kwargs
                     )
-                    try:
-                        mixture_tags[i, j, k, l, list(mix_tag)] = True
-                    except ValueError as e:
-                        print(mix_tag)
-                        print(mixture_svecs[i, j, k, l])
-                        print(projmat.dot(mixture_svecs[i, j, k, l]))
-                        raise e
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    if lean:
+                        ydiff = yvec - new_concs[k]*new_odors[i]
+                        y_l2_distances[i, j, k, l] = l2_norm(ydiff)
+                    else:
+                        mixture_yvecs[i, j, k, l] = yvec
+                        try:
+                            mixture_tags[i, j, k, l, list(mix_tag)] = True
+                        except ValueError as e:
+                            print(mix_tag)
+                            print(mixture_yvecs[i, j, k, l])
+                            print(projmat.dot(mixture_yvecs[i, j, k, l]))
+                            raise e
     ref_file.close()
 
     # Prepare simulation results dictionary
-    new_odor_tags = new_odor_tags.tocsr()
     test_results = {
-        "new_odor_tags": new_odor_tags,
-        "mixture_svecs": mixture_svecs,
-        "mixture_tags": mixture_tags,
         "jaccard_scores": jaccard_scores,
         "optimal_ws": optimal_ws
     }
+    if lean:
+        test_results["y_l2_distances"] = y_l2_distances
+    else:
+        new_odor_tags = new_odor_tags.tocsr()
+        test_results.update({
+            "new_odor_tags": new_odor_tags,
+            "mixture_yvecs": mixture_yvecs,
+            "mixture_tags": mixture_tags,
+        })
     return sim_id, test_results, projmat
 
 
 def save_examples(fname, kind, sim_res):
-    arrs = {"mixture_svecs": sim_res["mixture_svecs"]}
+    arrs = {"mixture_yvecs": sim_res["mixture_yvecs"]}
     if kind == "ideal": 
         arrs["ideal_factors"] = sim_res["ideal_factors"]
         arrs["projector"] = sim_res["projector"]
@@ -402,8 +471,18 @@ def save_examples(fname, kind, sim_res):
     return None
 
 
+# If using these functions, we are most likely performing
+# many parallel simulations, so we need to limit the
+# multithreading of matrix operations to prevent collision
+# between parallel processes. 
+def func_wrapper_threadpool(func, nthreads, *args, **kwargs):
+    with threadpool_limits(limits=nthreads, user_api='blas'):
+        res = func(*args, **kwargs)
+    return res
+
+
 def idealized_recognition_from_runs(
-        filename, filename_ref, kind="none", example_file=None
+        filename, filename_ref, kind="none", example_file=None, lean=False
     ):
     """ After having performed several habituation runs and tested them
     for recognition with some model, compute the ideal inhibition
@@ -468,18 +547,23 @@ def idealized_recognition_from_runs(
     def callback(result):
         sim_id, sim_results, projmat = result
         sim_gp = res_file.create_group(id_to_simkey(sim_id))
-        csr_matrix_to_hdf5(sim_gp.create_group("kc_proj_mat"), projmat)
-        # Different for each simulation with its own proj. matrix
-        # This is identical to what is saved in the reference file
-        # but convenient to have it in case the reference file changes.
-        csr_matrix_to_hdf5(sim_gp.create_group("new_odor_tags"),
-                            sim_results.pop("new_odor_tags"))
-        # After ideal inhibition
-        sim_results.pop("mixture_tags").to_hdf(
+        if sim_gp.get("test_results") is None:
+            if not lean:
+                csr_matrix_to_hdf5(sim_gp.create_group("kc_proj_mat"), projmat)
+                # Different for each simulation with its own proj. matrix
+                # This is identical to what is saved in the reference file
+                # but convenient to have it in case the reference file changes.
+                csr_matrix_to_hdf5(sim_gp.create_group("new_odor_tags"),
+                                    sim_results.pop("new_odor_tags"))
+                # After ideal inhibition
+                sim_results.pop("mixture_tags").to_hdf(
                                 sim_gp.create_group("mixture_tags"))
-        dict_to_hdf5(sim_gp.create_group("test_results"), sim_results)
+            dict_to_hdf5(sim_gp.create_group("test_results"), sim_results)
+        else:  # Group already exists, skip
+            print("test_results group for sim {}".format(sim_id)
+                    + " already exists; not saving")
         # Save parts of the first sim. separately as an example to plot
-        if sim_id == 0 and example_file is not None:
+        if sim_id == 0 and example_file is not None and not lean:
             save_examples(example_file, kind, sim_results)
         print("Ideal recognition tested for simulation {}".format(sim_id))
         return sim_id
@@ -488,13 +572,18 @@ def idealized_recognition_from_runs(
     # Create a projection matrix, save to HDF file.
     # Against n_back_samples backgrounds, including the simulation one.
     # and test at 20 % or 50 % concentration
-    pool = multiprocessing.Pool(min(count_parallel_cpu(), repeats[0]))
+    n_workers = min(count_parallel_cpu(), repeats[0])
+    threads_per_proc = count_threads_per_process(n_workers)
+    pool = multiprocessing.Pool(n_workers)
     for sim_id in range(repeats[0]):
         # Retrieve relevant results of that simulation,
         # then create and save the proj. mat., and initialize arguments
-        apply_args = (sim_id, filename_ref)
-        pool.apply_async(recognition_one_sim, args=apply_args,
-                        callback=callback, error_callback=error_callback)
+        apply_args = (recognition_one_sim, threads_per_proc, 
+                      sim_id, filename_ref)
+        apply_kwargs = dict(lean=lean)
+        pool.apply_async(func_wrapper_threadpool, args=apply_args,
+            kwds=apply_kwargs, callback=callback, error_callback=error_callback
+        )
     
     # Close and join the pool
     # No need to .get() results: the callback takes care of it

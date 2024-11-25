@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # Compute moments of the background concentration process
     dummy_rgen = np.random.default_rng(0x51bf7feb1fd2a3f61e1b1b59679f62c6)
     conc_samples = sample_ss_conc_powerlaw(
-                        *turbulent_back_params, size=int(1e5), rgen=dummy_rgen
+                        *turbulent_back_params, size=int(1e6), rgen=dummy_rgen
                     )
     mean_conc = np.mean(conc_samples)
     moments_conc = np.asarray([
