@@ -65,6 +65,7 @@ import multiprocessing
 import gc
 import time
 from threadpoolctl import threadpool_limits
+from utils.profiling import DeltaTimer, IterationProfiler
 
 
 # Local imports
@@ -269,14 +270,13 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                         *params["back_params"],
                         size=n_times*(n_back_samples-1), rgen=test_rgen
                     )  # Shaped [sample, component]
+    conc_samples = conc_samples.reshape([n_times, n_back_samples-1, -1])
     back_samples = conc_samples.dot(sim_odors["back"])
-    back_samples = back_samples.reshape([n_times, n_back_samples-1, -1])
     # Append the background snapshots to them
     back_samples = np.concatenate([snaps["back"][:, None, :], back_samples], 
                                   axis=1)
     # The conc. samples will be returned and saved to disk afterwards
     # to be able to reconstruct back samples for optimal recognition models
-    conc_samples = conc_samples.reshape([n_times, n_back_samples-1, -1])
     conc_samples = np.concatenate([snaps["conc"][:, None, :], conc_samples], 
                                   axis=1)
     # Loop over new odors first
@@ -288,12 +288,18 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                                n_new_concs, n_back_samples))
     y_l2_distances = np.zeros((n_new_odors, n_times, 
                                n_new_concs, n_back_samples))
+    # Profiling
+    switch = True
+    profiler = IterationProfiler(str(test_params["test_seed_seq"].spawn_key))
     for i in range(n_new_odors):
         # Compute neural tag of the new odor alone, without inhibition
         new_odor = sim_odors["new"][i]
+        if switch:
+            profiler.start("iteration 0")
         new_tag = project_neural_tag(
             new_odor, new_odor,test_params["pmat"], **test_params["proj_kwargs"]
         )
+        if switch: profiler.addpoint("new odor tagging")
         # Now, loop over snapshots, mix the new odor with the back samples,
         # compute the PN response at each test concentration,
         # compute tags too, and save results
@@ -302,17 +308,21 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                 # mixtures is shaped [back_sample, OSN dimension]
                 # so the new_odor broadcasts against it well. 
                 mixtures = back_samples[j] + params["new_concs"][k] * new_odor
+                if switch: profiler.addpoint("compute mixtures")
                 mixture_yvecs_ijk = appropriate_response(
                                 attrs, params, mixtures, snaps,
                                 j, test_params["model_options"]
                 )
                 if str(activ_fct).lower() == "relu":
                     mixture_yvecs_ijk = relu_inplace(mixture_yvecs_ijk)
+                if switch: profiler.addpoint("compute yvecs response to mixtures")
                 # Compute L2 distance between response to mixtures 
                 # with back_samples and new odor vector at the current conc. 
                 # ydiffs shaped [n_back_samples, n_s], compute norm along axis 1
                 ydiffs = mixture_yvecs_ijk - params["new_concs"][k] * new_odor
+                if switch: profiler.addpoint("compute ydiffs")
                 y_l2_distances[i, j, k] = l2_norm(ydiffs, axis=1)
+                if switch: profiler.addpoint("computing l2_norm of ydiffs")
                 # Compute Jaccard similarity between new odor tag
                 # and tags of responses to mixtures with back_samples
                 for l in range(n_back_samples):
@@ -320,7 +330,12 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                         mixture_yvecs_ijk[l], mixtures[l],
                         test_params['pmat'], **test_params['proj_kwargs']
                     )
+                    if switch: profiler.addpoint("computing mixture tag")
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    if switch: profiler.addpoint("computing jaccard")
+                    if switch:
+                        profiler.end_iter()
+                        switch = False  # Stop profiling after first pass
     # Prepare simulation results dictionary
     test_results = {
         "conc_samples": conc_samples,

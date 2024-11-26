@@ -34,12 +34,12 @@ if __name__ == "__main__":
     folder = os.path.join("results", "performance_ns")
 
     # Dimensionalities -- will be updated for each launched simulation
-    n_s = 50  # n_S: choose 25 (half of full Drosophila dimensionality)
+    n_s = 600  # n_S: choose 25 (half of full Drosophila dimensionality)
     n_b = 6   # n_B: check against 6 background odors.
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    n_s_range = np.arange(n_s, 1050, 50)  # From 50 to 1000: 20 simulations
+    n_s_range = np.arange(n_s, 650, 50)  # From 50 to 1000: 20 simulations
     n_k_range = n_k / n_s * n_s_range  # scale # KCs with number of OSN types. 
 
     # Common global seeds, one per dimensionality tested, 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 64  # nb of habituation runs, each with a different background
+    n_runs = 2  # nb of habituation runs, each with a different background
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # In the testing phase, save some samples of backgrounds to compare
 
     # Other parameters common to all models
-    duration_dt = np.asarray([360000.0, 1.0])
+    duration_dt = np.asarray([36000.0, 1.0])
     start_test_t = duration_dt[0] - n_test_times * 2000.0
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
-        "n_pn_per_kc": 3,
+        "n_pn_per_kc": 3,  # Needs to be updated to 3/25*N_S for each N_S
         "project_thresh_fact": 0.05
     }
     activ_fct_choice = "identity"
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # Compute moments of the background concentration process
     dummy_rgen = np.random.default_rng(0x51bf7feb1fd2a3f61e1b1b59679f62c6)
     conc_samples = sample_ss_conc_powerlaw(
-                        *turbulent_back_params, size=int(1e6), rgen=dummy_rgen
+                        *turbulent_back_params, size=int(1e5), rgen=dummy_rgen
                     )
     mean_conc = np.mean(conc_samples)
     moments_conc = np.asarray([
