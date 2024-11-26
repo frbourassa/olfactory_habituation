@@ -297,7 +297,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
         new_odor = sim_odors["new"][i]
         if i % 25 == 0:  # Turn on switch to profile one iteration every 25 odors
             switch = True
-            profiler.start("i==0")
+            profiler.start(f"i=={i}")
         # TODO: This has issues
         new_tag = project_neural_tag(
             new_odor, new_odor,test_params["pmat"], **test_params["proj_kwargs"]
