@@ -288,14 +288,17 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                                n_new_concs, n_back_samples))
     y_l2_distances = np.zeros((n_new_odors, n_times, 
                                n_new_concs, n_back_samples))
+    
     # Profiling
-    switch = True
+    switch = False
     profiler = IterationProfiler(str(test_params["test_seed_seq"].spawn_key))
     for i in range(n_new_odors):
         # Compute neural tag of the new odor alone, without inhibition
         new_odor = sim_odors["new"][i]
-        if switch:
-            profiler.start("iteration 0")
+        if i % 25 == 0:  # Turn on switch to profile one iteration every 25 odors
+            switch = True
+            profiler.start("i==0")
+        # TODO: This has issues
         new_tag = project_neural_tag(
             new_odor, new_odor,test_params["pmat"], **test_params["proj_kwargs"]
         )
@@ -309,6 +312,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                 # so the new_odor broadcasts against it well. 
                 mixtures = back_samples[j] + params["new_concs"][k] * new_odor
                 if switch: profiler.addpoint("compute mixtures")
+                # TODO: This has issues
                 mixture_yvecs_ijk = appropriate_response(
                                 attrs, params, mixtures, snaps,
                                 j, test_params["model_options"]
@@ -326,6 +330,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                 # Compute Jaccard similarity between new odor tag
                 # and tags of responses to mixtures with back_samples
                 for l in range(n_back_samples):
+                    # TODO: This has issues
                     mix_tag = project_neural_tag(
                         mixture_yvecs_ijk[l], mixtures[l],
                         test_params['pmat'], **test_params['proj_kwargs']

@@ -8,6 +8,7 @@ September 2021
 import numpy as np
 from modelfcts.ideal import relu_inplace
 from utils.metrics import l2_norm, l1_norm, lp_norm
+from threadpoolctl import threadpool_limits
 
 
 ### IBCM NEURON alone, no inhibition
@@ -625,7 +626,8 @@ def ibcm_respond_new_odors(odors, mmat, wmat, ibcm_rates, options={}):
     # cbar shape: odors.shape[:-1], n_neurons
     # New odor after inhibition by the network, ReLU activation on s
     # Inhibit with the mean cbar*wser, to see how on average the new odor will show
-    svec = odors - cbar.dot(wmat.T)
+    with threadpool_limits(limits=1, user_api='blas'):
+        svec = odors - cbar.dot(wmat.T)
     if str(activ_fct).lower() == "identity":
         pass
     elif str(activ_fct).lower() == "relu":

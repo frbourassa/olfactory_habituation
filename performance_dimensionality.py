@@ -27,10 +27,18 @@ from modelfcts.ibcm_analytics import (
     fixedpoint_thirdmoment_exact, lambda_pca_equivalent
 )
 from utils.statistics import seed_from_gen
+import multiprocessing
 
 
 if __name__ == "__main__":
     # Results folder
+    # Need to initialize subprocesses as spawn to avoid collision between
+    # processes sharing the same memory. spawn is default on MacOS, so
+    # I had no issues locally, but I had lock delays on the Linux server
+    # where fork is the default and causes problems in multithreading. 
+    # So make sure spawn is default everywhere, I multiprocess at a high
+    # level so child processes do not get started often. 
+    multiprocessing.set_start_method('spawn')
     folder = os.path.join("results", "performance_ns")
 
     # Dimensionalities -- will be updated for each launched simulation
@@ -51,7 +59,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 2  # nb of habituation runs, each with a different background
+    n_runs = 32  # nb of habituation runs, each with a different background
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
