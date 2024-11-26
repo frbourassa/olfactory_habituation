@@ -42,12 +42,14 @@ if __name__ == "__main__":
     folder = os.path.join("results", "performance_ns")
 
     # Dimensionalities -- will be updated for each launched simulation
-    n_s = 600  # n_S: choose 25 (half of full Drosophila dimensionality)
+    n_s = 50  # n_S: choose 50 (Drosophila dimensionality)
     n_b = 6   # n_B: check against 6 background odors.
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
-    n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
+    n_k = 2000  # n_K: number of Kenyon cells for neural tag generation, 
+    # choose 2000 (Drosophila) to keep proportionality (will scale with N_S)
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    n_s_range = np.arange(n_s, 650, 50)  # From 50 to 1000: 20 simulations
+    n_s_range = np.arange(1000, 1050, 50)  # From 50 to 1000: 20 simulations
+    #n_s_range = np.arange(n_s, 1050, 50)  # From 50 to 1000: 20 simulations
     n_k_range = n_k / n_s * n_s_range  # scale # KCs with number of OSN types. 
 
     # Common global seeds, one per dimensionality tested, 
@@ -59,7 +61,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 32  # nb of habituation runs, each with a different background
+    n_runs = 2  # nb of habituation runs, each with a different background
     n_test_times = 10  # nb of late time points at which habituation is tested
     n_back_samples = 10  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
