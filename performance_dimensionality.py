@@ -141,6 +141,7 @@ if __name__ == "__main__":
         dimensions_array[3] = n_k_range[i]
         ibcm_params["dimensions"] = dimensions_array
         ibcm_attrs["main_seed"] = str(common_seeds[i])
+        projection_arguments["n_pn_per_kc"] = 3 * n_s_i // 25
         ibcm_file_name = os.path.join(folder, 
                             "ibcm_performance_results_ns_{}.h5".format(n_s_i))
         all_ibcm_file_names[n_s_i] = str(ibcm_file_name)
@@ -192,6 +193,7 @@ if __name__ == "__main__":
         dimensions_array[3] = n_k_range[i]
         biopca_params["dimensions"] = dimensions_array
         biopca_attrs["main_seed"] = str(common_seeds[i])
+        projection_arguments["n_pn_per_kc"] = 3 * n_s_i // 25
         pca_file_name = os.path.join(folder, 
             "biopca_performance_results_ns_{}.h5".format(n_s_i))
         print("Starting BioPCA recognition for N_S = {}".format(n_s_i))
@@ -230,6 +232,7 @@ if __name__ == "__main__":
         dimensions_array[3] = n_k_range[i]
         avg_params["dimensions"] = dimensions_array
         avg_attrs["main_seed"] = str(common_seeds[i])
+        projection_arguments["n_pn_per_kc"] = 3 * n_s_i // 25
         avg_file_name = os.path.join(folder, 
             "avgsub_performance_results_ns_{}.h5".format(n_s_i))
         print("Starting average sub. simulation for N_S = {}".format(n_s_i))
