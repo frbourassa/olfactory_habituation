@@ -62,10 +62,8 @@ from scipy import sparse
 import h5py
 import pandas as pd
 import multiprocessing
-import gc
-import time
 from threadpoolctl import threadpool_limits
-from utils.profiling import DeltaTimer, IterationProfiler
+from utils.profiling import IterationProfiler
 
 
 # Local imports
@@ -289,20 +287,22 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     y_l2_distances = np.zeros((n_new_odors, n_times, 
                                n_new_concs, n_back_samples))
     
-    # Profiling
+    # Profiling only one simulation, to keep track of time without
+    # producing too much text. 
     switch = False
-    profiler = IterationProfiler(str(test_params["test_seed_seq"].spawn_key))
+    sim_id = int(test_params["test_seed_seq"].spawn_key)
+    if sim_id % 32 == 0:
+        profiler = IterationProfiler(sim_id)
     for i in range(n_new_odors):
         # Compute neural tag of the new odor alone, without inhibition
         new_odor = sim_odors["new"][i]
-        if i % 25 == 1:  # Turn on switch to profile one iteration every 25 odors
+        # Turn on switch to profile one iteration every 50 odors
+        if i % 25 == 1 and sim_id % 32 == 0:  
             switch = True
             profiler.start(f"i=={i}")
-        # TODO: This has issues
         new_tag = project_neural_tag(
             new_odor, new_odor,test_params["pmat"], **test_params["proj_kwargs"]
         )
-        if switch: profiler.addpoint("new odor tagging")
         # Now, loop over snapshots, mix the new odor with the back samples,
         # compute the PN response at each test concentration,
         # compute tags too, and save results
@@ -312,7 +312,6 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                 # so the new_odor broadcasts against it well. 
                 mixtures = back_samples[j] + params["new_concs"][k] * new_odor
                 if switch: profiler.addpoint("compute mixtures")
-                # TODO: This has issues
                 mixture_yvecs_ijk = appropriate_response(
                                 attrs, params, mixtures, snaps,
                                 j, test_params["model_options"]
@@ -330,7 +329,6 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                 # Compute Jaccard similarity between new odor tag
                 # and tags of responses to mixtures with back_samples
                 for l in range(n_back_samples):
-                    # TODO: This has issues
                     mix_tag = project_neural_tag(
                         mixture_yvecs_ijk[l], mixtures[l],
                         test_params['pmat'], **test_params['proj_kwargs']

@@ -48,8 +48,9 @@ if __name__ == "__main__":
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation, 
     # choose 2000 (Drosophila) to keep proportionality (will scale with N_S)
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    n_s_range = np.arange(1000, 1050, 50)  # From 50 to 1000: 20 simulations
-    #n_s_range = np.arange(n_s, 1050, 50)  # From 50 to 1000: 20 simulations
+    #n_s_range = np.asarray([50, 75, 100, 150, 200, 250, 300, #from fly to human
+    #                        400, 500, 600, 800, 1000])  # from human to mouse
+    n_s_range = np.asarray([50, 100, 300, 1000])
     n_k_range = n_k / n_s * n_s_range  # scale # KCs with number of OSN types. 
 
     # Common global seeds, one per dimensionality tested, 
@@ -60,11 +61,12 @@ if __name__ == "__main__":
     common_seeds = [seed_from_gen(seed_generator, nbits=128) for _ in n_s_range]
 
     # Global test parameters
+    # TODO: put back to 10 test times, 64 runs, 100 new odors, 10 back_samples
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 2  # nb of habituation runs, each with a different background
-    n_test_times = 10  # nb of late time points at which habituation is tested
-    n_back_samples = 10  # nb background samples tested at every time
-    n_new_odors = 100  # nb new odors at each test time
+    n_runs = 32  # nb of habituation runs, each with a different background
+    n_test_times = 2  # nb of late time points at which habituation is tested
+    n_back_samples = 2  # nb background samples tested at every time
+    n_new_odors = 20  # nb new odors at each test time
     skip_steps = 2000  # Need to skip a lot for high dimensions!
     repeats_array = np.asarray([
                         n_runs, n_test_times, n_back_samples,
@@ -81,7 +83,8 @@ if __name__ == "__main__":
     # In the testing phase, save some samples of backgrounds to compare
 
     # Other parameters common to all models
-    duration_dt = np.asarray([36000.0, 1.0])
+    # TODO: put back to 360000
+    duration_dt = np.asarray([120000.0, 1.0])
     start_test_t = duration_dt[0] - n_test_times * 2000.0
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
@@ -90,7 +93,7 @@ if __name__ == "__main__":
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
-        "n_pn_per_kc": 3,  # Needs to be updated to 3/25*N_S for each N_S
+        "n_pn_per_kc": 6,  # Needs to be updated to 3/25*N_S for each N_S
         "project_thresh_fact": 0.05
     }
     activ_fct_choice = "identity"
@@ -110,7 +113,7 @@ if __name__ == "__main__":
     # Compute moments of the background concentration process
     dummy_rgen = np.random.default_rng(0x51bf7feb1fd2a3f61e1b1b59679f62c6)
     conc_samples = sample_ss_conc_powerlaw(
-                        *turbulent_back_params, size=int(1e5), rgen=dummy_rgen
+                        *turbulent_back_params, size=int(1e6), rgen=dummy_rgen
                     )
     mean_conc = np.mean(conc_samples)
     moments_conc = np.asarray([
