@@ -9,7 +9,6 @@ import numpy as np
 import scipy as sp
 from scipy import sparse
 from utils.export import csr_matrix_to_hdf5, hdf5_to_csr_matrix
-from numba import njit
 
 ### SPARSE STORAGE CLASS ###
 
@@ -99,7 +98,6 @@ def create_sparse_proj_mat(n_kc, n_rec, rgen, fraction_filled=6/50):
 def relu_copy(x):
     return x * (x > 0)
 
-@njit(parallel=False)
 def project_neural_tag(s_vec, x_vec, projmat, **proj_kwargs):
     """ Project the input layer s_vec
     with the inhibitory feedback weights w_vec to the sparse kenyon cell (KC) output,
@@ -149,13 +147,14 @@ def project_neural_tag(s_vec, x_vec, projmat, **proj_kwargs):
         kc_thresh = np.mean(x_vec)
     kc_thresh *= ptf
 
-    # 2. Project s_vec on KCs
+    # 2. Project s_vec on KCs: this is the slowest part
+    # But we can't really speed up scipy's C++ implementation...
     y_vec = projmat.dot(relu_copy(s_vec))
 
     # 3. Threshold noise: will consider only positions in mask.
     # Keep only values strictly above threshold, so if thresh = 0,
     # then all values are masked and the tag is empty.
-    mask = (y_vec > kc_thresh).astype(bool)
+    mask = (y_vec > kc_thresh).astype(np.bool_)
     y_vec[np.logical_not(mask)] = 0.0
 
     # 4. Binarize: keep the np.ceil(0.05*n_kc) most active KCs non-zero KCs,

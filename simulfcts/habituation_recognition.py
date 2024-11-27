@@ -66,7 +66,6 @@ import gc
 import time
 from threadpoolctl import threadpool_limits
 from utils.profiling import DeltaTimer, IterationProfiler
-from numba import njit
 
 
 # Local imports
@@ -255,7 +254,6 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
     return test_results
 
 # Version of test_new_odor_recognition with lower memory usage
-@njit(parallel=False)
 def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params):
     """ Version of test_new_odor_recognition which only saves jaccard scores
     and distances between new odor and mixture y vectors, without storing
@@ -297,7 +295,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     for i in range(n_new_odors):
         # Compute neural tag of the new odor alone, without inhibition
         new_odor = sim_odors["new"][i]
-        if i % 25 == 0:  # Turn on switch to profile one iteration every 25 odors
+        if i % 25 == 1:  # Turn on switch to profile one iteration every 25 odors
             switch = True
             profiler.start(f"i=={i}")
         # TODO: This has issues
