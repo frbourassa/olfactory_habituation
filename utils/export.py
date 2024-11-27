@@ -40,8 +40,16 @@ def csr_matrix_to_hdf5(gp, mat):
     Inspired from https://stackoverflow.com/questions/11129429/
     storing-numpy-sparse-matrix-in-hdf5-pytables
     """
-    # Pack bits of boolean arrays to save a bit of space.
-    if mat.dtype in [bool, np.bool_]:
+    # If there is only one non-null value stored in this matrix
+    if mat.data.size == 0:  # Empty matrix, avoid checking data[0] below
+        gp.attrs["data_bits_packed"] = False
+        gp.create_dataset("data", data=mat.data)
+    elif np.all(mat.data == mat.data[0]):  # Only one data value
+        gp.attrs["data_bits_packed"] = False
+        gp.create_dataset("data", data=mat.data[0])
+    # If there are Trues and Falses, pack bits of boolean arrays 
+    # to save a bit of space.
+    elif mat.dtype in [bool, np.bool_]:
         gp.attrs["data_bits_packed"] = True
         gp.create_dataset("data", data=np.packbits(mat.data))
     else:
@@ -67,8 +75,14 @@ def hdf5_to_csr_matrix(gp):
                     shape=gp.get("shape"), dtype=bool
                 )
     else:
+        dat0 = gp.get("data")
+        ind = gp.get("indices")
+        if dat0.shape == ():
+            dat = np.full(ind.shape, dat0)
+        else:
+            dat = dat0
         mat = sparse.csr_matrix(
-                    (gp.get("data"), gp.get("indices"), gp.get("indptr")),
+                    (dat, ind, gp.get("indptr")),
                     shape=gp.get("shape"), dtype=gp.get("data").dtype
                 )
     return mat
