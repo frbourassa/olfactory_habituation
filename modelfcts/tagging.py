@@ -9,7 +9,7 @@ import numpy as np
 import scipy as sp
 from scipy import sparse
 from utils.export import csr_matrix_to_hdf5, hdf5_to_csr_matrix
-
+from numba import njit
 
 ### SPARSE STORAGE CLASS ###
 
@@ -99,6 +99,7 @@ def create_sparse_proj_mat(n_kc, n_rec, rgen, fraction_filled=6/50):
 def relu_copy(x):
     return x * (x > 0)
 
+@njit(parallel=False)
 def project_neural_tag(s_vec, x_vec, projmat, **proj_kwargs):
     """ Project the input layer s_vec
     with the inhibitory feedback weights w_vec to the sparse kenyon cell (KC) output,
