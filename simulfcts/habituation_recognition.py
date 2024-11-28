@@ -290,7 +290,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     # Profiling only one simulation, to keep track of time without
     # producing too much text. 
     switch = False
-    sim_id = int(test_params["test_seed_seq"].spawn_key)
+    sim_id = int(test_params["test_seed_seq"].spawn_key[0])
     if sim_id % 32 == 0:
         profiler = IterationProfiler(sim_id)
     for i in range(n_new_odors):

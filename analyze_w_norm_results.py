@@ -10,9 +10,8 @@ import os
 import json
 import itertools
 
-from analyze_comparison_results import (
+from simulfcts.analysis import (
     concat_jaccards,
-    concat_sstats,
     concat_wmats,
     concat_mmats, 
     concat_lmats

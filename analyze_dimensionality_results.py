@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from simulfcts.habituation_recognition import id_to_simkey
 from simulfcts.plotting import hist_outline
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
@@ -17,10 +16,29 @@ from simulfcts.analysis import (
 )
 
 
-def main_plot_histograms():
+def ns_from_name(fname):
+    """ Returns the integer number of OSNs, N_S """
+    return int((fname.split(".")[0]).split("_")[-1])
+
+def get_ns_range_from_files(fold, models):
+    ns_ranges = []
+    for m in models:
+        model_ns = [ns_from_name(a) for a in os.listdir(fold) 
+                    if (a.startswith(m) and a.endswith(".h5"))]
+        ns_ranges.append(model_ns)
+    # Check all these lists are equal, i.e. we tested the same
+    # N_S for all models
+    assert sum([sum([ns_ranges[j][i] == ns_ranges[0][i] 
+                     for i in range(len(ns_ranges[0]))]) 
+                     for j in range(len(ns_ranges))])
+    ns_range = np.asarray(ns_ranges[0])
+    return ns_range
+
+
+def main_plot_perf_vs_dimension():
     # Compare all algorithms
-    folder = os.path.join("results", "performance")
-    models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
+    folder = os.path.join("results", "performance_ns")
+    models = ["none", "avgsub", "orthogonal", "biopca", "ibcm", "optimal"]
     model_nice_names = {
         "ibcm": "IBCM",
         "biopca": "BioPCA",
@@ -29,10 +47,6 @@ def main_plot_histograms():
         "optimal": "Manifold W",
         "orthogonal": "Orthogonal",
         "none": "None"
-    }
-    model_file_choices = {
-        a:os.path.join(folder, a+"_performance_results.h5")
-        for a in models
     }
     model_colors = {
         "ibcm": "xkcd:turquoise",
@@ -45,28 +59,44 @@ def main_plot_histograms():
     }
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
-    with h5py.File(model_file_choices["ibcm"], "r") as f:
+    with h5py.File(example_file_ibcm, "r") as f:
         n_new_concs = f.get("parameters").get("repeats")[4]
         new_concs = f.get("parameters").get("new_concs")[()]
         activ_fct = f.get("parameters").attrs.get("activ_fct")
+    
+    # Get the range of N_S tested for each model
+    ns_range = get_ns_range_from_files(folder, models)
+    all_jacs = {}
+    median_jaccard_ranges = {}
+    for m in models:
+        jacs_m = []
+        for ns in ns_range:
+            fname = f"{m}_performance_results_ns_{ns}.h5"
+            f = h5py.File(os.path.join(folder, fname), "r")
+            # Isolate new odor concentration axis, bunch other replicates
+            jacs = np.moveaxis(concat_jaccards(f), 3, 0)
+            jacs_m.append(jacs.reshape(jacs.shape[0], -1))
+            f.close()
+        jacs_m = np.stack(jacs_m, axis=0)  # indexed [n_s, new_conc, replicate]
+        all_jacs[m] = jacs_m
+        median_jaccard_ranges[m] = np.median(jacs_m, axis=2)
+    
+    try:
+        example_file_ibcm = [a for a in os.listdir(folder) 
+            if a.startswith("ibcm") and a.endswith(".h5")][0]
+    except IndexError:
+        raise FileNotFoundError(f"No results file found for IBCM in {folder}")
+
     # One plot per new odor concentration
     fig, axes = plt.subplots(1, n_new_concs, sharex=True)
     fig.set_size_inches(9.5, 4)
     axes = axes.flatten()
-    for m in models[::-1]:  # Plot IBCM last
-        f = h5py.File(model_file_choices[m], "r")
-        all_jacs = concat_jaccards(f)
-        f.close()
+    for m in models:  # Plot IBCM last
         for i in range(n_new_concs):
-            hist_outline(
-                axes[i], all_jacs[:, :, :, i, :].flatten(),
-                bins="doane", density=True, label=model_nice_names.get(m, m),
+            axes[i].plot(ns_range, median_jaccard_ranges[m][i],
+                label=model_nice_names.get(m, m),
                 color=model_colors.get(m), alpha=1.0
             )
-            #axes[i].axvline(
-            #    np.median(all_jacs[:, :, :, i, :]), ls="--",
-            #    color=model_colors.get(m)
-            #)
     # Labeling the graphs, etc.
     for i in range(n_new_concs):
         ax = axes[i]
@@ -75,7 +105,7 @@ def main_plot_histograms():
         axes[i].set_ylabel("Probability density")
     axes[1].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
     fig.tight_layout()
-    fig.savefig("figures/detection/compare_models_{}.pdf".format(activ_fct),
+    fig.savefig("figures/detection/compare_models_dimensionality.pdf",
                 transparent=True, bbox_inches="tight")
 
     plt.show()
@@ -84,6 +114,7 @@ def main_plot_histograms():
 
 
 def main_export_jaccards(dest_name):
+    raise NotImplementedError()
     # Compare all algorithms
     folder = os.path.join("results", "performance")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
@@ -115,6 +146,7 @@ def main_export_jaccards(dest_name):
 
 
 def main_export_new_back_distances(dest_name):
+    raise NotImplementedError()
     # Compare all algorithms
     folder = os.path.join("results", "performance")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
@@ -151,6 +183,7 @@ def main_export_new_back_distances(dest_name):
 
 
 def main_export_new_mix_distances(dest_name):
+    raise NotImplementedError()
     # Compare all algorithms
     folder = os.path.join("results", "performance")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
@@ -195,13 +228,13 @@ def main_export_new_mix_distances(dest_name):
     return None
 
 if __name__ == "__main__":
-    #main_plot_histograms()
+    main_plot_perf_vs_dimension()
     #main_export_jaccards(
     #    os.path.join("results", "for_plots", "jaccard_similarities")
     #)
     #main_export_new_back_distances(
     #    os.path.join("results", "for_plots", "new_back_distances")
     #)
-    main_export_new_mix_distances(
-        os.path.join("results", "for_plots", "new_mix_distances")
-    )
+    #main_export_new_mix_distances(
+    #    os.path.join("results", "for_plots", "new_mix_distances")
+    #)

@@ -7,7 +7,7 @@ from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
 import os
 
-from analyze_comparison_results import (
+from simulfcts.analysis import (
     concat_jaccards,
     concat_sstats
 )
