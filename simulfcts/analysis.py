@@ -31,6 +31,15 @@ def concat_jaccards(f):
     all_jacs = np.stack(all_jacs)
     return all_jacs
 
+
+def concat_new_mix_distances(f):
+    all_dists = []
+    for i in range(f.get("parameters").get("repeats")[0]):
+        all_dists.append(f.get(id_to_simkey(i)).get("test_results")
+                            .get("y_l2_distances")[()])
+    all_dists = np.stack(all_dists)
+    return all_dists
+
 def concat_mixtures(f):
     all_mixes = []
     for i in range(f.get("parameters").get("repeats")[0]):

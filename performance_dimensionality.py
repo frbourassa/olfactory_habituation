@@ -48,9 +48,8 @@ if __name__ == "__main__":
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation, 
     # choose 2000 (Drosophila) to keep proportionality (will scale with N_S)
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    #n_s_range = np.asarray([50, 75, 100, 150, 200, 250, 300, #from fly to human
-    #                        400, 500, 600, 800, 1000])  # from human to mouse
-    n_s_range = np.asarray([50, 100, 300, 1000])
+    n_s_range = np.asarray([25, 50, 75, 100, 150, 200, 250, 300, #from fly to human
+                            400, 600, 1000])  # from human to mouse
     n_k_range = n_k / n_s * n_s_range  # scale # KCs with number of OSN types. 
 
     # Common global seeds, one per dimensionality tested, 
@@ -61,21 +60,20 @@ if __name__ == "__main__":
     common_seeds = [seed_from_gen(seed_generator, nbits=128) for _ in n_s_range]
 
     # Global test parameters
-    # TODO: put back to 10 test times, 64 runs, 100 new odors, 10 back_samples
-    new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 32  # nb of habituation runs, each with a different background
-    n_test_times = 2  # nb of late time points at which habituation is tested
-    n_back_samples = 2  # nb background samples tested at every time
-    n_new_odors = 20  # nb new odors at each test time
+    new_test_concs = np.asarray([0.5, 1.0, 1.5, 2.0])  # to multiply by average whiff c.
+    n_runs = 64  # nb of habituation runs, each with a different background
+    n_test_times = 5  # nb of late time points at which habituation is tested
+    n_back_samples = 4  # nb background samples tested at every time
+    n_new_odors = 100  # nb new odors at each test time
     skip_steps = 2000  # Need to skip a lot for high dimensions!
     repeats_array = np.asarray([
                         n_runs, n_test_times, n_back_samples,
                         n_new_odors, len(new_test_concs), skip_steps
                     ])
-    # In total: 10^6 discrimination tests. For each model...
-    # 100 x 100 pairs of background vs new odor
+    # In total: 2.5x10^5 discrimination tests. For each model...
+    # 64 x 100 pairs of background vs new odor
     # 1 initial condition per background (random)
-    # 10 times where habituation is tested: time averaging over a simulation
+    # 5 times where habituation is tested: time averaging over a simulation
     # Each model should be tested against the same backgrounds,
     # at the same time, against the same new odors: use the same random number
     # generator seed for simulations of each model, that should give the same
@@ -83,9 +81,8 @@ if __name__ == "__main__":
     # In the testing phase, save some samples of backgrounds to compare
 
     # Other parameters common to all models
-    # TODO: put back to 360000
-    duration_dt = np.asarray([120000.0, 1.0])
-    start_test_t = duration_dt[0] - n_test_times * 2000.0
+    duration_dt = np.asarray([360000.0, 1.0])
+    start_test_t = duration_dt[0] - n_test_times * 4000.0
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
