@@ -38,7 +38,7 @@ def get_ns_range_from_files(fold, models):
 def main_plot_perf_vs_dimension():
     # Compare all algorithms
     folder = os.path.join("results", "performance_ns")
-    models = ["none", "avgsub", "orthogonal", "biopca", "ibcm", "optimal"]
+    models = ["none", "avgsub", "ideal", "orthogonal", "biopca", "ibcm", "optimal"]
     model_nice_names = {
         "ibcm": "IBCM",
         "biopca": "BioPCA",
@@ -94,7 +94,17 @@ def main_plot_perf_vs_dimension():
         # ci_595_jaccard_ranges[m] = np.quantile(jacs_m, [0.05, 0.95], axis=2)
         std_jaccard_ranges[m] = np.std(jacs_m, axis=2)
         mean_jaccard_ranges[m] = np.mean(jacs_m, axis=2)
-
+    
+    # Also, compare to Jaccard between random odors
+    jacs_random = []
+    for ns in ns_range:
+        fname = f"similarity_random_odors_ns_{ns}.npz"
+        jacs = np.load(os.path.join(folder, fname))["jaccard_scores"]
+        jacs_random.append(jacs)
+    jacs_random = np.stack(jacs_random, axis=0).reshape(1, len(ns_range), -1)
+    all_jacs["random"] = jacs_random
+    std_jaccard_ranges["random"] = np.std(jacs_random, axis=2)
+    mean_jaccard_ranges["random"] = np.mean(jacs_random, axis=2)
     
     # One plot per new odor concentration
     fig, axes = plt.subplots(1, n_new_concs, sharex=True, sharey=True)
@@ -111,13 +121,22 @@ def main_plot_perf_vs_dimension():
                 label=model_nice_names.get(m, m),
                 color=model_colors.get(m), alpha=1.0
             )
-    # Labeling the graphs, etc.
+    
+    # Labeling the graphs, adding similarity between random odors, etc.
     for i in range(n_new_concs):
-        ax = axes[i]
+        # Add similarity between random odors
+        axes[i].plot(ns_range, mean_jaccard_ranges["random"][0], 
+                     label="Random", color="k", ls="--"
+        )
+        axes[i].fill_between(ns_range, 
+            mean_jaccard_ranges["random"][0] - std_jaccard_ranges["random"][0], 
+            mean_jaccard_ranges["random"][0] + std_jaccard_ranges["random"][0],
+            color="k", alpha=0.4
+        )
         axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
         axes[i].set_xlabel(r"OSN space dimensionality, $N_S$")
         axes[i].set_ylabel("Mean Jaccard similarity")
-    axes[1].legend()
+    axes[-1].legend()
     fig.tight_layout()
     fig.savefig(os.path.join("figures", "detection", 
                 f"compare_models_dimensionality_{activ_fct}.pdf"),

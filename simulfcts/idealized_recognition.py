@@ -16,6 +16,7 @@ from scipy import sparse
 import h5py
 import multiprocessing
 from threadpoolctl import threadpool_limits
+from scipy.spatial.distance import pdist, squareform
 
 from modelfcts.ideal import (
     find_projector,
@@ -578,4 +579,122 @@ def idealized_recognition_from_runs(
     pool.join()
     # Finally, close the results file
     res_file.close()
+    return 0
+
+
+### Functions to compute similarity between random odors ###
+def flattened_tri(j, k, n):  # index in flattened array of j, k
+    """ Return the index of the upper triangular nxn matrix element (j, k)
+    in a flattened array. If j > k, assume the matrix is symmetric and
+    return element (k, j). 
+    """
+    # Swap indices if j > k
+    if j > k:  j, k = k, j
+    elif j == k: raise ValueError("Should not have diagonal terms")
+    # Rows above contain N(N-1)/2 - (N-j)(N-j-1)/2 terms, then
+    # add (k-j-1) = number of elements right of the diagonal
+    i = n*j - (j+1)*(j+2)//2 + k
+    return i
+
+
+# The following functions are called in parallel 
+# for the projection matrix of each run
+def tag_all_odors(projmat, odors, proj_kwargs, nthreads=None):
+    n_odors = odors.shape[0]
+    tags = []
+    with threadpool_limits(limits=nthreads, user_api="blas"):
+        for j in range(n_odors):
+            odj = odors[j]
+            tag = project_neural_tag(odj, odj, projmat, **proj_kwargs)
+            tags.append(tag)
+    return tags
+
+
+def similarity_all_pairs(all_tags, proc_id):
+    n_odors = len(all_tags)
+    jaccard_scores = np.zeros([(n_odors * (n_odors - 1)) // 2])
+    for j in range(n_odors):
+        tagj = all_tags[j]
+        for k in range(j+1, n_odors):
+            tagk = all_tags[k]
+            jaccard_scores[flattened_tri(j, k, n_odors)] = jaccard(tagj, tagk)
+    print("Finished to compare tags of run {}".format(proc_id))
+    return jaccard_scores
+
+
+def jaccard_between_random_odors(filename, filename_ref):
+    """ Estimate what is the Jaccard similarity between two random
+    odors, as a function of the distance between them. 
+    Take a results file from an IBCM or PCA simulation (filename_ref), take
+    all new odors and background odors to form one pool of iid odors, 
+    then compute Jaccard similarity and L2 distance between each, 
+    using each projection matrix generated in these simulations. 
+    Save the results to an npz archive (filename). 
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    n_runs = ref_file.get("parameters").get("repeats")[0]
+    n_s, n_b, _, _ = ref_file.get("parameters").get("dimensions")
+    new_odors = ref_file.get("odors").get("new_odors")[()]
+    back_odors = ref_file.get("odors").get("back_odors")[()]
+    # Concatenate backgrounds of all simulations
+    back_odors = back_odors.reshape([n_runs*n_b, n_s])
+    # Concatenate all odors
+    all_odors = np.concatenate([back_odors, new_odors])
+    n_odors = all_odors.shape[0]
+    all_projmats = []
+    proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
+    for si in range(n_runs):
+        sim_gp = ref_file.get("sim{:04d}".format(si))
+        all_projmats.append(hdf5_to_csr_matrix(sim_gp.get("kc_proj_mat")))
+    ref_file.close()
+        
+    # First, tag all odors. Store as list of lists of sets
+    n_workers = min(count_parallel_cpu(), n_runs)
+    apply_kwargs = {"nthreads": count_threads_per_process(n_workers)}
+    pool = multiprocessing.Pool(n_workers)
+    all_processes = []
+    for i in range(n_runs):
+        projmat = all_projmats[i]
+        apply_args = (projmat, all_odors, proj_kwargs)
+        proc = pool.apply_async(
+            tag_all_odors, args=apply_args, kwds=apply_kwargs
+        )
+        all_processes.append(proc)
+    all_tags = [res.get() for res in all_processes]
+    print("Finished tagging odors: {} odors x {} runs".format(n_odors, n_runs))
+    # Close pool
+    pool.close()
+    pool.join()
+    del all_processes, all_results
+    
+    # Then, compute the Jaccard between each pair of tags
+    # Containers for the results and start new pool
+    # Store only the flattened upper triangular parts, elements (j, k), j > k
+    jaccard_scores = []
+    all_processes = []
+    pool = multiprocessing.Pool(n_workers)
+    for i in range(n_runs):
+        apply_args = (all_tags[i], i)
+        proc = pool.apply_async(similarity_all_pairs, args=apply_args)
+        all_processes.append(proc)
+    jaccard_scores = [proc.get() for proc in all_processes]
+    # Stack the results in appropriate arrays
+    jaccard_scores = np.stack(jaccard_scores, axis=0)
+    
+    # Close pool
+    pool.close()
+    pool.join()
+    del all_processes, all_results
+    
+    # Also, distances between odors: same for all runs, compute once
+    # Results returned as a flattened upper triangular matrix
+    y_l2_distances = pdist(all_odors, metric="euclidean")
+
+    # Prepare simulation results dictionary
+    test_results = {
+        "jaccard_scores": jaccard_scores,
+        "y_l2_distances": y_l2_distances
+    }
+    # Save results
+    np.savez_compressed(filename, **test_results)
     return 0
