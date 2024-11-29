@@ -31,7 +31,7 @@ def get_ns_range_from_files(fold, models):
     assert sum([sum([ns_ranges[j][i] == ns_ranges[0][i] 
                      for i in range(len(ns_ranges[0]))]) 
                      for j in range(len(ns_ranges))])
-    ns_range = np.asarray(ns_ranges[0])
+    ns_range = np.sort(np.asarray(ns_ranges[0]))
     return ns_range
 
 
@@ -52,14 +52,21 @@ def main_plot_perf_vs_dimension():
         "ibcm": "xkcd:turquoise",
         "biopca": "xkcd:orangey brown",
         "avgsub": "xkcd:navy blue",
-        "ideal": "xkcd:powder blue",
-        "optimal": "xkcd:light green",
+        "ideal": "xkcd:light green",
+        "optimal": "xkcd:powder blue",
         "orthogonal": "xkcd:pale rose",
         "none": "grey"
     }
+
+    try:
+        example_file_ibcm = [a for a in os.listdir(folder) 
+            if a.startswith("ibcm") and a.endswith(".h5")][0]
+    except IndexError:
+        raise FileNotFoundError(f"No results file found for IBCM in {folder}")
+
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
-    with h5py.File(example_file_ibcm, "r") as f:
+    with h5py.File(os.path.join(folder, example_file_ibcm), "r") as f:
         n_new_concs = f.get("parameters").get("repeats")[4]
         new_concs = f.get("parameters").get("new_concs")[()]
         activ_fct = f.get("parameters").attrs.get("activ_fct")
@@ -81,19 +88,13 @@ def main_plot_perf_vs_dimension():
         all_jacs[m] = jacs_m
         median_jaccard_ranges[m] = np.median(jacs_m, axis=2)
     
-    try:
-        example_file_ibcm = [a for a in os.listdir(folder) 
-            if a.startswith("ibcm") and a.endswith(".h5")][0]
-    except IndexError:
-        raise FileNotFoundError(f"No results file found for IBCM in {folder}")
-
     # One plot per new odor concentration
     fig, axes = plt.subplots(1, n_new_concs, sharex=True)
     fig.set_size_inches(9.5, 4)
     axes = axes.flatten()
     for m in models:  # Plot IBCM last
         for i in range(n_new_concs):
-            axes[i].plot(ns_range, median_jaccard_ranges[m][i],
+            axes[i].plot(ns_range, median_jaccard_ranges[m][:, i],
                 label=model_nice_names.get(m, m),
                 color=model_colors.get(m), alpha=1.0
             )
@@ -105,7 +106,8 @@ def main_plot_perf_vs_dimension():
         axes[i].set_ylabel("Probability density")
     axes[1].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
     fig.tight_layout()
-    fig.savefig("figures/detection/compare_models_dimensionality.pdf",
+    fig.savefig(os.path.join("figures", "detection", 
+                f"compare_models_dimensionality{activ_fct}.pdf"),
                 transparent=True, bbox_inches="tight")
 
     plt.show()

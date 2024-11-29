@@ -22,7 +22,8 @@ from modelfcts.ideal import (
     find_parallel_component,
     ideal_linear_inhibitor,
     compute_ideal_factor, 
-    relu_inplace
+    relu_inplace, 
+    compute_optimal_matrices
 )
 from modelfcts.tagging import (
     project_neural_tag,
@@ -370,30 +371,14 @@ def optimal_recognition_one_sim(sim_id, filename_ref, lean=False):
     else:
         back_samples = sim_gp.get("test_results").get("back_samples")[()]
 
-    # Compute optimal matrix for each new concentration. Need to compute
-    # the average new odor <s_n>, and average <s_n s_n^T> first. 
-    avg_new_odors = [c * np.mean(new_odors, axis=0) for c in new_concs]
-    # Outer product of each new odor with itself: s_n s_n^T
-    avg_new_odor_mat = np.mean(new_odors[:, :, None] * new_odors[:, None, :], axis=0)
-    # Multiply by <c^2> = <c>^2 + sigma^2 for each new c
-    covmats_new_odors = [avg_new_odor_mat * (c**2 + moments_conc[1]) for c in new_concs]
-    del avg_new_odor_mat
-    # moments of the background vectors too
-    avg_back = moments_conc[0] * np.sum(back_odors, axis=0)
-    # \sum_\rho s_\rho s_\rho^T
-    covmat_back = np.sum(back_odors[:, :, None]*back_odors[:, None, :], axis=0)
-    covmat_back = moments_conc[1] * covmat_back + np.outer(avg_back, avg_back)
-    # With these components, we are ready to compute W optimal for each background
-    optimal_ws = []
-    for i in range(len(new_concs)):
-        m = (covmats_new_odors[i] + covmat_back 
-            + np.outer(avg_new_odors[i], avg_back)
-            + np.outer(avg_back, avg_new_odors[i])
-        )
-        left_mat = np.outer(avg_back, avg_new_odors[i]) + covmat_back
-        w_opt = left_mat.dot(np.linalg.pinv(m))
-        optimal_ws.append(w_opt)
-    optimal_ws = np.asarray(optimal_ws)
+    # Compute optimal W matrix for all new odors possible
+    dummy_rgen = np.random.default_rng(0x773989f92ef489f1ae6b044e2ebdcb36)
+    n_samp = int(1e4)
+    new_odors_from_distrib = generate_odorant([n_samp, n_r], 
+                                        dummy_rgen, lambda_in=0.1)
+    new_odors_from_distrib /= l2_norm(new_odors_from_distrib)[:, None]
+    optimal_ws = compute_optimal_matrices(back_odors, 
+                    new_odors_from_distrib, moments_conc, new_concs)
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
