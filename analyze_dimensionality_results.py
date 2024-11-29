@@ -116,8 +116,8 @@ def main_plot_perf_vs_dimension():
         ax = axes[i]
         axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
         axes[i].set_xlabel(r"OSN space dimensionality, $N_S$")
-        axes[i].set_ylabel("Median Jaccard similarity")
-    axes[1].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
+        axes[i].set_ylabel("Mean Jaccard similarity")
+    axes[1].legend()
     fig.tight_layout()
     fig.savefig(os.path.join("figures", "detection", 
                 f"compare_models_dimensionality_{activ_fct}.pdf"),
