@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
 from simulfcts.plotting import hist_outline
@@ -100,7 +101,10 @@ def main_plot_perf_vs_dimension():
     for ns in ns_range:
         fname = f"similarity_random_odors_ns_{ns}.npz"
         jacs = np.load(os.path.join(folder, fname))["jaccard_scores"]
-        jacs_random.append(jacs)
+        # shaped [n_runs, pairs of odors], flatten because all
+        # runs/projection matrices should be concatenated as samples
+        jacs_random.append(jacs.flatten())
+    # Reshape to have a dummy "new odor" axis first, then N_S, then samples
     jacs_random = np.stack(jacs_random, axis=0).reshape(1, len(ns_range), -1)
     all_jacs["random"] = jacs_random
     std_jaccard_ranges["random"] = np.std(jacs_random, axis=2)
@@ -146,7 +150,28 @@ def main_plot_perf_vs_dimension():
     return None
 
 
-def main_export_jaccards(dest_name):
+def stats_df_from_samples(samp, ns_range, new_concs):
+    """ 
+    Take a multidimensional array of similarity metric samples, 
+    aggregate them into a statistics DataFrame with index levels
+    [N_S, new conc.] and columns for mean, median, etc. 
+    samp: 3d array, indexed [N_S, new_conc, replicate]
+    """
+    df_idx = pd.MultiIndex.from_product(
+        [ns_range, new_concs], names=["N_S", "new_conc"])
+    df_cols = pd.Index(["mean", "median", "var", 
+        "quantile_05", "quantile_95"], name="stats")
+    df = pd.DataFrame(0.0, index=df_idx, columns=df_cols)
+    df["mean"] = np.mean(samp, axis=2).flatten()
+    df["median"] = np.median(samp, axis=2).flatten()
+    df["var"] = np.var(samp, axis=2).flatten()
+    quantiles = np.quantile(samp, [0.05, 0.95], axis=2)
+    df["quantile_05"] = quantiles[0].flatten()
+    df["quantile_95"] = quantiles[1].flatten()
+    return df
+
+
+def main_export_jaccard_stats(dest_name):
     # Compare all algorithms
     folder = os.path.join("results", "performance_ns")
     models = ["ibcm", "biopca", "avgsub", "ideal", 
@@ -168,7 +193,7 @@ def main_export_jaccards(dest_name):
         activ_fct = f.get("parameters").attrs.get("activ_fct")
 
     # For each model, extract the matrix of Jaccard similarities for all N_S,
-    # concatenate, then save concatenated Jaccards for all models
+    # concatenate, compute statistics, then save Jaccard stats for all models
     # into one npz archive file.
     all_jacs = {}
     for m in models:
@@ -178,16 +203,34 @@ def main_export_jaccards(dest_name):
             f = h5py.File(os.path.join(folder, fname), "r")
             jacs_m.append(concat_jaccards(f))
             f.close()
-        jacs_m = np.stack(jacs_m, axis=0)  # indexed [n_s, new_conc, replicate]
-        all_jacs[m] = jacs_m
+        jacs_m = np.stack(jacs_m, axis=0)  
+        # currently indexed [n_s, run, new_odor, test_time, new_conc, back_sample] 
+        # Reshape to flatten last dimensions and 
+        # be indexed [n_s, new_conc, replicate]
+        jacs_m = np.moveaxis(jacs_m, source=4, destination=1)
+        jacs_m = jacs_m.reshape(jacs_m.shape[0], jacs_m.shape[1], -1)
+        all_jacs[m] = stats_df_from_samples(jacs_m, ns_range, new_concs)
+    
+    # Also, compare to Jaccard between random odors
+    jacs_random = []
+    for ns in ns_range:
+        fname = f"similarity_random_odors_ns_{ns}.npz"
+        jacs = np.load(os.path.join(folder, fname))["jaccard_scores"]
+        # shaped [n_runs, pairs of odors], flatten because all
+        # runs/projection matrices should be concatenated as samples
+        jacs_random.append(jacs.flatten())
+    # Reshape to be indexed [N_S, new odor conc. (dummy), sample]
+    jacs_random = np.stack(jacs_random, axis=0).reshape(len(ns_range), 1, -1)
+    jacs_random = np.tile(jacs_random, (1, n_new_concs, 1))
+    all_jacs["random"] = stats_df_from_samples(jacs_random, ns_range, new_concs)
 
-    # Save, with also some extra information
-    all_jacs["new_concs"] = new_concs
-    all_jacs["ns_range"] = ns_range
-    np.savez_compressed(
-        dest_name + "_" + activ_fct + ".npz",
-        **all_jacs
-    )
+    # Concatenate all models
+    all_jacs = pd.concat(all_jacs, names=["Model"])
+
+    # Save, the information about new concentrations and N_S dimensions
+    # is saved in the DataFrame index. 
+    print(all_jacs.shape)
+    all_jacs.to_hdf(dest_name + "_" + activ_fct + ".hdf", key="df")
     return None
 
 
@@ -250,7 +293,7 @@ def main_export_new_back_distances(dest_name):
     return None
 
 
-def main_export_new_mix_distances(dest_name):
+def main_export_new_mix_distance_stats(dest_name):
     # Compare all algorithms
     folder = os.path.join("results", "performance_ns")
     models = ["ibcm", "biopca", "avgsub", "ideal", 
@@ -300,26 +343,54 @@ def main_export_new_mix_distances(dest_name):
             f = h5py.File(os.path.join(folder, fname), "r")
             dists_m.append(concat_new_mix_distances(f))
             f.close()
-        dists_m = np.stack(dists_m, axis=0)  # indexed [n_s, new_conc, replicate]
-        all_dists[m] = dists_m
+        dists_m = np.stack(dists_m, axis=0)
+        # currently indexed [n_s, run, new_odor, test_time, new_conc, back_sample] 
+        # Reshape to flatten last dimensions and 
+        # be indexed [n_s, new_conc, replicate]
+        dists_m = np.moveaxis(dists_m, source=4, destination=1)
+        dists_m = dists_m.reshape(dists_m.shape[0], dists_m.shape[1], -1)
+        all_dists[m] = stats_df_from_samples(dists_m, ns_range, new_concs)
+    
+    # Also add distance between random odors
+    dists_random = []
+    for ns in ns_range:
+        fname = f"similarity_random_odors_ns_{ns}.npz"
+        dists_m = np.load(os.path.join(folder, fname))["y_l2_distances"]
+        # Shaped [pairs of iid odors], 1d axis, one per N_S: already flattened
+        dists_random.append(dists_m)
+    dists_random = np.stack(dists_random, axis=0).reshape(len(ns_range), 1, -1)
+    dists_random = np.tile(dists_random, (1, n_new_concs, 1))
+    all_dists["random"] = stats_df_from_samples(
+                            dists_random, ns_range, new_concs)
+    
+    # Concatenate all models
+    all_dists = pd.concat(all_dists, names=["Model"])
 
-    # Save, with also some extra information
-    all_dists["new_concs"] = new_concs
-    all_dists["ns_range"] = ns_range
-    np.savez_compressed(
-        dest_name + "_" + activ_fct + ".npz",
-        **all_dists
-    )
+    # Save, the information about new concentrations and N_S dimensions
+    # is saved in the DataFrame index. 
+    print(all_dists.shape)
+    all_dists.to_hdf(dest_name + "_" + activ_fct + ".hdf", key="df")
     return None
 
 if __name__ == "__main__":
+    print("Starting up analysis script...")
+    
     main_plot_perf_vs_dimension()
-    main_export_jaccards(os.path.join("results", 
-       "for_plots", "jaccard_similarities_dimensionality")
+    print("Finished plotting performance vs OSN dimensionality")
+    
+    main_export_jaccard_stats(os.path.join("results", 
+       "for_plots", "jaccard_similarities_stats_dimensionality")
     )
+    print("Finished exporting Jaccard similarity stats")
+    
+    main_export_new_mix_distance_stats(os.path.join("results",  
+       "for_plots", "new_mix_distances_stats_dimensionality")
+    )
+    print("Finished exporting distances between"
+          + " model responses to mixtures and new odors"
+    )
+ 
     main_export_new_back_distances(os.path.join("results",  
        "for_plots", "new_back_distances_dimensionality")
     )
-    main_export_new_mix_distances(os.path.join("results",  
-       "for_plots", "new_mix_distances_dimensionality")
-    )
+    print("Finished exporting distances between new odors and backgrounds")

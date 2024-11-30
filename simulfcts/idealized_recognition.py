@@ -679,6 +679,8 @@ def jaccard_between_random_odors(filename, filename_ref):
         all_processes.append(proc)
     jaccard_scores = [proc.get() for proc in all_processes]
     # Stack the results in appropriate arrays
+    # In the end, this matrix of Jaccard similarities is indexed
+    # [run, pair of iid odors], for a given N_S
     jaccard_scores = np.stack(jaccard_scores, axis=0)
     
     # Close pool
@@ -686,8 +688,9 @@ def jaccard_between_random_odors(filename, filename_ref):
     pool.join()
     del all_processes, all_results
     
-    # Also, distances between odors: same for all runs, compute once
-    # Results returned as a flattened upper triangular matrix
+    # Also, distances between odors: same for all runs, so compute once
+    # Results returned as a flattened upper triangular matrix, indexed
+    # [pair of iid odors], for a given N_S
     y_l2_distances = pdist(all_odors, metric="euclidean")
 
     # Prepare simulation results dictionary
