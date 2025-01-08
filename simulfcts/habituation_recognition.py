@@ -198,11 +198,21 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
     mixture_svecs = np.zeros([n_new_odors, n_times, n_new_concs,
                             n_back_samples, params['dimensions'][0]])
     n_kc = params['dimensions'][3]
+    n_back_dims = params["dimensions"][1]
     assert n_kc == test_params["pmat"].shape[0], "Inconsistent KC number"
     mixture_tags = SparseNDArray((n_new_odors, n_times, n_new_concs,
                                     n_back_samples, n_kc), dtype=bool)
     new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
     jaccard_scores = np.zeros(mixture_tags.ndshape[:4])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_back_dims)
+    back_tags = []
+    for b in range(n_back_dims):
+        back_tags.append(
+            project_neural_tag(sim_odors["back"][b], sim_odors["back"][b],
+                test_params['pmat'], **test_params['proj_kwargs']
+        ))
 
     for i in range(n_new_odors):
         # Compute neural tag of the new odor alone, without inhibition
@@ -222,10 +232,8 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
                                             attrs, params, mixtures, snaps,
                                             j, test_params["model_options"]
                                         )
-                # We actually don't want to apply ReLU to really understand
-                # what happens if a s vector is zero.
-                #if str(activ_fct).lower() == "relu":
-                #    mixture_svecs[i,j,k] = relu_inplace(mixture_svecs[i,j,k])
+                if str(activ_fct).lower() == "relu":
+                    mixture_svecs[i,j,k] = relu_inplace(mixture_svecs[i,j,k])
                 for l in range(n_back_samples):
                     mix_tag = project_neural_tag(
                         mixture_svecs[i, j, k, l], mixtures[l],
@@ -239,6 +247,10 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
                         print(test_params["pmat"].dot(mixture_svecs[i, j, k, l]))
                         raise e
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_back_dims):
+                        jaccard_backs_indiv[b] = jaccard(mix_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
     # Prepare simulation results dictionary
     new_odor_tags = new_odor_tags.tocsr()
     test_results = {
@@ -247,7 +259,8 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
         "new_odor_tags": new_odor_tags,
         "mixture_svecs": mixture_svecs,
         "mixture_tags": mixture_tags,
-        "jaccard_scores": jaccard_scores
+        "jaccard_scores": jaccard_scores,
+        "jaccard_scores_back": jaccard_scores_back
     }
     return test_results
 

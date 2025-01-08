@@ -83,7 +83,7 @@ def main_plot_histograms():
     return None
 
 
-def main_export_jaccards(dest_name):
+def main_export_jaccards(dest_name, k='jaccard_scores'):
     # Compare all algorithms
     folder = os.path.join("results", "performance")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
@@ -103,7 +103,7 @@ def main_export_jaccards(dest_name):
     jac_file = {"new_concs": new_concs}
     for m in models[::-1]:  # Plot IBCM last
         f = h5py.File(model_file_choices[m], "r")
-        all_jacs = concat_jaccards(f)
+        all_jacs = concat_jaccards(f, k=k)
         f.close()
         jac_file[m] = all_jacs
     # Save
@@ -196,9 +196,14 @@ def main_export_new_mix_distances(dest_name):
 
 if __name__ == "__main__":
     #main_plot_histograms()
-    #main_export_jaccards(
-    #    os.path.join("results", "for_plots", "jaccard_similarities")
-    #)
+    main_export_jaccards(
+        os.path.join("results", "for_plots", "jaccard_similarities")
+    )
+    # Also export Jaccard similarities to background
+    main_export_jaccards(
+        os.path.join("results", "for_plots", "jaccard_similarities_back"),
+        k='jaccard_scores_back'
+    )
     #main_export_new_back_distances(
     #    os.path.join("results", "for_plots", "new_back_distances")
     #)

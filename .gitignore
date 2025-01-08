@@ -21,8 +21,10 @@ notes/
 *.npy
 *.npz
 results/for_plots/*.json
+results/for_plots/backups/*.json
 results/performance_w/*.json
 *.h5
+*.hdf
 *.xlsx
 *.git
 .fossil-settings/

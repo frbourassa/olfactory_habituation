@@ -23,11 +23,10 @@ def compute_back_reduction_stats(bkser, sser, trans=0):
     return back_stats
 
 
-def concat_jaccards(f):
+def concat_jaccards(f, k="jaccard_scores"):
     all_jacs = []
     for i in range(f.get("parameters").get("repeats")[0]):
-        all_jacs.append(f.get(id_to_simkey(i)).get("test_results")
-                            .get("jaccard_scores")[()])
+        all_jacs.append(f.get(id_to_simkey(i)).get("test_results").get(k)[()])
     all_jacs = np.stack(all_jacs)
     return all_jacs
 
