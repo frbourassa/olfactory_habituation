@@ -195,7 +195,7 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
     # Loop over new odors first
     n_new_odors = params['repeats'][3]
     n_new_concs = params['repeats'][4]
-    mixture_svecs = np.zeros([n_new_odors, n_times, n_new_concs,
+    mixture_yvecs = np.zeros([n_new_odors, n_times, n_new_concs,
                             n_back_samples, params['dimensions'][0]])
     n_kc = params['dimensions'][3]
     n_back_dims = params["dimensions"][1]
@@ -228,23 +228,23 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
             for k in range(n_new_concs):
                 mixtures = (back_samples[j]
                     + params["new_concs"][k] * sim_odors["new"][i])
-                mixture_svecs[i, j, k] = appropriate_response(
+                mixture_yvecs[i, j, k] = appropriate_response(
                                             attrs, params, mixtures, snaps,
                                             j, test_params["model_options"]
                                         )
                 if str(activ_fct).lower() == "relu":
-                    mixture_svecs[i,j,k] = relu_inplace(mixture_svecs[i,j,k])
+                    mixture_yvecs[i,j,k] = relu_inplace(mixture_yvecs[i,j,k])
                 for l in range(n_back_samples):
                     mix_tag = project_neural_tag(
-                        mixture_svecs[i, j, k, l], mixtures[l],
+                        mixture_yvecs[i, j, k, l], mixtures[l],
                         test_params['pmat'], **test_params['proj_kwargs']
                     )
                     try:
                         mixture_tags[i, j, k, l, list(mix_tag)] = True
                     except ValueError as e:
                         print(mix_tag)
-                        print(mixture_svecs[i, j, k, l])
-                        print(test_params["pmat"].dot(mixture_svecs[i, j, k, l]))
+                        print(mixture_yvecs[i, j, k, l])
+                        print(test_params["pmat"].dot(mixture_yvecs[i, j, k, l]))
                         raise e
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
                     # Also save similarity to the most similar background odor
@@ -257,7 +257,7 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
         "conc_samples": conc_samples,
         "back_samples": back_samples,
         "new_odor_tags": new_odor_tags,
-        "mixture_svecs": mixture_svecs,
+        "mixture_yvecs": mixture_yvecs,
         "mixture_tags": mixture_tags,
         "jaccard_scores": jaccard_scores,
         "jaccard_scores_back": jaccard_scores_back
@@ -787,7 +787,7 @@ def main_recognition_runs(
         # Save sample response to new odors
         if sim_id == 0 and full_example_file is not None and not lean:
             add_to_npz(full_example_file, 
-                {"mixture_svecs": sim_results["mixture_svecs"]})
+                {"mixture_yvecs": sim_results["mixture_yvecs"]})
             
         print("New odor recognition tested for simulation {}".format(sim_id))
         return sim_id

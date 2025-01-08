@@ -144,7 +144,7 @@ def add_to_npz(filename, arrays_to_add):
         existing_arrays = {k:f[k] for k in f.keys()}
         f.close()
         code_exit = 0
-    # Re-save existing arrays, add the mixture_svecs
+    # Re-save existing arrays, add the mixture_yvecs
     existing_arrays.update(arrays_to_add)
     np.savez_compressed(filename, **existing_arrays)
     return code_exit

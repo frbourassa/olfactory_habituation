@@ -83,7 +83,7 @@ HDF file structure
             conc_samples (dataset): shape [n_times, n_back_samples, n_b]
             back_samples (dataset): shape [n_times, n_back_samples, n_r]
             new_odor_tags (dataset): shape [n_new_odors, tag_length]
-            mixture_svecs (dataset): shape [n_new_odors, n_times, n_new_concs,
+            mixture_yvecs (dataset): shape [n_new_odors, n_times, n_new_concs,
                                             n_back_samples, n_r]
             mixture_tags (group): data to reconstruct a SparseNDArray shaped
                 [n_new_odors, n_times, n_new_concs, n_back_samples, n_kc]

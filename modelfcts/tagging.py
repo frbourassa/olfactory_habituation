@@ -98,13 +98,13 @@ def create_sparse_proj_mat(n_kc, n_rec, rgen, fraction_filled=6/50):
 def relu_copy(x):
     return x * (x > 0)
 
-def project_neural_tag(s_vec, x_vec, projmat, **proj_kwargs):
+def project_neural_tag(y_vec, x_vec, projmat, **proj_kwargs):
     """ Project the input layer s_vec
     with the inhibitory feedback weights w_vec to the sparse kenyon cell (KC) output,
     thresholding KCs below kc_thresh and then keeping only a fraction kc_sparsity of active KCs.
 
     Args:
-        s_vec (np.ndarray): PN layer vector
+        y_vec (np.ndarray): PN layer vector
         x_vec (np.ndarray): input layer vector, used to adjust threshold
         projmat (np.ndarray or sp.sparse.csr_matrix): projection matrix
             from PNs to KCs, shape n_kc x n_receptors.
@@ -147,21 +147,21 @@ def project_neural_tag(s_vec, x_vec, projmat, **proj_kwargs):
         kc_thresh = np.mean(x_vec)
     kc_thresh *= ptf
 
-    # 2. Project s_vec on KCs: this is the slowest part
+    # 2. Project y_vec on KCs: this is the slowest part
     # But we can't really speed up scipy's C++ implementation...
-    y_vec = projmat.dot(relu_copy(s_vec))
+    kc_vec = projmat.dot(relu_copy(y_vec))
 
     # 3. Threshold noise: will consider only positions in mask.
     # Keep only values strictly above threshold, so if thresh = 0,
     # then all values are masked and the tag is empty.
-    mask = (y_vec > kc_thresh).astype(np.bool_)
-    y_vec[np.logical_not(mask)] = 0.0
+    mask = (kc_vec > kc_thresh).astype(np.bool_)
+    kc_vec[np.logical_not(mask)] = 0.0
 
     # 4. Binarize: keep the np.ceil(0.05*n_kc) most active KCs non-zero KCs,
     # or all the nonzero ones. Return a set of the indices of those cells.
     # No arbitrary tie breaks: do not just sort and take the first 0.05n_kc
-    thresh_keep = np.quantile(y_vec, 1.0 - kc_sparsity)
-    z_set = set(np.nonzero(np.logical_and(mask, y_vec >= thresh_keep))[0])
+    thresh_keep = np.quantile(kc_vec, 1.0 - kc_sparsity)
+    z_set = set(np.nonzero(np.logical_and(mask, kc_vec >= thresh_keep))[0])
     return z_set
 
 

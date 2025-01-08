@@ -43,7 +43,7 @@ def concat_mixtures(f):
     all_mixes = []
     for i in range(f.get("parameters").get("repeats")[0]):
         all_mixes.append(f.get(id_to_simkey(i)).get("test_results")
-                            .get("mixture_svecs")[()])
+                            .get("mixture_yvecs")[()])
     all_mixes = np.stack(all_mixes)
     return all_mixes
 
