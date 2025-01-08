@@ -74,6 +74,16 @@ def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
                             n_new_concs, n_back_samples])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    back_tags = []
+    for b in range(n_b):
+        back_tags.append(
+            project_neural_tag(back_odors[b], back_odors[b],
+                projmat, **proj_kwargs
+        ))
+
     if lean:  # only save scores and L2 distances 
         y_l2_distances = np.zeros((n_new_odors, n_times, 
                                n_new_concs, n_back_samples))
@@ -109,6 +119,10 @@ def no_habituation_one_sim(sim_id, filename_ref, lean=False):
                         projmat, **proj_kwargs
                     )
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_b):
+                        jaccard_backs_indiv[b] = jaccard(mix_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
                     if not lean:
                         try:
                             mixture_tags[i, j, k, l, list(mix_tag)] = True
@@ -121,7 +135,10 @@ def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     ref_file.close()
 
     # Prepare simulation results dictionary
-    test_results = {"jaccard_scores": jaccard_scores}
+    test_results = {
+        "jaccard_scores": jaccard_scores, 
+        "jaccard_scores_back": jaccard_scores_back
+    }
     if lean:
         test_results["y_l2_distances"] = y_l2_distances
     else:
@@ -178,6 +195,16 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, 1, n_new_concs, 1])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    back_tags = []
+    for b in range(n_b):
+        back_tags.append(
+            project_neural_tag(back_odors[b], back_odors[b],
+                projmat, **proj_kwargs
+        ))
+
     if lean:
         y_l2_distances = np.zeros((n_new_odors, 1, n_new_concs, 1))
     else:
@@ -208,6 +235,10 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
                         svec, x_mix, projmat, **proj_kwargs
                         )
             jaccard_scores[i, 0, j, 0] = jaccard(new_tag, perp_tag)
+            # Also save similarity to the most similar background odor
+            for b in range(n_b):
+                jaccard_backs_indiv[b] = jaccard(perp_tag, back_tags[b])
+            jaccard_scores_back[i, 0, j, 0] = np.amax(jaccard_backs_indiv)
             if lean:
                 y_l2_distances[i, 0, j, 0] = l2_norm(new_concs[j]*x_par)
             else:
@@ -217,7 +248,10 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
     ref_file.close()
 
     # Prepare simulation results dictionary
-    test_results = {"jaccard_scores": jaccard_scores}
+    test_results = {
+        "jaccard_scores": jaccard_scores,
+        "jaccard_scores_back":jaccard_scores_back
+    }
     if lean:
         test_results["y_l2_distances"] = y_l2_distances
     else:
@@ -272,6 +306,16 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
                                 n_new_concs, n_back_samples])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    back_tags = []
+    for b in range(n_b):
+        back_tags.append(
+            project_neural_tag(back_odors[b], back_odors[b],
+                projmat, **proj_kwargs
+        ))
+
     if lean:
         y_l2_distances = np.zeros([n_new_odors, n_times,
                                 n_new_concs, n_back_samples])
@@ -303,6 +347,10 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
                         projmat, **proj_kwargs
                     )
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_b):
+                        jaccard_backs_indiv[b] = jaccard(mix_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
                     if lean:
                         ydiff = yvec - new_concs[k]*new_odors[i]
                         y_l2_distances[i, j, k, l] = l2_norm(ydiff)
@@ -321,6 +369,7 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
     # Prepare simulation results dictionary
     test_results = {
         "jaccard_scores": jaccard_scores,
+        "jaccard_scores_back": jaccard_scores_back,
         "ideal_factors": factors,
         "projector": projector
     }
