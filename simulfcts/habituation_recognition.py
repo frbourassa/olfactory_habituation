@@ -294,11 +294,23 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     n_new_odors = params['repeats'][3]
     n_new_concs = params['repeats'][4]
     n_kc = params['dimensions'][3]
+    n_back_dims = params["dimensions"][1]
     assert n_kc == test_params["pmat"].shape[0], "Inconsistent KC number"
     jaccard_scores = np.zeros((n_new_odors, n_times, 
                                n_new_concs, n_back_samples))
     y_l2_distances = np.zeros((n_new_odors, n_times, 
                                n_new_concs, n_back_samples))
+    
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_back_dims)
+    back_tags = []
+    for b in range(n_back_dims):
+        back_tags.append(
+            project_neural_tag(sim_odors["back"][b], sim_odors["back"][b],
+                test_params['pmat'], **test_params['proj_kwargs']
+        ))
+
     
     # Profiling only one simulation, to keep track of time without
     # producing too much text. 
@@ -349,6 +361,11 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                     if switch: profiler.addpoint("computing mixture tag")
                     jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
                     if switch: profiler.addpoint("computing jaccard")
+                     # Also save similarity to the most similar background odor
+                    for b in range(n_back_dims):
+                        jaccard_backs_indiv[b] = jaccard(mix_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
+                    if switch: profiler.addpoint("computing jaccards with back")
                     if switch:
                         profiler.end_iter()
                         switch = False  # Stop profiling after first pass
@@ -356,6 +373,7 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     test_results = {
         "conc_samples": conc_samples,
         "jaccard_scores": jaccard_scores, 
+        "jaccard_scores_back": jaccard_scores_back,
         "y_l2_distances": y_l2_distances
     }
     return test_results
