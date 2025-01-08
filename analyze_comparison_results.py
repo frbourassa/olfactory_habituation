@@ -102,6 +102,7 @@ def main_export_jaccards(dest_name, k='jaccard_scores'):
     # then save them all to one npz archive file.
     jac_file = {"new_concs": new_concs}
     for m in models[::-1]:  # Plot IBCM last
+        print("Exporting {} of file {}".format(k, model_file_choices[m]))
         f = h5py.File(model_file_choices[m], "r")
         all_jacs = concat_jaccards(f, k=k)
         f.close()
