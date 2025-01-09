@@ -304,7 +304,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
 
     Returns:
         [tseries, bk_series, bkvec_series, m_series,
-        cbar_series, theta_series, w_series, s_series]
+        cbar_series, theta_series, w_series, y_series]
     """
     # Get some of the keyword arguments
     saturation = options.get("saturation", "linear")
@@ -351,7 +351,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     cbar_series = np.zeros([tseries.shape[0], n_neu])
     w_series = np.zeros([tseries.shape[0], n_orn, n_neu])  # Inhibitory weights
     bkvec_series = np.zeros([tseries.shape[0], n_orn])  # Input vecs, convenient to compute inhibited output
-    s_series = np.zeros([tseries.shape[0], n_orn])
+    y_series = np.zeros([tseries.shape[0], n_orn])
     theta_series = np.zeros([tseries.shape[0], n_neu])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
@@ -371,9 +371,9 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     else:
         cbar2_avg = theta_init.copy()
     wmat = w_init.copy()
-    svec = bk_vec_init - wmat.dot(cbar)
+    yvec = bk_vec_init - wmat.dot(cbar)
     if activ_fct == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     elif activ_fct == "identity":
         pass
     else:
@@ -384,7 +384,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     bk_series[0] = bk_vari
     m_series[0] = m_init
     bkvec_series[0] = bkvec
-    s_series[0] = svec
+    y_series[0] = yvec
     theta_series[0] = cbar2_avg
     w_series[0] = wmat
 
@@ -403,19 +403,19 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     for k in range(0, len(tseries)*skp-1):
         t += dt
         ### Inhibitory  weights
-        # They depend on cbar and svec at time step k, which are still in cbar, svec
+        # They depend on cbar and yvec at time step k, which are still in cbar, yvec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
-        # while svec, shape [n_orn], should broadcast across rows (copied on each column)
+        # while yvec, shape [n_orn], should broadcast across rows (copied on each column)
         if w_norms[0] == 2:  # default L2 norm, nice and smooth
-            alpha_term = alpha * cbar[newax, :] * svec[:, newax]
+            alpha_term = alpha * cbar[newax, :] * yvec[:, newax]
         elif w_norms[0] == 1:  # L1 norm
-            asnorm = alpha * l1_norm(svec)
-            alpha_term = asnorm * cbar[newax, :] * np.sign(svec[:, newax])
+            aynorm = alpha * l1_norm(yvec)
+            alpha_term = aynorm * cbar[newax, :] * np.sign(yvec[:, newax])
         elif w_norms[0] > 2:  # Assuming some Lp norm with p > 2
-            # Avoid division by zero for p > 2 by clipping snorm
-            snorm = max(1e-9, lp_norm(svec, p=w_norms[0]))
-            sterm = np.sign(svec) * np.abs(svec/snorm)**(w_norms[0]-1) * snorm
-            alpha_term = alpha * cbar[newax, :] * sterm[:, newax]
+            # Avoid division by zero for p > 2 by clipping ynorm
+            ynorm = max(1e-9, lp_norm(yvec, p=w_norms[0]))
+            yterm = np.sign(yvec) * np.abs(yvec/ynorm)**(w_norms[0]-1) * ynorm
+            alpha_term = alpha * cbar[newax, :] * yterm[:, newax]
         else:
             raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
 
@@ -483,9 +483,9 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
         # np.sum(c) is a scalar and c a vector, so it broadcasts properly.
 
         # Lastly, projection neurons at time step k+1
-        svec = bkvec - wmat.dot(cbar)
+        yvec = bkvec - wmat.dot(cbar)
         if activ_fct == "relu":
-            relu_inplace(svec)
+            relu_inplace(yvec)
 
         # Save current state only if at a multiple of skp
         if (k % skp) == (skp - 1):
@@ -495,11 +495,11 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
             bk_series[knext] = bk_vari
             bkvec_series[knext] = bkvec
             cbar_series[knext] = cbar  # Save activity of neurons at time k+1
-            s_series[knext] = svec
+            y_series[knext] = yvec
             theta_series[knext] = cbar2_avg
 
     return [tseries, bk_series, bkvec_series, m_series,
-            cbar_series, theta_series, w_series, s_series]
+            cbar_series, theta_series, w_series, y_series]
 
 
 # For legacy reasons, keep other versions with hard-coded options
@@ -625,14 +625,14 @@ def ibcm_respond_new_odors(odors, mmat, wmat, ibcm_rates, options={}):
     # cbar shape: odors.shape[:-1], n_neurons
     # New odor after inhibition by the network, ReLU activation on s
     # Inhibit with the mean cbar*wser, to see how on average the new odor will show
-    svec = odors - cbar.dot(wmat.T)
+    yvec = odors - cbar.dot(wmat.T)
     if str(activ_fct).lower() == "identity":
         pass
     elif str(activ_fct).lower() == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     else:
         raise ValueError("Unknown activation function: {}".format(activ_fct))
-    return svec
+    return yvec
 
 
 def compute_mbars_cgammas_cbargammas(ms, eta, backvecs):

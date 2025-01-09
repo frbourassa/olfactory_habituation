@@ -68,13 +68,13 @@ HDF file structure
             shape [n_test_times, n_i, n_r]
         l_snaps (dataset): snapshots of L weights at snap times, if applicable,
             shape [n_test_times, n_i, n_i]
-        cbar_snaps (dataset): snapshots of inhibitory neurons' coupled
+        hbar_snaps (dataset): snapshots of inhibitory neurons' coupled
             activities, cbars, at snap_times; shape [n_test_times, n_i]
         theta_snaps (dataset): snapshots of inhibitory neurons' internal
             thresholds, $\bar{\Theta}$, shape [n_test_times, n_i]
         w_snaps (dataset): snapshots of inhibitory weights at test times,
             shape [n_test_times, n_r, n_i]
-        s_snaps (dataset): snapshots of PN neuron activities at test times,
+        y_snaps (dataset): snapshots of PN neuron activities at test times,
             in presence of the simulated background (no new odors, no extra
             test background concentrations); shape [n_test_times, n_r].
         kc_proj_mat (group): data, indices, indptr, shape of the sparse projection

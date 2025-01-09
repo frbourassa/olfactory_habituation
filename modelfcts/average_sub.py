@@ -45,7 +45,7 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
         activ_fct (str): either "ReLU" or "identity"
 
     Returns:
-        tseries, bk_series, bkvec_series, w_series, s_series
+        tseries, bk_series, bkvec_series, w_series, y_series
         The two None returns are there to mimic the signature of other
         integration functions.
     """
@@ -62,15 +62,15 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
     bk_series = np.zeros([tseries.shape[0]] + list(bk_vari_init.shape))
     w_series = np.zeros([tseries.shape[0], n_orn, 1])  # Inhibitory weights
     bkvec_series = np.zeros([tseries.shape[0], n_orn])  # Input vecs, convenient to compute inhibited output
-    s_series = np.zeros([tseries.shape[0], n_orn])
+    y_series = np.zeros([tseries.shape[0], n_orn])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
     wmat = w_series[0].copy()  # Initialize with null inhibition
     bk_vari = bk_vari_init.copy()
     bkvec = bk_vec_init.copy()
-    svec = bkvec.copy()
+    yvec = bkvec.copy()
     if activ_fct == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     elif activ_fct == "identity":
         pass
     else:
@@ -94,18 +94,18 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
     for k in range(0, len(tseries)*skp-1):
         t += dt
         ### Inhibitory weights
-        # They depend on cbar and svec at time step k, which are still in cbar, svec
+        # They depend on cbar and yvec at time step k, which are still in cbar, yvec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
-        # while svec, shape [n_orn], should broadcast across rows (copied on each column)
-        wmat = wmat + dt * (alpha*svec[:, np.newaxis] - beta*wmat)
+        # while yvec, shape [n_orn], should broadcast across rows (copied on each column)
+        wmat = wmat + dt * (alpha*yvec[:, np.newaxis] - beta*wmat)
 
         # Update background to time k+1, to be used in next time step
         bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k], dt)
 
         # Lastly, projection neurons at time step k+1
-        svec = bkvec - wmat[:, 0]
+        yvec = bkvec - wmat[:, 0]
         if activ_fct == "relu":
-            relu_inplace(svec)
+            relu_inplace(yvec)
 
         # Save current state only if at a multiple of skp
         if (k % skp) == (skp - 1):
@@ -113,9 +113,9 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
             w_series[knext] = wmat
             bk_series[knext] = bk_vari
             bkvec_series[knext] = bkvec
-            s_series[knext] = svec
+            y_series[knext] = yvec
 
-    return tseries, bk_series, bkvec_series, w_series, s_series
+    return tseries, bk_series, bkvec_series, w_series, y_series
 
 
 def average_sub_respond_new_odors(odors, wmat, options={}):

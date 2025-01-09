@@ -31,13 +31,13 @@ def generate_background(n_rec, rgen, lambda_in=10.0):
     raise NotImplementedError("You should use generate_odorant instead")
 
 
-def project_neural_tag_shen2020(s_vec, w_vec, projmat, kc_sparsity=0.05, adapt_kc=True, n_pn_per_kc=3, fix_thresh=None):
-    """ Given the parameters of the Shen 2020 neural network, project the input layer s_vec
+def project_neural_tag_shen2020(x_vec, w_vec, projmat, kc_sparsity=0.05, adapt_kc=True, n_pn_per_kc=3, fix_thresh=None):
+    """ Given the parameters of the Shen 2020 neural network, project the input layer x_vec
     with the inhibitory feedback weights w_vec to the sparse kenyon cell (KC) output,
     thresholding KCs below kc_thresh and then keeping only a fraction kc_sparsity of active KCs.
 
     Args:
-        s_vec (np.ndarray): input vector, activation of each receptor type
+        x_vec (np.ndarray): input vector, activation of each receptor type
         w_vec (np.ndarray): inhibition weights from LN1 to PN neurons
         projmat (np.ndarray or sp.sparse.csr_matrix): projection matrix from PNs to KCs,
             shape n_kc x n_receptors. Will use the .dot method of the matrix.
@@ -54,13 +54,13 @@ def project_neural_tag_shen2020(s_vec, w_vec, projmat, kc_sparsity=0.05, adapt_k
     if fix_thresh is not None:
         kc_thresh = fix_thresh
     elif adapt_kc:
-        kc_thresh = np.mean(s_vec) * n_pn_per_kc / 3
+        kc_thresh = np.mean(x_vec) * n_pn_per_kc / 3
     else:
-        kc_thresh = np.mean(s_vec)
+        kc_thresh = np.mean(x_vec)
 
     # 1. Project on PNs, including inhibition from LN1
-    x_vec = np.maximum(s_vec - w_vec, 0)
-    #x_vec = s_vec - w_vec
+    x_vec = np.maximum(x_vec - w_vec, 0)
+    #x_vec = x_vec - w_vec
     #x_vec[x_vec<0] = 0
 
     # 2. Project on KCs
@@ -69,7 +69,7 @@ def project_neural_tag_shen2020(s_vec, w_vec, projmat, kc_sparsity=0.05, adapt_k
     # 3. Threshold noise:: will consider only positions in mask.
     mask = (y_vec >= kc_thresh).astype(bool)
     y_vec[np.logical_not(mask)] = 0.0
-    #mask2 = (projmat.dot(s_vec/6) >= kc_thresh)
+    #mask2 = (projmat.dot(x_vec/6) >= kc_thresh)
     #print("Non-zero elements after thresholding by mean {}: ".format(kc_thresh), np.count_nonzero(mask))
     #print("Compare to expected:", np.count_nonzero(mask2))
 

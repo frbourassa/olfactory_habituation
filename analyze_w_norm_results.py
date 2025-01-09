@@ -43,7 +43,7 @@ def compute_norm_stats(vecs):
     return norm_stats
 
 
-def s_stats_from_snaps(res_file):
+def y_stats_from_snaps(res_file):
     # Table of sample functions depending on the model
     sample_fcts = {
         "turbulent": sample_background_powerlaw  # (vecs_nu, *args, size=1, rgen=None)
@@ -58,7 +58,7 @@ def s_stats_from_snaps(res_file):
     rng = np.random.default_rng(
         np.random.SeedSequence(int(res_file.attrs["main_seed"])).spawn(2)[1]
     )
-    all_s_stats_dict = {}
+    all_y_stats_dict = {}
     all_x_stats_dict = {}
 
     # loop over simulations in this file. For each, compute x and s stats
@@ -76,23 +76,23 @@ def s_stats_from_snaps(res_file):
             "back": get_data(gp, "back_vec_snaps"),
         }
         # Generate a bunch of background samples at each snap time
-        all_svecs = []
+        all_yvecs = []
         all_xvecs = []
         for i in range(n_snaps):
             back_samples = sample_fct(back_comps, *back_params, size=100, rgen=rng)
             # Compute response to each sample at each snapshot: gives s vectors
-            svecs = appropriate_response(
+            yvecs = appropriate_response(
                 res_file.attrs, all_params, back_samples, snaps_dict,
                 i, all_params.attrs
             )
-            all_svecs.append(svecs)
+            all_yvecs.append(yvecs)
             all_xvecs.append(back_samples)
         # Compute s vector statistics
         x_stats = compute_norm_stats(np.concatenate(all_xvecs))
         all_x_stats_dict[sim_id] = x_stats
-        s_stats = compute_norm_stats(np.concatenate(all_svecs))
-        all_s_stats_dict[sim_id] = s_stats
-    return all_x_stats_dict, all_s_stats_dict
+        y_stats = compute_norm_stats(np.concatenate(all_yvecs))
+        all_y_stats_dict[sim_id] = y_stats
+    return all_x_stats_dict, all_y_stats_dict
 
 
 def load_fnames_indices(folder, model):
@@ -153,11 +153,11 @@ def aggregate_result_files(folder, model):
         df.loc[(si, sj), "jaccard_variance"] = np.var(all_jacs)
 
         # Get x and s stats for each seed in each simulation
-        x_stats, s_stats = s_stats_from_snaps(res_file)
+        x_stats, y_stats = y_stats_from_snaps(res_file)
         # Then compute reduction in stats for each seed, and average over seeds
         reds = []
         for sd in x_stats.keys():
-            reds.append(s_stats[sd] / x_stats[sd])
+            reds.append(y_stats[sd] / x_stats[sd])
         reds = np.mean(np.stack(reds), axis=0)  # Drop simulations with NaNs
         # Store these aggregate habituation statistics in the DataFrame
         df.loc[(si, sj),

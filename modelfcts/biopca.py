@@ -106,7 +106,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
 
     Returns:
         tseries, bk_series, bkvec_series, m_series, l_series,
-        xmean_series, cbar_series, w_series, s_series
+        xmean_series, cbar_series, w_series, y_series
     """
     remove_mean = model_options.get("remove_mean", False)
     remove_lambda = model_options.get("remove_lambda", False)
@@ -141,7 +141,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     cbar_series = np.zeros([tseries.shape[0], n_neu])  # series of projections
     w_series = np.zeros([tseries.shape[0], n_orn, n_neu])  # Inhibitory weights W (N_DxN_I)
     bkvec_series = np.zeros([tseries.shape[0], n_orn])  # Input vecs, convenient to compute inhibited output
-    s_series = np.zeros([tseries.shape[0], n_orn])  # series of proj. neurons
+    y_series = np.zeros([tseries.shape[0], n_orn])  # series of proj. neurons
     if remove_mean:
         xmean_series = np.zeros([tseries.shape[0], n_orn])
     else:
@@ -155,9 +155,9 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     bkvec = bk_vec_init.copy()
     mmat = m_init.copy()
     lmat = l_init.copy()
-    svec = bk_vec_init.copy()
+    yvec = bk_vec_init.copy()
     if activ_fct == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     elif activ_fct == "identity":
         pass
     else:
@@ -192,7 +192,7 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
     m_series[0] = m_init
     l_series[0] = l_init
     bkvec_series[0] = bkvec
-    s_series[0] = svec
+    y_series[0] = yvec
 
     # Generate N(0, 1) noise samples in advance
     if (tseries.shape[0]*skp-1)*bk_vari.size > 2e7:
@@ -212,19 +212,19 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
         # Else, xmean stays 0
 
         ### Inhibitory  weights
-        # They depend on cbar and svec at time step k, which are still in cbar, svec
+        # They depend on cbar and yvec at time step k, which are still in cbar, yvec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
-        # while svec, shape [n_orn], should broadcast across rows (copied on each column)
+        # while yvec, shape [n_orn], should broadcast across rows (copied on each column)
         if w_norms[0] == 2:  # default L2 norm, nice and smooth
-            alpha_term = alpha * cbar[newax, :] * svec[:, newax]
+            alpha_term = alpha * cbar[newax, :] * yvec[:, newax]
         elif w_norms[0] == 1:  # L1 norm
-            asnorm = alpha * l1_norm(svec)
-            alpha_term = asnorm * cbar[newax, :] * np.sign(svec[:, newax])
+            aynorm = alpha * l1_norm(yvec)
+            alpha_term = aynorm * cbar[newax, :] * np.sign(yvec[:, newax])
         elif w_norms[0] > 2:  # Assuming some Lp norm with p > 2
-            # Avoid division by zero for p > 2 by clipping snorm
-            snorm = max(1e-9, lp_norm(svec, p=w_norms[0]))
-            sterm = np.sign(svec) * np.abs(svec/snorm)**(w_norms[0]-1) * snorm
-            alpha_term = alpha * cbar[newax, :] * sterm[:, newax]
+            # Avoid division by zero for p > 2 by clipping ynorm
+            ynorm = max(1e-9, lp_norm(yvec, p=w_norms[0]))
+            yterm = np.sign(yvec) * np.abs(yvec/ynorm)**(w_norms[0]-1) * ynorm
+            alpha_term = alpha * cbar[newax, :] * yterm[:, newax]
         else:
             raise ValueError("Cannot deal with Lp norms with p < 0 or non-int")
 
@@ -266,9 +266,9 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
 
         # Lastly, projection neurons at time step k+1.
         # xmean is 0 if we don't remove the mean
-        svec = bkvec - xmean - wmat.dot(cbar)
+        yvec = bkvec - xmean - wmat.dot(cbar)
         if activ_fct == "relu":
-            relu_inplace(svec)
+            relu_inplace(yvec)
 
         # Save current state only if at a multiple of skp
         if (k % skp) == (skp - 1):
@@ -279,11 +279,11 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
             bk_series[knext] = bk_vari
             bkvec_series[knext] = bkvec
             cbar_series[knext] = cbar  # Save activity of neurons at time k+1
-            s_series[knext] = svec
+            y_series[knext] = yvec
             if remove_mean:
                 xmean_series[knext] = xmean
     return (tseries, bk_series, bkvec_series, m_series, l_series,
-                xmean_series, cbar_series, w_series, s_series)
+                xmean_series, cbar_series, w_series, y_series)
 
 
 def biopca_respond_new_odors(odors, mlx, wmat, biopca_rates, options={}):
@@ -328,12 +328,12 @@ def biopca_respond_new_odors(odors, mlx, wmat, biopca_rates, options={}):
     if remove_lambda:
         cbar = cbar / lambda_diag
     # Lastly, projection neurons after inhibition
-    svec = odors - xmean if remove_mean else odors
-    svec = svec - cbar.dot(wmat.T)
+    yvec = odors - xmean if remove_mean else odors
+    yvec = yvec - cbar.dot(wmat.T)
     if str(activ_fct).lower() == "identity":
         pass
     elif str(activ_fct).lower() == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     else:
         raise ValueError("Unknown activation function: {}".format(activ_fct))
-    return svec
+    return yvec

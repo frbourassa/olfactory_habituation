@@ -221,18 +221,16 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
             new_odor_tags[i, list(new_tag)] = True
         for j in range(n_new_concs):
             # Project new odor, project its perpendicular component
-            svec = new_concs[j]*(new_odors[i] - x_par)
-            # We actually don't want to apply ReLU to understand what
-            # happened if some s vector is zero
-            #if str(activ_fct).lower() == "relu":
-            #    svec = relu_inplace(svec)
+            yvec = new_concs[j]*(new_odors[i] - x_par)
+            if str(activ_fct).lower() == "relu":
+                yvec = relu_inplace(yvec)
             x_mix = average_back + new_concs[j]*new_odors[i]
             # TODO: the threshold scale should be determined from the
             # actual mixture of background + conc*new_odor,
             # so I should load background samples after all.
             # Unless I start using a fixed, small threshold always.
             perp_tag = project_neural_tag(
-                        svec, x_mix, projmat, **proj_kwargs
+                        yvec, x_mix, projmat, **proj_kwargs
                         )
             jaccard_scores[i, 0, j, 0] = jaccard(new_tag, perp_tag)
             # Also save similarity to the most similar background odor
@@ -242,7 +240,7 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
             if lean:
                 y_l2_distances[i, 0, j, 0] = l2_norm(new_concs[j]*x_par)
             else:
-                mixture_yvecs[i, 0, j, 0] = svec
+                mixture_yvecs[i, 0, j, 0] = yvec
                 mixture_tags[i, 0, j, 0, list(perp_tag)] = True
 
     ref_file.close()

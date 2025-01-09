@@ -428,14 +428,14 @@ def select_model_functions(attrs):
 def save_simul_results(id, res, attrs, gp, snap_i, full_file=None, lean=False):
     result_items = {
         "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
-                 "cbar_snaps", "theta_snaps", "w_snaps", "s_snaps"],
+                 "hbar_snaps", "theta_snaps", "w_snaps", "y_snaps"],
         "PCA": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
-                 "l_snaps", "x_snaps", "cbar_snaps", "w_snaps", "s_snaps"],
+                 "l_snaps", "x_snaps", "hbar_snaps", "w_snaps", "y_snaps"],
         "AVG": ["tser", "back_conc_snaps", "back_vec_snaps",
-                 "w_snaps", "s_snaps"]
+                 "w_snaps", "y_snaps"]
     }
     drops = ["tser"]
-    if lean: drops += ["cbar_snaps", "theta_snaps", "s_snaps"]
+    if lean: drops += ["hbar_snaps", "theta_snaps", "y_snaps"]
     try:
         result_items[attrs["model"]]
     except KeyError:
@@ -450,7 +450,7 @@ def save_simul_results(id, res, attrs, gp, snap_i, full_file=None, lean=False):
     if full_file is not None:
         full_results = dict(zip(result_items[attrs["model"]], res))
         back_results = {k:full_results[k] 
-            for k in ["back_vec_snaps", "s_snaps"]}
+            for k in ["back_vec_snaps", "y_snaps"]}
         np.savez_compressed(full_file, **back_results)
     return gp
 

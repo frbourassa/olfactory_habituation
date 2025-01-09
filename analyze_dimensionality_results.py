@@ -10,7 +10,7 @@ import os
 from simulfcts.analysis import (
     concat_jaccards, 
     concat_new_mix_distances,
-    concat_sstats, 
+    concat_ystats, 
     concat_wmats, 
     concat_mmats, 
     concat_lmats

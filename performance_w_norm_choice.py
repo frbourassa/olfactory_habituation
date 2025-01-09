@@ -61,15 +61,15 @@ def save_simul_results_w(id, res, attrs, gp, snap_i):
             dset = res[i][snap_i, :, -1]  # Keep only concentrations
         elif lbl.endswith("ser"):
             dset = res[i]
-        elif lbl == "s_snaps":
+        elif lbl == "y_snaps":
             dset = res[i][snap_i]
             transient = 8 * res[i].shape[0] // 10
-            snorm = l2_norm(res[i][transient:], axis=1)
-            s_stats = np.asarray([
-                np.mean(snorm), np.var(snorm),
-                np.mean((snorm - np.mean(snorm))**3)
+            ynorm = l2_norm(res[i][transient:], axis=1)
+            y_stats = np.asarray([
+                np.mean(ynorm), np.var(ynorm),
+                np.mean((ynorm - np.mean(ynorm))**3)
             ])
-            gp.create_dataset("s_stats", data=s_stats)
+            gp.create_dataset("y_stats", data=y_stats)
         elif lbl.endswith("snaps"):
             dset = res[i][snap_i]
         gp.create_dataset(lbl, data=dset.copy())
@@ -94,22 +94,22 @@ def integrate_w_given_xc(xser, cser, w_init, inhib_params, dt, **options):
 
     # Containers for the solution over time
     w_series = np.zeros([xser.shape[0], n_orn, n_neu])  # Inhibitory weights
-    s_series = np.zeros([xser.shape[0], n_orn])
+    y_series = np.zeros([xser.shape[0], n_orn])
 
     ## Initialize running variables, separate from the containers above to avoid side effects.
     bkvec = xser[0]
     cbar = cser[0]
     wmat = w_init.copy()
-    svec = bkvec - wmat.dot(cbar)
+    yvec = bkvec - wmat.dot(cbar)
     if activ_fct == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     elif activ_fct == "identity":
         pass
     else:
         raise ValueError("Unknown activation fct: {}".format(activ_fct))
 
     # Store back some initial values in containers
-    s_series[0] = svec
+    y_series[0] = yvec
     w_series[0] = wmat
 
     t = 0
@@ -119,14 +119,14 @@ def integrate_w_given_xc(xser, cser, w_init, inhib_params, dt, **options):
         cbar = cser[k]
         t += dt
         ### Inhibitory  weights
-        # They depend on cbar and svec at time step k, which are still in cbar, svec
+        # They depend on cbar and yvec at time step k, which are still in cbar, yvec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
-        # while svec, shape [n_orn], should broadcast across rows (copied on each column)
-        alpha_term = alpha*cbar[np.newaxis, :]*svec[:, np.newaxis]
+        # while yvec, shape [n_orn], should broadcast across rows (copied on each column)
+        alpha_term = alpha*cbar[np.newaxis, :]*yvec[:, np.newaxis]
         if w_norms[0] == 1:
-            alpha_term /= max(l2_norm(svec), 1e-9)  # avoid zero division
+            alpha_term /= max(l2_norm(yvec), 1e-9)  # avoid zero division
         elif w_norms[0] > 2:  # Assuming even Lp norm
-            alpha_term *= l2_norm(svec)**(w_norms[0]-2)
+            alpha_term *= l2_norm(yvec)**(w_norms[0]-2)
 
         if w_norms[1] == 2:
             beta_term = beta*wmat
@@ -142,17 +142,17 @@ def integrate_w_given_xc(xser, cser, w_init, inhib_params, dt, **options):
         cbar = cser[k+1]
 
         # Compute projection neurons at time step k+1
-        svec = bkvec - wmat.dot(cbar)
+        yvec = bkvec - wmat.dot(cbar)
         if activ_fct == "relu":
-            relu_inplace(svec)
+            relu_inplace(yvec)
 
         # Save current state only if at a multiple of skp
         if (k % skp) == (skp - 1):
             knext = (k+1) // skp
             w_series[knext] = wmat
-            s_series[knext] = svec
+            y_series[knext] = yvec
 
-    return w_series, s_series
+    return w_series, y_series
 
 
 if __name__ == "__main__":

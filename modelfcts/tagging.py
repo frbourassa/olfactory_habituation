@@ -99,7 +99,7 @@ def relu_copy(x):
     return x * (x > 0)
 
 def project_neural_tag(y_vec, x_vec, projmat, **proj_kwargs):
-    """ Project the input layer s_vec
+    """ Project the input layer x_vec
     with the inhibitory feedback weights w_vec to the sparse kenyon cell (KC) output,
     thresholding KCs below kc_thresh and then keeping only a fraction kc_sparsity of active KCs.
 

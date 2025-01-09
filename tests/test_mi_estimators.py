@@ -21,7 +21,7 @@ from utils.random_matrices import random_covariance_mat
 def compare_mi_test(estim, exact, tol=0.1):
     msg = "Estimate: {:.6E}, true: {:.6E}".format(estim, exact)
     if abs(estim - exact) > tol:
-        raise AssertionError("Difference too large!", msg)
+        raise AysertionError("Difference too large!", msg)
     else:
         print("Error within tolerance.", msg)
     return 0

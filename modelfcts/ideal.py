@@ -218,7 +218,7 @@ def rerun_w_dynamics(w_init, xc_series, inhib_params, dt, skp=1, scale=1.0, **op
 
     Returns:
         wser (np.ndarray): shape [time, n_R, n_I]
-        sser (np.ndarray): shape [time, n_R]
+        yser (np.ndarray): shape [time, n_R]
     """
     # Extract parameters
     activ_fct = str(options.get("activ_fct", "ReLU")).lower()
@@ -234,22 +234,22 @@ def rerun_w_dynamics(w_init, xc_series, inhib_params, dt, skp=1, scale=1.0, **op
     n_i = cbarser.shape[1]
     # Prepare container series
     w_series = np.zeros([n_times // skp, n_r, n_i])
-    s_series = np.zeros([n_times // skp, n_r])
+    y_series = np.zeros([n_times // skp, n_r])
     # Current state variables
     wmat = w_init.copy()
     cbar = cbarser[0] * scale
     bkvec = bkvecser[0]
     xavg = xavgser[0]
-    svec = bkvecser[0] - wmat.dot(cbar)
+    yvec = bkvecser[0] - wmat.dot(cbar)
     if activ_fct == "relu":
-        relu_inplace(svec)
+        relu_inplace(yvec)
     elif activ_fct == "identity":
         pass
     else:
         raise ValueError("Unknown activation fct: {}".format(activ_fct))
     # Store initial values
     w_series[0] = w_init
-    s_series[0] = svec
+    y_series[0] = yvec
 
     # Start looping
     t = 0
@@ -260,17 +260,17 @@ def rerun_w_dynamics(w_init, xc_series, inhib_params, dt, skp=1, scale=1.0, **op
         bkvec = bkvecser[k]
         if remove_mean:  # Only change xavg from 0.0 if remove_mean
             xavg = xavgser[k]
-        wmat += dt * (alpha*cbar[np.newaxis, :]*svec[:, np.newaxis] - beta*wmat)
+        wmat += dt * (alpha*cbar[np.newaxis, :]*yvec[:, np.newaxis] - beta*wmat)
 
         # Lastly, projection neurons at time step k+1
-        svec = bkvec - xavg - wmat.dot(cbar)
+        yvec = bkvec - xavg - wmat.dot(cbar)
         if activ_fct == "relu":
-            relu_inplace(svec)
+            relu_inplace(yvec)
 
         # Save current state
         if (k % skp) == (skp - 1):
             knext = (k+1) // skp
             w_series[knext] = wmat
-            s_series[knext] = svec
+            y_series[knext] = yvec
 
-    return w_series, s_series
+    return w_series, y_series

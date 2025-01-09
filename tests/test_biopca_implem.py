@@ -189,7 +189,7 @@ def test_olfactory_back():
     res2 = integrate_inhib_ifpsp_network_skip(init_mmat, init_lmat, update_ou_kinputs,
             init_back_list, biopca_rates, inhib_rates, back_params, duration,
             deltat, seed=common_seed, noisetype="normal")
-    tser2, bkser2, bkvecser2, mser2, lser2, cbarser2, wser2, sser2 = res2
+    tser2, bkser2, bkvecser2, mser2, lser2, cbarser2, wser2, yser2 = res2
 
     assert np.allclose(mser1, mser2)
     assert np.allclose(lser1, lser2)
@@ -256,7 +256,7 @@ def test_mvnormal_back():
     res2 = integrate_inhib_ifpsp_network_skip(init_m, init_l, update_mvnormal,
             init_bk, biopca_params, inhib_rates, back_params, duration,
             deltat, seed=common_seed, noisetype="normal")
-    tser2, bkser2, bkvecser2, mser2, lser2, cbarser2, wser2, sser2 = res2
+    tser2, bkser2, bkvecser2, mser2, lser2, cbarser2, wser2, yser2 = res2
 
     assert np.allclose(mser1, mser2)
     assert np.allclose(lser1, lser2)

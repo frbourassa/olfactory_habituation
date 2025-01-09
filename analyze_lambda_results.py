@@ -9,7 +9,7 @@ import os
 
 from simulfcts.analysis import (
     concat_jaccards,
-    concat_sstats
+    concat_ystats
 )
 from modelfcts.checktools import compute_max_lambda_w_stability
 
@@ -28,7 +28,7 @@ def get_hnorm_at_lambda0(f):
     # Find LN activity (h) RMS norm at the smallest tested Lambda
     # since it's mostly likely stable numerically, and Lambda_0
     # itself hasn't been exactly tested
-    #hvec_norm = np.sqrt(np.sum(f.get("sim0000").get("cbar_snaps")[()]**2, axis=1))
+    #hvec_norm = np.sqrt(np.sum(f.get("sim0000").get("hbar_snaps")[()]**2, axis=1))
     # Take the max. mean encountered
     #hvec_norm_mean = np.max(hvec_norm)
     # Simulations should have saved the max cbar seen in the whole time series
@@ -91,7 +91,7 @@ def main_plot_performance():
     axes = axes.flatten()
     for m in models[::-1]:
         f = h5py.File(model_file_choices[m], "r")
-        all_stats = concat_sstats(f)
+        all_stats = concat_ystats(f)
         lambd_axis = f.get("parameters").get("lambd_range")[()]
         mask = all_stats > 100.0  # Clip excessively large values
         masked_stats = np.ma.masked_array(all_stats, mask)
@@ -113,7 +113,7 @@ def main_plot_performance():
         axes[i].set_xscale("log")
     axes[0].legend(loc="upper right")
     fig.tight_layout()
-    fig.savefig("figures/detection/s_stats_vs_lambda.pdf", transparent=True,
+    fig.savefig("figures/detection/y_stats_vs_lambda.pdf", transparent=True,
                 bbox_inches="tight")
     plt.close()
 

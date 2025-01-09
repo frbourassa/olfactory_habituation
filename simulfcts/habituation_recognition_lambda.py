@@ -96,11 +96,11 @@ def initialize_integration_lambda(
 def save_simul_results_lambda(id, res, attrs, gp, snap_i):
     result_items = {
         "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
-                 "cbar_snaps", "theta_snaps", "w_snaps", "s_snaps"],
+                 "hbar_snaps", "theta_snaps", "w_snaps", "y_snaps"],
         "PCA": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
-                 "l_snaps", "x_snaps", "cbar_snaps", "w_snaps", "s_snaps"],
+                 "l_snaps", "x_snaps", "hbar_snaps", "w_snaps", "y_snaps"],
         "AVG": ["tser", "back_conc_snaps", "back_vec_snaps",
-                 "w_snaps", "s_snaps"]
+                 "w_snaps", "y_snaps"]
     }
     try:
         item_names = result_items.get(attrs["model"])
@@ -110,16 +110,16 @@ def save_simul_results_lambda(id, res, attrs, gp, snap_i):
         if lbl == "tser" or res[i] is None: continue  # don't save this one
         elif lbl == "back_conc_snaps" and res[i].ndim == 3:
             dset = res[i][snap_i, :, -1]  # Keep only concentrations
-        elif lbl == "s_snaps":
+        elif lbl == "y_snaps":
             dset = res[i][snap_i]
             transient = 8 * res[i].shape[0] // 10
-            snorm = l2_norm(res[i][transient:], axis=1)
-            s_stats = np.asarray([
-                np.mean(snorm), np.var(snorm),
-                np.mean((snorm - np.mean(snorm))**3)
+            ynorm = l2_norm(res[i][transient:], axis=1)
+            y_stats = np.asarray([
+                np.mean(ynorm), np.var(ynorm),
+                np.mean((ynorm - np.mean(ynorm))**3)
             ])
-            gp.create_dataset("s_stats", data=s_stats)
-        elif lbl == "cbar_snaps":
+            gp.create_dataset("y_stats", data=y_stats)
+        elif lbl == "hbar_snaps":
             # Save maximum cbar encountered, to trace back blowups to
             # large cbar causing instability of the W numerical integrator
             dset = res[i][snap_i]
@@ -227,7 +227,7 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
         # Get the group created at launch time for this simulation id
         sim_gp = results_file.get(id_to_simkey(sim_id))
         # Save results, depending on model type the structure changes a bit
-        # TODO: Save statistics of inhibition in sser as well
+        # TODO: Save statistics of inhibition in yser as well
         save_simul_results_lambda(sim_id, sim_results, attributes, 
                                   sim_gp, snap_idx)
         print("Habituation run {} saved".format(sim_id))

@@ -23,7 +23,7 @@ def main_compute_jacobian_eigenvalues(n_d, n_b):
         xvecs.append(MatrixSymbol("x_{}".format(i), n_d, 1))
         cgammas.append(symbols("c_{}".format(i)))
     xmat = Matrix(xvecs)
-    cgammasvec = Matrix([[c] for c in cgammas])
+    cgammayvec = Matrix([[c] for c in cgammas])
 
     mmat = cgammasvec[0] * (MatMul(xvecs[0], xvecs[0].T)
                             + MatMul(xvecs[0], xvecs[0].T))
