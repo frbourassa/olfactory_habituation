@@ -263,8 +263,6 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
                 synaptic weights connecting one inhibitory neuron to inputs.
             theta_init (np.ndarray): initial thresholds Theta.
             w_init (np.ndarray): initial w
-            rng (np.random.Generator): random generator, input argument
-                so the same stream can be continued across restarts. 
 
 
         update_bk (callable): function that updates the background variables and
@@ -318,20 +316,20 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     # Legacy option to just pass initial M
     if isinstance(vari_inits, np.ndarray):
         m_init = vari_inits
+        n_neu = m_init.shape[0]  # Number of neurons
+        n_orn = m_init.shape[1]
         w_init = np.zeros([n_orn, n_neu])
         theta_init = None
-        rng = np.random.default_rng(seed=seed)
     elif isinstance(vari_inits, list) and len(vari_inits) == 1:
         m_init = np.asarray(vari_inits[0])
+        n_neu = m_init.shape[0]  # Number of neurons
+        n_orn = m_init.shape[1]
         w_init = np.zeros([n_orn, n_neu])
         theta_init = None
-        rng = np.random.default_rng(seed=seed)
-    else:  
-        # For restart, override seed with given external random generator
-        m_init, theta_init, w_init, rng = vari_inits
-    
-    n_neu = m_init.shape[0]  # Number of neurons
-    n_orn = m_init.shape[1]
+    else:
+        m_init, theta_init, w_init = vari_inits
+        n_neu = m_init.shape[0]  # Number of neurons
+        n_orn = m_init.shape[1]
 
     bk_vari_init, bk_vec_init = bk_init
     assert n_orn == bk_vec_init.shape[0], "Mismatch between dimension of m and background"
@@ -340,6 +338,7 @@ def integrate_inhib_ibcm_network_options(vari_inits, update_bk, bk_init,
     # Compensate for lambda different from 1, if applicable
     mu_abs = learnrate / lambd
 
+    rng = np.random.default_rng(seed=seed)
     tseries = np.arange(0, tmax, dt*skp)
 
     # Check that the biggest matrices, W or M, will not use too much memory
