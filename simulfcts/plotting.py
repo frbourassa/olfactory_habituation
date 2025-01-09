@@ -298,7 +298,7 @@ def plot_background_neurons_inhibition(ts, bks, ss, skp=100, colors=[]):
 
 ### PLOTS SPECIFIC TO IBCM MODEL
 def plot_cbars_gammas_sums(ts, ser_sums_cbg, ser_sums_cbg2, skp=200, skp_lbl=1):
-    """ Plot the time course of sums of dot products
+    r""" Plot the time course of sums of dot products
         $$ \sum_{\gamma} \bar{c}_{\gamma} $$
     and
         $$ \sum_{\gamma} \bar{c}_{\gamma}^2 $$
@@ -359,7 +359,7 @@ def plot_cbars_gamma_series(ts, cbg_ser, skp=200, transient=None):
     n_comp = cbg_ser.shape[2]
     n_neu = cbg_ser.shape[1]
     if transient is None:
-        transient = tser.size // 2
+        transient = ts.size // 2
     tfactor = 1000
 
     # Count the number of cgammas above and below the average.
