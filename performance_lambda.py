@@ -31,7 +31,7 @@ from simulfcts.habituation_recognition_lambda import (
 
 if __name__ == "__main__":
     # Results folder
-    folder = os.path.join("results", "performance")
+    folder = os.path.join("results", "performance_lambda")
 
     # Global seed, used for all models to get exact same backgrounds
     common_seed = 0xe4a1f15c70ecc52736db51e441a451dd
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
-        "n_pn_per_kc": 3,
+        "n_pn_per_kc": 3 * n_s // 25,
         "project_thresh_fact": 0.05
     }
     activ_fct_choice = "identity"
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     ibcm_preds = fixedpoint_thirdmoment_exact(moments_conc, 1, n_b-1)
 
     ### Run IBCM simulations for each Lambda choice
-    ibcm_file_name = os.path.join(folder, "ibcm_performance_lambda.h5")
+    ibcm_file_name = os.path.join(folder, f"ibcm_performance_lambda_{n_s}.h5")
     ibcm_attrs = {
         "model": "IBCM",
         "background": "turbulent",
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # Change number of inhibitory neurons, need less with PCA
     n_i = n_b
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    pca_file_name = os.path.join(folder, "biopca_performance_lambda.h5")
+    pca_file_name = os.path.join(folder, f"biopca_performance_lambda_{n_s}.h5")
     biopca_attrs = {
         "model": "PCA",
         "background": "turbulent",

@@ -40,10 +40,10 @@ def get_hnorm_at_lambda0(f):
     return hnorm_lambda0
 
 
-def main_plot_performance():
+def main_plot_performance(dim=25):
     # Compare IBCM and PCA as a function of Lambda
     # Plot s statistics vs lambda, plot Jaccard statistics vs Lambda
-    folder = os.path.join("results", "performance")
+    folder = os.path.join("results", "performance_lambda")
     models = ["ibcm", "biopca"]
     model_nice_names = {
         "ibcm": "IBCM",
@@ -55,7 +55,7 @@ def main_plot_performance():
         "none": "None"
     }
     model_file_choices = {
-        a:os.path.join(folder, a+"_performance_lambda.h5")
+        a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
         for a in models
     }
     model_colors = {
@@ -113,7 +113,7 @@ def main_plot_performance():
         axes[i].set_xscale("log")
     axes[0].legend(loc="upper right")
     fig.tight_layout()
-    fig.savefig("figures/detection/y_stats_vs_lambda.pdf", transparent=True,
+    fig.savefig(f"figures/detection/y_stats_vs_lambda_{dim}.pdf", transparent=True,
                 bbox_inches="tight")
     plt.close()
 
@@ -152,24 +152,72 @@ def main_plot_performance():
         axes[1, i].set_xscale("log")
     axes[0, 0].legend(loc="lower left")
     fig.tight_layout()
-    fig.savefig("figures/detection/jaccard_vs_lambda.pdf", transparent=True,
+    fig.savefig(f"figures/detection/jaccard_vs_lambda_{dim}.pdf", transparent=True,
                 bbox_inches="tight")
     plt.close()
     return None
 
 
-def main_export_jaccards(dest_name):
+def main_export_ystats(dest_name, dim=25):
     # Compare all algorithms
-    folder = os.path.join("results", "performance")
+    folder = os.path.join("results", "performance_lambda")
     models = ["ibcm", "biopca"]
     model_file_choices = {
-        a:os.path.join(folder, a+"_performance_results.h5")
+        a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
         for a in models
     }
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
     with h5py.File(model_file_choices["ibcm"], "r") as f:
-        n_new_concs = f.get("parameters").get("repeats")[4]
+        new_concs = f.get("parameters").get("new_concs")[()]
+        activ_fct = f.get("parameters").attrs.get("activ_fct")
+    # For each model, extract the matrix of Jaccard similarities,
+    # then save them all to one npz archive file.
+    stats_file = {"new_concs": new_concs}
+    for m in models[::-1]:  # Plot IBCM last
+        f = h5py.File(model_file_choices[m], "r")
+        all_stats = concat_ystats(f)
+        f.close()
+        stats_file[m] = all_stats
+    # Get expected Lambda at which numerical instabilities arise
+    lambda_limits = {a:0.0 for a in models}
+    lambda_zeros = {a:0.0 for a in models}
+    lambda_ranges = {a:None for a in models}
+    for mod in model_file_choices:
+        with h5py.File(model_file_choices[mod], "r") as f:
+            hnorm0 = get_hnorm_at_lambda0(f)
+            w_rates = f.get("parameters").get("w_rates")[()]
+            dt = f.get("parameters").get("time_params")[1]
+            lambda_lim = compute_max_lambda_w_stability(hnorm0, w_rates, dt)
+            # Absolute Lambda limit
+            lambda_zeros[mod] = np.asarray([get_lambda0(f)])
+            lambda_limits[mod] = np.asarray([lambda_lim * lambda_zeros[mod]])
+            lambda_ranges[mod] = f.get("parameters").get("lambd_range")[()]
+    
+    np.savez_compressed(
+        dest_name + f"_lambda_{dim}_" + activ_fct + ".npz",
+        lambda_limits_ibcm=lambda_limits["ibcm"],
+        lambda_limits_pca=lambda_limits["biopca"],
+        lambda_zeros_ibcm=lambda_zeros["ibcm"],
+        lambda_zeros_pca=lambda_zeros["biopca"], 
+        lambda_ranges_ibcm=lambda_ranges["ibcm"],
+        lambda_ranges_pca=lambda_ranges["biopca"],
+        **stats_file
+    )
+    return None
+
+
+def main_export_jaccards(dest_name, dim=25):
+    # Compare all algorithms
+    folder = os.path.join("results", "performance_lambda")
+    models = ["ibcm", "biopca"]
+    model_file_choices = {
+        a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
+        for a in models
+    }
+    # Get new odor concentrations
+    # Assume it's the same for all models: it should!
+    with h5py.File(model_file_choices["ibcm"], "r") as f:
         new_concs = f.get("parameters").get("new_concs")[()]
         activ_fct = f.get("parameters").attrs.get("activ_fct")
     # For each model, extract the matrix of Jaccard similarities,
@@ -182,18 +230,18 @@ def main_export_jaccards(dest_name):
         jac_file[m] = all_jacs
     # Save
     np.savez_compressed(
-        dest_name + "_" + activ_fct + ".npz",
+        dest_name + f"_lambda_{dim}_" + activ_fct + ".npz",
         **jac_file
     )
     return None
 
 
-def main_export_new_back_distances(dest_name):
+def main_export_new_back_distances(dest_name, dim=25):
     # Compare all algorithms
-    folder = os.path.join("results", "performance")
-    models = ["ibcm", "biopca", "avgsub", "ideal", "orthogonal", "none"]
+    folder = os.path.join("results", "performance_lambda")
+    models = ["ibcm", "biopca"]
     model_file_choices = {
-        a:os.path.join(folder, a+"_performance_results.h5")
+        a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
         for a in models
     }
     # Check that all models were exposed to the same background indeed
@@ -209,29 +257,30 @@ def main_export_new_back_distances(dest_name):
     backs = backs["ibcm"]
     news = news["ibcm"]
 
-    # n_runs, n_test_times, n_back_samples, n_new_odors, n_new_concs, skp
-    new_back_distances = np.zeros([n_backs, n_news])
-    for i in range(n_backs):
-        back_proj = find_projector(backs[i].T)
-        for j in range(n_news):
-            new_par = find_parallel_component(news[j], backs[i], back_proj)
-            new_ort = news[j] - new_par
-            new_back_distances[i, j] = l2_norm(new_ort)
-    # Compute the limit Lambdas based on the RMS PN activity at lambda = Lambda0
-    # TODO
-    lambda_limits = np.asarray([1.0, 1.0])
+    # There is only one background, the same for each tested Lambda value. 
+    # n_new_odors
+    new_back_distances = np.zeros(n_news)
+    back_proj = find_projector(backs.T)
+    for j in range(n_news):
+        new_par = find_parallel_component(news[j], backs, back_proj)
+        new_ort = news[j] - new_par
+        new_back_distances[j] = l2_norm(new_ort)
+    
     np.savez_compressed(
-        dest_name + "_" + str(activ_fct) + ".npz",
-        new_back_distances=new_back_distances, 
-        lambda_limits_ibcm_pca=lambda_limits
+        dest_name + f"_lambda_{dim}_" + str(activ_fct) + ".npz",
+        new_back_distances=new_back_distances
     )
     return None
 
 if __name__ == "__main__":
-    main_plot_performance()
-    #main_export_jaccards(
-    #    os.path.join("results", "for_plots", "jaccard_similarities")
-    #)
-    #main_export_new_back_distances(
-    #    os.path.join("results", "for_plots", "new_back_distances")
-    #)
+    n_s_dim = 300
+    main_plot_performance(dim=n_s_dim)
+    main_export_jaccards(
+        os.path.join("results", "for_plots", "jaccard_similarities"), dim=n_s_dim
+    )
+    main_export_ystats(
+        os.path.join("results", "for_plots", "ystats"), dim=n_s_dim
+    )
+    main_export_new_back_distances(
+        os.path.join("results", "for_plots", "new_back_distances"), dim=n_s_dim
+    )
