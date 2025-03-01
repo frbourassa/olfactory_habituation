@@ -62,7 +62,16 @@ def subspace_align_error(mat, target):
     u, s, vh = np.linalg.svd(target.dot(mat.T))
     q = u.dot(vh)
     # Compute alignment error
-    return frobnorm(q.dot(mat) - target) / frobnorm(target)
+    numer = frobnorm(q.dot(mat) - target)
+    denom = frobnorm(target)
+    dist = 0.0
+    if not np.allclose(denom, 0.0):
+        dist = numer / denom
+    elif numer == 0.0:
+        dist = 0.0
+    else: # division of a positive number by 0
+        dist = np.inf
+    return dist
 
 
 def jaccard(s1, s2):

@@ -140,7 +140,6 @@ def project_neural_tag(y_vec, x_vec, projmat, **proj_kwargs):
     if fix_thresh is not None:
         kc_thresh = fix_thresh
     # We need to reduce the threshold to still catch new odors partially inhibited too
-    # I use 0.1x what is in Shen 2020.
     elif adapt_kc:
         kc_thresh = np.mean(x_vec) * n_pn_per_kc / 3
     else:

@@ -21,6 +21,7 @@ notes/
 *.npy
 *.npz
 results/for_plots/*.json
+results/for_plots/*.txt
 results/for_plots/backups/*.json
 results/performance_w/*.json
 *.h5
@@ -31,3 +32,4 @@ results/performance_w/*.json
 *.fossil
 .fslckout
 *.ipynb_checkpoints/
+final_plotting/panel*/*.pdf

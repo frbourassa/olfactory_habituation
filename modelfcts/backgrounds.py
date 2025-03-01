@@ -187,7 +187,7 @@ def update_logou_kinputs(nu_bk, params_bk, noises, dt):
     in front of of x(t) and \vec{n} in the update rule.
 
     Args:
-        nu_bk (np.ndarray): array of length K, containing concentrations nu_i
+        nu_bk (np.ndarray): array of length K, containing log10 of concentrations nu_i
             of odorants in the background
         params_bk (list of arrays): mateA, matJB, vecs_nu, means_nu: matrices of shape (K, K)
             involved in the update rule and matrix of background component vectors x_{\alpha}, shape (K, d)

@@ -64,6 +64,10 @@ def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
 
     Using a ReLU activation function on projection neurons.
 
+    Note: what we call L in this function is really L' = L^{-1}, 
+    the inverse of the L matrix in our general olfactory network circuit. 
+    L' gets updated and is returned in l_series by this function. 
+
     Args:
         ml_inits (list of 2 np.ndarray):
             m_init: 2d array, shape (number neurons, number dimensions)

@@ -557,6 +557,31 @@ def ibcm_all_largest_eigenvalues(
     return all_largest_eigenvalues
 
 
+def ibcm_saddle_eigenvalues(
+        moments, ibcm_params, back_comps, m3=1.0, cut=1e-16, options={}
+    ):
+    """ For one IBCM neuron, compute the non-zero eigenvalue
+    with the largest real part for each possible fixed point,
+    as defined by possible specificity to each odor.
+
+    Args:
+        moments (list): average, variance, third central moment of
+            background odor concentrations, assumed i.i.d.
+        ibcm_params (list): the pure IBCM rates, mu, tau_theta, eta
+    """
+    n_components = back_comps.shape[0]
+    specif_vec = np.zeros(n_components, dtype=bool)
+    jacob = jacobian_fixedpoint_thirdmoment(
+                moments, ibcm_params, specif_vec, back_comps, m3=m3,
+                options=options
+            )
+    eigvals = np.linalg.eigvals(jacob)
+    # Keep non-zero eigvals only; the zero ones reflect the fact
+    # that dynamics lie in the background subspace.
+    eigvals = eigvals[np.absolute(eigvals) > cut]
+    return eigvals
+
+
 def lambda_pca_equivalent(h_dots, moments_conc, n_b, w_alpha_beta, verbose=False):
     """ Compute the Lambda scaling factor for the BioPCA model
     so its magnitude of background reduction is equivalent to

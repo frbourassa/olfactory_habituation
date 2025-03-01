@@ -364,12 +364,14 @@ def compute_pca_meankept(samp, do_proj=False, vari_thresh=1.0, force_svd=False, 
 
 def compute_projector_series(mser, lser):
     nt = mser.shape[0]
+    # Note that lser here is really L' = L^{-1}
     nk = lser.shape[1]
     linvdiag = 1.0 / np.diagonal(lser, axis1=1, axis2=2)
     loffd = lser.copy()
     loffd[:, np.arange(nk), np.arange(nk)] = 0.0
 
     linvser = linvdiag[:, :, None] * (np.tile(np.eye(nk), (nt, 1, 1)) - loffd * linvdiag[:, None, :])
+    # So we are simply computing LM at each time point here. 
     fser = np.einsum("...ij,...jk", linvser, mser)  # ... allows broadcasting
     return fser
 
@@ -399,7 +401,8 @@ def analyze_pca_learning(xser, mser, lser, lambda_diag, demean=False):
     offd_avg_abs = np.mean(np.abs(loffd), axis=(1, 2))
 
     # Subspace alignment
-    learnt_pca_ser = [learntvecs[i].T for i in range(nt)]
-    error_series = np.asarray([subspace_align_error(eigvecs[:, :nk], v) for v in learnt_pca_ser])
+    # Target is eigvects and should be the second arg of subspace_align_error
+    error_series = np.asarray([subspace_align_error(learntvecs[i].T, eigvecs[:, :nk]) 
+                               for i in range(nt)])
 
     return [eigvals, eigvecs], [learntvals, learntvecs], fser, offd_avg_abs, error_series
