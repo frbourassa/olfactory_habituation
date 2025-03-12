@@ -122,7 +122,7 @@ As laid out in Gautam's note, we want to minimize the loss function
 With these assumptions on the background and new odor statistics, we can expand the square and write out the different terms in the loss function. First, using the statistical independence of $\vec{x}$ and $\vec{b}_{t'}$ and their zero means, the terms to evaluate are
  \begin{align*}
  	\mathcal{L} =&  \braket{{\vec{b}_t}^T \vec{b}_t} + \sum_{l, m} v_l v_m \braket{{\vec{b}_{t-l}}^T \vec{b}_{t-m}} +  \braket{ {\vec{b}_t}^T W^T W \vec{b}_t} + \braket{{\vec{x}}^T W^T W \vec{x}} \nonumber \\
-		& -2 \sum_{l=1}^{t-1} v_l \braket{{\vec{b}_t}^T \vec{b}_{t-l}} - 2 \braket{{\vec{b}_t}^T W \vec{b}_t} + 2 \sum_{l=1}^{t-1} v_l \braket{{\vec{b}_{t-k}}^T W \vec{b}_t}  \nonumber \,\, .
+		& -2 \sum_{l=1}^{t-1} v_l \braket{{\vec{b}_t}^T \vec{b}_{t-l}} - 2 \braket{{\vec{b}_t}^T W \vec{b}_t} + 2 \sum_{l=1}^{t-1} v_l \braket{{\vec{b}_{t-l}}^T W \vec{b}_t}  \nonumber \,\, .
  \end{align*}
  
 We compute these terms more explicitly by using the background properties defined above. The loss function is thus
@@ -176,11 +176,11 @@ M = \sigma^2 \sum_{\rho} \hat{y}_{\rho} \hat{y}_{\rho}^T + \braket{\vec{x} \vec{
 \eeq
 which admits a spectral decomposition $M = U \Sigma U^T$ and a Moore-Penrose pseudo-inverse $M^+ = U \Sigma^+ U^T$, which is the actual inverse $M^{-1}$ when $M$ is invertible (\ie no zero eigenvalue in $\Sigma$). Equation~\ref{eq:w_equation} thus takes the form $WM = (\sigma^2 - \underline{v}^T\underline{c}) \sum_{\rho} \hat{y}_{\rho} \hat{y}_{\rho}^T$, which can be inverted for $W_M = W U \Sigma \Sigma^+ U^T$, the component of $W$ in the subspace spanned by $M$'s eigenvectors of non-zero eigenvalues:
 \begin{equation*}
-W_M  = W U (\Sigma \Sigma^+) U^T = (\sigma^2 - \underline{v}^T \underline{c}) \sum_{\rho} \hat{y}_{\rho}^T (U \Sigma^+ U^T) 
+W_M  = W U (\Sigma \Sigma^+) U^T = (\sigma^2 - \underline{v}^T \underline{c}) \sum_{\rho} \hat{y}_{\rho} \hat{y}_{\rho}^T (U \Sigma^+ U^T) 
 \end{equation*}
 The $W$ component in the null space of $M$, if any, is not constrained by this optimization problem, so we set it to zero, and take $W = W_M$. Hence, 
 \beq
-	W = (\sigma^2 - \underline{v}^T \underline{c}) \sum_{\rho} \hat{y}_{\rho}^T \hat{y}_{\rho} M^+
+	W = (\sigma^2 - \underline{v}^T \underline{c}) \sum_{\rho} \hat{y}_{\rho} \hat{y}_{\rho}^T M^+ \,\, .
 	\label{eq:w_in_terms_v}
 \eeq
 
@@ -195,7 +195,7 @@ where we have defined
 	m_y = \frac{1}{K} \sum_{\rho, \lambda=1}^K (\hat{y}_{\rho}^T \hat{y}_{\lambda}) \hat{y}_{\lambda}^T M^+ \hat{y}_{\rho} \,\, .
 	\label{eq:m_y_def}
 \eeq
-We have not assumed orthogonality of the background odor directions $\hat{y}_{\rho}$, but if that were the case, $m_y$ would simplify to $\frac1K \sum_{\rho} \hat{y}_{\rho} M^+ \hat{y}_{\rho}$. 
+We have not assumed orthogonality of the background odor directions $\hat{y}_{\rho}$, but if that were the case, $m_y$ would simplify to $\frac1K \sum_{\rho} \hat{y}_{\rho}^T M^+ \hat{y}_{\rho}$. 
 
 Inserting in eq.~\eqref{eq:v_equation}, dividing by $K$, and isolating $\underline{v}$ by assuming that the autocorrelation matrix $\dul{C}$ is invertible, we have
 \begin{equation*}
@@ -241,13 +241,13 @@ We give here a few details on how some terms simplify when we insert the solutio
 	\underline{v}^T \dul{C} \, \underline{v} = \left(\frac{1 - \sigma^2 m_y}{1 - \gamma m_y} \right)^2 \underline{c}^T \dul{C}^{-1} \dul{C} \dul{C}^{-1} \underline{c} = \left(\frac{1 - \sigma^2 m_y}{1 - \gamma m_y} \right)^2 \gamma \,\, .
 \end{equation*}
 
-The next two terms can be combined, using the fact that $W$ is symmetric (from its solution) and moving some scalars resulting from dot products around:
+The next two terms can be combined. First, using the fact that $M$ and thus $M^+$ and $W$ are symmetric, moving around some scalars resulting from dot products, and renaming $\mu \leftrightarrow \rho$,
 \begin{align*}
 	\sigma^2 \sum_{\rho} \hat{y}_{\rho}^T W^T W \hat{y}_{\rho} 
 	&= \sigma^2 \left(\frac{\sigma^2 - \gamma}{1 - \gamma m_y}\right)^2 \sum_{\rho, \lambda, \mu} \hat{y}_{\rho}^T M^+ \hat{y}_{\mu} \,\,\, \hat{y}_{\mu}^T \hat{y}_{\lambda}  \,\,\, \hat{y}_{\lambda}^T M^+ \hat{y}_{\rho}	\\
-	&= \sigma^2 \left(\frac{\sigma^2 - \gamma}{1 - \gamma m_y}\right)^2 \sum_{\rho, \lambda} \hat{y}_{\rho}^T M^+ \left(\sum_{\mu} \hat{y}_{\mu} \hat{y}_{\mu}^T \right) M^+ \hat{y}_{\lambda} (\hat{y}_{\lambda}^T \hat{y}_{\rho})
+	&= \sigma^2 \left(\frac{\sigma^2 - \gamma}{1 - \gamma m_y}\right)^2 \sum_{\rho, \lambda} \hat{y}_{\rho}^T M^+ \left(\sum_{\mu} \hat{y}_{\mu} \hat{y}_{\mu}^T \right) M^+ \hat{y}_{\lambda} (\hat{y}_{\lambda}^T \hat{y}_{\rho}) \,\, .
 \end{align*}
-and, since $\vec{x}^T M^+ \hat{y}_{\rho} = \hat{y}_{\rho}^T M^+ \vec{x}$ because $M$ and thus $M^+$ are symmetric,
+Second, since $\vec{x}^T M^+ \hat{y}_{\rho} = \hat{y}_{\rho}^T M^+ \vec{x}$ because $M^+$ is symmetric,
 \begin{align*}
 	\braket{\vec{x}^T W^T W \vec{x}} 
 	&= \left(\frac{\sigma^2 - \gamma}{1 - \gamma m_y}\right)^2 \sum_{\rho, \lambda} \braket{\vec{x}^T M^+ \hat{y}_{\rho} \hat{y}_{\rho}^T \hat{y}_{\lambda} \hat{y}_{\lambda}^T M^+ \vec{x} }	\\

@@ -128,7 +128,7 @@ def check_turbulent_background_stats(tcser, back_rates):
 
 
 def compute_ibcm_second_derivative(m_fix, theta_fix, ibcm_params, back_moments):
-    """ Function to compute the second time derivative of the IBCM model
+    r""" Function to compute the second time derivative of the IBCM model
     (which serves to compute the error term of the Euler integration method)
     for the equations of a single neuron responding to a background
     characterized by its first three moments.

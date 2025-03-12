@@ -407,4 +407,10 @@ if __name__ == "__main__":
     df_m_w_pca = main_compare_lm_w_magnitudes(folder, "PCA")
     main_plot_m_w_magnitudes(df_m_w_ibcm, df_m_w_pca)
 
+    # Save concatenated dataframe for further final plotting
+    df_both = pd.concat({"ibcm": df_stats_ibcm, "biopca":df_stats_biopca}, 
+                        names=["Model"], axis=0)
+    df_both.to_hdf(os.path.join("results", "for_plots", 
+                    "df_w_pqnorms_stats_bothmodels.h5"), key="df")
+
     print("Done!")
