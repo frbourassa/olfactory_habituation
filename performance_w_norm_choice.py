@@ -173,9 +173,9 @@ if __name__ == "__main__":
     p_choices = (1, 2, 16)
     q_choices = (1, 2)
     alpha_grids_p = {  # Depends on p, decrease alpha for smaller p, vice-versa
-        1: 10**np.arange(-7.0, -6.0, 0.3),
+        1: 10**np.arange(-6.0, -5.0, 0.3),
         2: 10**np.arange(-5.0, -4.2, 0.25),
-        16: 10**np.arange(-5.0, -4.0, 0.3)
+        16: 10**np.arange(-4.5, -3.5, 0.3)
     }
     beta_grids_q = {  # Depends on q, decrease beta for small q, vice-versa
         1: 10**np.arange(-8.0, -6.9, 0.5),
