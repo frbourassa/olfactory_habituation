@@ -80,19 +80,26 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
     bk_series[0] = bk_vari
     bkvec_series[0] = bkvec
 
-    # Generate N(0, 1) noise samples in advance
-    if (tseries.shape[0]*skp-1)*bk_vari.size > 2e7:
-        raise ValueError("Too much memory needed; consider calling multiple times for shorter times")
+    # Generate noise samples in advance, by chunks of at most 2e7 samples
     if noisetype == "normal":
-        noises = rng.normal(0, 1, size=(tseries.shape[0]*skp-1,*bk_vari.shape))
+        sample_fct = rng.standard_normal
     elif noisetype == "uniform":
-        noises = rng.random(size=(tseries.shape[0]*skp-1, *bk_vari.shape))
+        sample_fct = rng.random
     else:
         raise NotImplementedError("Noise option {} not implemented".format(noisetype))
+    max_chunk_size = int(2e7)
+    # step multiple at which we run out of noises and need to replenish
+    kchunk = max_chunk_size // bk_vari.size
+    max_n_steps = len(tseries)*skp-1  # vs total number of steps
 
     t = 0
-    for k in range(0, len(tseries)*skp-1):
+    for k in range(0, max_n_steps):
         t += dt
+        # Replenish noise samples if necessary
+        if k % kchunk == 0:
+            steps_left = max_n_steps - k
+            noises = sample_fct(size=(min(kchunk, steps_left), *bk_vari.shape))
+        
         ### Inhibitory weights
         # They depend on cbar and yvec at time step k, which are still in cbar, yvec
         # cbar, shape [n_neu], should broadcast against columns of wmat,
@@ -100,7 +107,7 @@ def integrate_inhib_average_sub_skip(m_init, update_bk,
         wmat = wmat + dt * (alpha*yvec[:, np.newaxis] - beta*wmat)
 
         # Update background to time k+1, to be used in next time step
-        bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k], dt)
+        bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k % kchunk], dt)
 
         # Lastly, projection neurons at time step k+1
         yvec = bkvec - wmat[:, 0]

@@ -62,10 +62,10 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 30  # nb of habituation runs, each with a different background
+    n_runs = 64  # nb of habituation runs, each with a different background
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
-    n_new_odors = 30  # nb new odors at each test time
+    n_new_odors = 100  # nb new odors at each test time
     skip_steps = 100
     repeats_array = np.asarray([
                         n_runs, n_test_times, n_back_samples,
@@ -137,7 +137,7 @@ if __name__ == "__main__":
         "dimensions": dimensions_array,
         "repeats": repeats_array,
         # learnrate, tau_avg, eta, lambda, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.00125, 1600.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
+        "m_rates": np.asarray([0.00075, 2000.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,
