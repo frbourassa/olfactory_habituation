@@ -92,7 +92,8 @@ from modelfcts.backgrounds import (
     update_powerlaw_times_concs,
     sample_background_powerlaw,
     sample_ss_conc_powerlaw,
-    generate_odorant
+    generate_odorant, 
+    update_powerlaw_gauss_noise
 )
 from modelfcts.tagging import (
     project_neural_tag,
@@ -112,10 +113,12 @@ def select_sampling_functions(attrs):
     """ Select the right background sampling function, based on the background
     process in attrs"""
     back_conc_map = {
-        "turbulent": sample_ss_conc_powerlaw
+        "turbulent": sample_ss_conc_powerlaw, 
+        #"turbulent_noisy": sample_ss_conc_powerlaw
     }
     back_vec_map = {
-        "turbulent": sample_background_powerlaw
+        "turbulent": sample_background_powerlaw, 
+        #"turbulent_noisy": sample_background_powerlaw
     }
     try:
         sample_conc = back_conc_map[attrs["background"]]
@@ -412,6 +415,7 @@ def select_model_functions(attrs):
     # Select background update function
     back_function_map = {
         "turbulent": (update_powerlaw_times_concs, "uniform"),
+        "turbulent_noisy": (update_powerlaw_gauss_noise, "uniform"),
         "log-normal": (update_logou_kinputs, "normal"),
         "third_moment": (update_thirdmoment_kinputs, "normal"),
         "gaussian": (update_ou_kinputs, "normal"),
@@ -470,6 +474,23 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
         back_tc = np.stack([i_times, i_concs.squeeze()], axis=1)
         back_vec = back_tc[:, 1].dot(back_vecs)
         back_init = [back_tc, back_vec]
+    elif attrs["background"] == "turbulent_noisy":
+        # Regular turbulent background to begin, exclude last back_params = noise ampli
+        i_concs = sample_ss_conc_powerlaw(*back_params[:-1], size=1, rgen=rng)
+        i_times = powerlaw_cutoff_inverse_transform(
+                rng.random(size=dimensions[1]), *back_params[2:4])
+        back_tc = np.stack([i_times, i_concs.squeeze()], axis=1)
+        back_vec = back_tc[:, 1].dot(back_vecs)
+        # Add Gaussian noise samples
+        noise_amplis = back_params[-1]
+        dim_ns = dimensions[0]
+        n_gauss_rows = dim_ns // 2 + dim_ns % 2
+        init_noises = rng.normal(size=[n_gauss_rows, 2])
+        back_tc = np.concatenate([back_tc, init_noises], axis=0)
+        # Add the initial noise to the OSN activity vector too
+        back_vec += noise_amplis * init_noises.flatten()[:dim_ns]
+        back_init = [back_tc, back_vec]
+
     else:
         raise NotImplementedError("Did not implement background type"
                 + "{} initialization".format(attrs["background"]))

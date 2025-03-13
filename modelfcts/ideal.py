@@ -63,12 +63,17 @@ def ideal_linear_inhibitor(x_n_par, x_n_ort, x_back, f, factor, **opt):
     Returns:
         s (np.1darray): projection neurons after perfect linear inhibition
     """
+    # Portion of the back samples which is orthogonal to the learnt subspace
+    # for cases where there is noise. x_back contains ort and par components. 
+    back_samples_ort = opt.get("back_ort", 0.0)
     # Allow broadcasting for multiple x_back vectors
     #factor = beta / (2*alpha + beta)
     s = factor * f*x_n_par + f*x_n_ort
     # I thought the following would have been even better, but turns out it is worse for small f
     #s = f*x_n_par + f*x_n_ort
     s = s.reshape(1, -1) + factor * x_back
+    # Full back_ort should be there, not just factor*it. 
+    s += (1 - factor) * back_samples_ort
     if str(opt.get("activ_fct", "ReLU")).lower() == "relu":
         relu_inplace(s)
     else:

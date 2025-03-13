@@ -376,6 +376,84 @@ def sample_background_powerlaw(vecs_nu, *args, size=1, rgen=None):
     return vec_samp
 
 
+### Turbulent background with Gaussian noise on OSNs ###
+def box_muller_2d(samples, pair_axis=0):
+    """ Transform pairs of uniform(0, 1) random samples to 
+    pairs of normal(0, 1) using the Box-Muller transform. 
+    
+    Args:
+        samples (np.ndarray): 1d or 2d array of samples
+        pair_axis (int): axis of length 2 containing
+            pairs of samples. Default: 0
+    """
+    # Since we don't know the axis of pairs yet, use the .take method: 
+    # https://numpy.org/doc/stable/reference/generated/numpy.take.html
+    # my_array.take(indices=range(2, 7), axis=3)
+    ampli = np.sqrt(-2.0*np.log(samples.take(indices=0, axis=pair_axis)))
+    twopisamples = 2.0*np.pi*samples.take(indices=1, axis=pair_axis)
+    z1 = ampli * np.cos(twopisamples)
+    z2 = ampli * np.sin(twopisamples)
+    return np.stack([z1, z2], axis=pair_axis)
+
+def update_powerlaw_gauss_noise(tc_bk, params_bk, noises, dt):
+    """
+    Simulate turbulent odors by pulling wait times until the end of a whiff
+        or until the next blank, and a concentration of the whiff.
+        For each odor, check whether the time left until switch is <= zero;
+        if so, pull either
+            - another wait time t_w if current c=0, and pull the new c > 0
+              (we were in a blank and are starting a whiff)
+            - another wait time t_b if current c > 0, and set c = 0
+              (we were in a whiff and are starting a blank)
+        Otherwise, decrement t by dt and don't change c.
+    Then add uncorrelated Gaussian white noise to each ORN in 
+    the background vector. 
+
+    Args:
+        tc_bk (np.ndarray): array of t, c for each odor in the background,
+            where t = time left until next change, c = current concentration
+            of the odor. 
+            And remaining n_R//2 rows are current Gaussian noise. 
+            Shaped [n_odors + n_R//2, 2]
+        params_bk (list): contains the following elements (a lot needed!):
+            whiff_tmins (np.ndarray): lower cutoff in the power law
+                of whiff durations, for each odor
+            whiff_tmaxs (np.ndarray): upper cutoff in the power law
+                of whiff durations, for each odor
+            blank_tmins (np.ndarray): same as whiff_tmins but for blanks
+            blank_tmaxs (np.ndarray): same as whiff_tmaxs but for blanks
+            c0s (np.ndarray): c0 concentration scale for each odor
+            alphas (np.ndarray): alpha*c0 is the lower cutoff of p_c
+            noise_ampli (1-element array): amplitude (standard dev.) 
+                of Gaussian white noise added to each ORN on top of the background. 
+            vecs (np.ndarray): 2d array where each row is one of the
+                possible input vectors
+        noises (np.ndarray): fresh U(0, 1) samples, shaped [n_odors + [n_R//2], 2],
+            in case we need to pull a new t and/or c.
+        dt (float): time step duration, in simulation units
+    """
+    # Update one odor's t and c at a time, if necessary
+    tc_bk_new = np.zeros(tc_bk.shape)
+    # infer number of odors based on number of dimensions
+    vecs_nu = params_bk[-1]
+    n_odors, n_orn = vecs_nu.shape
+    for i in range(n_odors):
+        tc_bk_new[i] = update_tc_odor(tc_bk[i], dt, noises[i, :2],
+                                *[p[i] for p in params_bk[:6]])
+    # Transform the remaining n_R samples to normal samples, 
+    # to be added as normal noise. Save them as RVs too
+    tc_bk_new[n_odors:] = box_muller_2d(noises[n_odors:], pair_axis=1)
+    norm_noises = tc_bk_new[n_odors:].flatten()
+
+    # Compute backgound vector (even if it didn't change)
+    # TODO: this could be optimized too by giving the current back vec
+    # as an input, but this requires editing the ibcm simulation functions
+    new_bk_vec = np.dot(tc_bk_new[:n_odors, 1], vecs_nu)
+    #noise_ampli = params_bk[-2]
+    new_bk_vec += params_bk[-2] * norm_noises[:new_bk_vec.shape[0]]  # If odd n_R, remove last noise
+    return new_bk_vec, tc_bk_new
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # Test the power law background
