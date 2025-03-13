@@ -206,7 +206,7 @@ def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
 
     # Save the jacs
     print(all_jacs.shape)
-    dest_name_full = dest_name + "_" + activ_fct + ".hdf"
+    dest_name_full = dest_name + "_" + activ_fct + ".h5"
     all_jacs.to_hdf(dest_name_full, key="df")
     # and the information about the noise range in a separate Series
     # in the same file, with key "noise_range"
@@ -338,7 +338,7 @@ def main_export_new_mix_distance_stats(dest_name):
 
     # Save the results
     print(all_dists.shape)
-    dest_name_full = dest_name + "_" + activ_fct + ".hdf"
+    dest_name_full = dest_name + "_" + activ_fct + ".h5"
     all_dists.to_hdf(dest_name_full, key="df")
     # and the information about the noise range in a separate Series
     # in the same file, with key "noise_range"
