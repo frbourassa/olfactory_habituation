@@ -45,6 +45,34 @@ from simulfcts.habituation_recognition import (
 from modelfcts.backgrounds import generate_odorant
 
 
+def recover_back_samples(gp, backvecs, backtype, reffile, lean):
+    if lean:
+        nu_samples = gp.get("test_results").get("conc_samples")[()]
+        # Add Gaussian noise
+        if backtype == "turbulent_gaussnoise":
+            n_osn = backvecs.shape[1]
+            n_odors = backvecs.shape[0]
+            n_missing = n_osn - (nu_samples.shape[-1] - n_odors)
+            paramgp = reffile.get("parameters")
+            noise_amplis = paramgp["back_params_6"]
+            # Need to create a new random generator with unique spawn key
+            mainseed = reffile.attrs["main_seed"]
+            spseed = int(gp.attrs["spawn_seed"], 16)
+            seed_seq = np.random.SeedSequence(int(mainseed), spawn_key=(spseed, n_osn))
+            rng = np.random.default_rng(seed_seq)
+            extra_gauss = rng.normal(size=(nu_samples.shape[0], 
+                                nu_samples.shape[1], n_missing))
+            noises = np.concatenate([nu_samples[:, :, n_odors:], extra_gauss], axis=2)
+            conc_samples = nu_samples[:, :, :n_odors]
+            back_samples = conc_samples.dot(backvecs) + noises*noise_amplis
+        else:
+            conc_samples = nu_samples
+            back_samples = conc_samples.dot(backvecs)
+    else:
+        back_samples = gp.get("test_results").get("back_samples")[()]
+    return back_samples
+
+
 def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     """ Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
@@ -56,6 +84,7 @@ def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     new_odors = ref_file.get("odors").get("new_odors")[()]
     back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
     new_concs = ref_file.get("parameters").get("new_concs")[()]
+    bkname = ref_file.attrs["background"]
 
     # Dimensions, etc.
     n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
@@ -65,11 +94,8 @@ def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
 
     # Get the background samples
-    if lean:
-        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
-        back_samples = conc_samples.dot(back_odors)
-    else:
-        back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    # gp, backvecs, backtype, paramgp, lean
+    back_samples = recover_back_samples(sim_gp, back_odors, bkname, ref_file, lean)
 
     # Containers for the results
     jaccard_scores = np.zeros([n_new_odors, n_times,
@@ -175,6 +201,7 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
     new_odors = ref_file.get("odors").get("new_odors")[()]
     back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
     new_concs = ref_file.get("parameters").get("new_concs")[()]
+    bkname = ref_file.attrs["background"]
 
     # Dimensions, etc.
     n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
@@ -183,11 +210,7 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
 
     # Get the average of background samples to set the KC thresholds
-    if lean:
-        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
-        back_samples = conc_samples.dot(back_odors)
-    else:
-        back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    back_samples = recover_back_samples(sim_gp, back_odors, bkname, ref_file, lean)
     average_back = np.mean(back_samples, axis=(0, 1))
 
     # Projector to subtract the parallel component
@@ -225,10 +248,12 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
             if str(activ_fct).lower() == "relu":
                 yvec = relu_inplace(yvec)
             x_mix = average_back + new_concs[j]*new_odors[i]
-            # TODO: the threshold scale should be determined from the
-            # actual mixture of background + conc*new_odor,
-            # so I should load background samples after all.
-            # Unless I start using a fixed, small threshold always.
+            # TODO: If Gaussian noise, add the orthogonal component of that noise
+            # Should have different background samples... contrary to other back process types
+            # TODO: figure out how to store more maybe. 
+            if bkname == "turbulent_gaussnoise":
+                x_mix = back_samples[j] + new_concs[j]*new_odors[i]
+
             perp_tag = project_neural_tag(
                         yvec, x_mix, projmat, **proj_kwargs
                         )
@@ -278,6 +303,7 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
     back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
     new_concs = ref_file.get("parameters").get("new_concs")[()]
     moments_conc = ref_file.get("parameters").get("moments_conc")[()]
+    bkname = ref_file.attrs["background"]
 
     # Dimensions, etc.
     n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
@@ -287,11 +313,7 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
 
     # Get the background samples
-    if lean:
-        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
-        back_samples = conc_samples.dot(back_odors)
-    else:
-        back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    back_samples = recover_back_samples(sim_gp, back_odors, bkname, ref_file, lean)
     
     # Projector to subtract the parallel component
     projector = find_projector(back_odors.T)
@@ -402,6 +424,7 @@ def optimal_recognition_one_sim(sim_id, filename_ref, lean=False):
     back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
     new_concs = ref_file.get("parameters").get("new_concs")[()]
     moments_conc = ref_file.get("parameters").get("moments_conc")[()]
+    bkname = ref_file.attrs["background"]
     # IBCM factor: this can be too much reduction compared to the optimum.
     #factor = w_rates[1] / (2*w_rates[0] + w_rates[1])
 
@@ -413,11 +436,7 @@ def optimal_recognition_one_sim(sim_id, filename_ref, lean=False):
     activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU").lower()
 
     # Get the background samples
-    if lean:
-        conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
-        back_samples = conc_samples.dot(back_odors)
-    else:
-        back_samples = sim_gp.get("test_results").get("back_samples")[()]
+    back_samples = recover_back_samples(sim_gp, back_odors, bkname, ref_file, lean)
 
     # Compute optimal W matrix for all new odors possible
     dummy_rgen = np.random.default_rng(0x773989f92ef489f1ae6b044e2ebdcb36)

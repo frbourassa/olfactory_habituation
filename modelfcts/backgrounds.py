@@ -167,7 +167,7 @@ def sample_background_thirdmoment(means_nu, covmat_nu, epsil, vecs_nu, size=1, r
     # Each row in nu_samp is a different sample, so taking the dot product
     # the first dimension still indexes samples, the second gives components.
     vec_samp = np.dot(nu_samp, vecs_nu)
-    return vec_samp
+    return vec_samp, nu_samp
 
 
 # LOG-NORMAL PROCESS (simulate the log with Ornstein-Uhlenbeck)
@@ -373,7 +373,7 @@ def sample_background_powerlaw(vecs_nu, *args, size=1, rgen=None):
     # Each row in nu_samp is a different sample, so taking the dot product
     # the first dimension still indexes samples, the second gives components.
     vec_samp = np.dot(nu_samp, vecs_nu)
-    return vec_samp
+    return vec_samp, nu_samp
 
 
 ### Turbulent background with Gaussian noise on OSNs ###
@@ -452,6 +452,80 @@ def update_powerlaw_gauss_noise(tc_bk, params_bk, noises, dt):
     #noise_ampli = params_bk[-2]
     new_bk_vec += params_bk[-2] * norm_noises[:new_bk_vec.shape[0]]  # If odd n_R, remove last noise
     return new_bk_vec, tc_bk_new
+
+
+# Steady-state sampling from the powerlaw and exp1 background
+def sample_ss_conc_powerlaw_gauss_noise(*args, size=1, rgen=None):
+    """ Steady-state probability distribution:
+    either zero concentration or non-zero, with
+    probability 1-chi or chi respectively,
+    where chi = E(t_w)/(E(t_b) + E(t_w)). Then,
+    if non-zero, sample concentration from the truncated exp1 law.
+    """
+    twlo, twhi, tblo, tbhi, c0, alpha, noise_amplis = args
+    n_odors = len(twlo)
+    if rgen is None:
+        rgen = np.random.default_rng()
+    # 1. Generate uniform samples to determine which concentrations will be above zero
+    r_sampl = rgen.random(size=[size, n_odors])
+    chi_prob = 1.0 / (1.0 + np.sqrt(tblo*tbhi/twlo/twhi))
+    # 1. Determine which odors will have non-zero concentration
+    wh = (r_sampl < chi_prob)
+    nu_samp = np.zeros(r_sampl.shape)
+    # 2. Generate uniform samples and transform to conc. distribution
+    # Need to treat one odor (column) at a time to use the right params
+    for i in range(n_odors):
+        r_sampl = rgen.random(size=np.sum(wh[:, i]))
+        nu_samp[wh[:, i], i] = truncexp1_inverse_transform(r_sampl, c0[i], alpha[i])
+    
+    # Add n_osn // 2 gaussian noise samples to match usual dimension
+    # of the internal nu variables during simulations (see update_ function)
+    n_osn = len(noise_amplis)
+    n_rows = n_osn // 2 + n_osn % 2
+    gauss_noises = rgen.normal(size=[size, n_rows])  # not scaled
+    all_nu_samp = np.concatenate([nu_samp, gauss_noises], axis=1)
+
+    return all_nu_samp
+
+
+def sample_background_powerlaw_gauss_noise(vecs_nu, *args, size=1, rgen=None):
+    """
+    Args:
+        vecs_nu (np.ndarray): array of background odor vectors,
+            indexed [odor, dimension]
+        args:
+            whiff_tmins (np.ndarray): lower cutoff in the power law
+                of whiff durations, for each odor
+            whiff_tmaxs (np.ndarray): upper cutoff in the power law
+                of whiff durations, for each odor
+            blank_tmins (np.ndarray): same as whiff_tmins but for blanks
+            blank_tmaxs (np.ndarray): same as whiff_tmaxs but for blanks
+            c0s (np.ndarray): c0 concentration scale for each odor
+            alphas (np.ndarray): alpha*c0 is the lower cutoff of p_c
+            noise_ampli (1d array): amplitude (standard dev.) 
+                of Gaussian white noise added to each ORN on top of the background. 
+        size (int): number of background samples to generate (default: 1)
+        rgen (np.random.Generator): random generator (optional).
+    """
+    # Get samples of concentration variables nu first
+    nu_samp = sample_ss_conc_powerlaw_gauss_noise(*args, size=size, rgen=rgen)
+    # Actual concentrations
+    n_odors = vecs_nu.shape[0]
+    n_osn = vecs_nu.shape[1]
+    conc_samp = nu_samp[:, :n_odors]
+    # Other Gaussian noise: half of what we need is in nu_samp
+    norm_noises = nu_samp[:, n_odors:]
+    # General normal samples
+    norm_noises_extra = rgen.normal(size=(size, n_osn - (nu_samp.shape[1]-n_odors)))
+    norm_noises = np.concatenate([norm_noises, norm_noises_extra], axis=1)
+
+    # Then, combine background vectors with those nu coefficients
+    # Each row in nu_samp is a different sample, so taking the dot product
+    # the first dimension still indexes samples, the second gives components.
+    vec_samp = np.dot(conc_samp, vecs_nu)
+    noise_ampli = args[-1]
+    vec_samp +=  noise_ampli * norm_noises  # If odd n_R, remove last noise
+    return vec_samp, nu_samp
 
 
 if __name__ == "__main__":

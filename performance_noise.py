@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # So make sure spawn is default everywhere, I multiprocess at a high
     # level so child processes do not get started often. 
     multiprocessing.set_start_method('spawn')
-    folder = os.path.join("results", "performance_ns")
+    folder = os.path.join("results", "performance_noise")
 
     # Dimensionalities -- will be updated for each launched simulation
     n_s = 25  # n_S: stay small, since we need noise for each OSN
@@ -50,6 +50,7 @@ if __name__ == "__main__":
     n_k = 1000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
     noise_range = np.asarray([0.0, 1e-4, 1e-3, 1e-2, 0.01*np.sqrt(10.0), 0.1])
+    #noise_range = np.asarray([0.01])
 
     # Common global seeds, one per dimensionality tested, 
     # used for all models to get exact same backgrounds
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     turbulent_back_params.append(noise_ampli)
 
     # Adjust new odor concentrations to average whiff concentration
-    avg_whiff_conc = np.mean(truncexp1_average(*turbulent_back_params[4:]))
+    avg_whiff_conc = np.mean(truncexp1_average(*turbulent_back_params[4:6]))
     print("Average whiff concentration: {:.4f}".format(avg_whiff_conc))
     new_test_concs *= avg_whiff_conc
 
@@ -126,7 +127,7 @@ if __name__ == "__main__":
     ### IBCM RUNS ###
     ibcm_attrs = {
         "model": "IBCM",
-        "background": "turbulent_noisy",
+        "background": "turbulent_gaussnoise",
         # need to save 128-bit to str, too large for HDF5
         "main_seed": str(common_seeds[0]),  # Will be changed for each sim., 
         "noise_ampli": noise_range[0]  # Will be changed for each set of sims
@@ -175,7 +176,7 @@ if __name__ == "__main__":
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
     biopca_attrs = {
         "model": "PCA",
-        "background": "turbulent_noisy",
+        "background": "turbulent_gaussnoise",
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seeds[0]),  # Updated for each sim
         "noise_ampli": noise_range[0]  # Will be changed for each set of sims
@@ -228,7 +229,7 @@ if __name__ == "__main__":
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
     avg_attrs = {
         "model": "AVG",
-        "background": "turbulent_noisy",
+        "background": "turbulent_gaussnoise",
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seeds[0]),  # updated each sim
         "noise_ampli": noise_range[0]

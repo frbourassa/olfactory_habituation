@@ -93,7 +93,9 @@ from modelfcts.backgrounds import (
     sample_background_powerlaw,
     sample_ss_conc_powerlaw,
     generate_odorant, 
-    update_powerlaw_gauss_noise
+    update_powerlaw_gauss_noise, 
+    sample_ss_conc_powerlaw_gauss_noise,
+    sample_background_powerlaw_gauss_noise
 )
 from modelfcts.tagging import (
     project_neural_tag,
@@ -105,6 +107,7 @@ from utils.cpu_affinity import count_parallel_cpu, count_threads_per_process
 from utils.metrics import l2_norm, jaccard
 from utils.export import (
     dict_to_hdf5,
+    save_params_individually,
     csr_matrix_to_hdf5,
     add_to_npz
 )
@@ -114,11 +117,11 @@ def select_sampling_functions(attrs):
     process in attrs"""
     back_conc_map = {
         "turbulent": sample_ss_conc_powerlaw, 
-        #"turbulent_noisy": sample_ss_conc_powerlaw
+        "turbulent_gaussnoise": sample_ss_conc_powerlaw_gauss_noise
     }
     back_vec_map = {
         "turbulent": sample_background_powerlaw, 
-        #"turbulent_noisy": sample_background_powerlaw
+        "turbulent_gaussnoise": sample_background_powerlaw_gauss_noise
     }
     try:
         sample_conc = back_conc_map[attrs["background"]]
@@ -178,14 +181,14 @@ def test_new_odor_recognition(snaps, attrs, params, sim_odors, test_params):
     n_times = params["repeats"][1]
     n_back_samples = params["repeats"][2]
     activ_fct = test_params.get("model_options", {}).get("activ_fct", "ReLU")
-    conc_sampling, vec_sampling = select_sampling_functions(attrs)
+    _, vec_sampling = select_sampling_functions(attrs)
     # Generate new background samples (stationary)
     test_rgen = np.random.default_rng(test_params["test_seed_seq"])
-    conc_samples = conc_sampling(
+    back_samples, conc_samples = vec_sampling(
+                        sim_odors["back"], 
                         *params["back_params"],
                         size=n_times*(n_back_samples-1), rgen=test_rgen
                     )  # Shaped [sample, component]
-    back_samples = conc_samples.dot(sim_odors["back"])
     back_samples = back_samples.reshape([n_times, n_back_samples-1, -1])
     conc_samples = conc_samples.reshape([n_times, n_back_samples-1, -1])
     # Append the background snapshots to them
@@ -277,20 +280,21 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
     n_times = params["repeats"][1]
     n_back_samples = params["repeats"][2]
     activ_fct = test_params.get("model_options", {}).get("activ_fct", "ReLU")
-    conc_sampling, vec_sampling = select_sampling_functions(attrs)
+    _, vec_sampling = select_sampling_functions(attrs)
     # Generate new background samples (stationary)
     test_rgen = np.random.default_rng(test_params["test_seed_seq"])
-    conc_samples = conc_sampling(
+    back_samples, conc_samples = vec_sampling(
+                        sim_odors["back"], 
                         *params["back_params"],
                         size=n_times*(n_back_samples-1), rgen=test_rgen
                     )  # Shaped [sample, component]
+    back_samples = back_samples.reshape([n_times, n_back_samples-1, -1])
     conc_samples = conc_samples.reshape([n_times, n_back_samples-1, -1])
-    back_samples = conc_samples.dot(sim_odors["back"])
     # Append the background snapshots to them
     back_samples = np.concatenate([snaps["back"][:, None, :], back_samples], 
                                   axis=1)
-    # The conc. samples will be returned and saved to disk afterwards
-    # to be able to reconstruct back samples for optimal recognition models
+    # These samples will be returned and saved to disk afterwards
+    # Conc samples not immediately useful here, but nice for future analysis
     conc_samples = np.concatenate([snaps["conc"][:, None, :], conc_samples], 
                                   axis=1)
     # Loop over new odors first
@@ -415,7 +419,7 @@ def select_model_functions(attrs):
     # Select background update function
     back_function_map = {
         "turbulent": (update_powerlaw_times_concs, "uniform"),
-        "turbulent_noisy": (update_powerlaw_gauss_noise, "uniform"),
+        "turbulent_gaussnoise": (update_powerlaw_gauss_noise, "uniform"),
         "log-normal": (update_logou_kinputs, "normal"),
         "third_moment": (update_thirdmoment_kinputs, "normal"),
         "gaussian": (update_ou_kinputs, "normal"),
@@ -474,7 +478,7 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
         back_tc = np.stack([i_times, i_concs.squeeze()], axis=1)
         back_vec = back_tc[:, 1].dot(back_vecs)
         back_init = [back_tc, back_vec]
-    elif attrs["background"] == "turbulent_noisy":
+    elif attrs["background"] == "turbulent_gaussnoise":
         # Regular turbulent background to begin, exclude last back_params = noise ampli
         i_concs = sample_ss_conc_powerlaw(*back_params[:-1], size=1, rgen=rng)
         i_times = powerlaw_cutoff_inverse_transform(
@@ -482,7 +486,8 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
         back_tc = np.stack([i_times, i_concs.squeeze()], axis=1)
         back_vec = back_tc[:, 1].dot(back_vecs)
         # Add Gaussian noise samples
-        noise_amplis = back_params[-1]
+        noise_amplis = back_params[-1][0]  # Same for all OSNs
+        # back_params[-1] is a vector of length n_b just for HDF5 storage purpose
         dim_ns = dimensions[0]
         n_gauss_rows = dim_ns // 2 + dim_ns % 2
         init_noises = rng.normal(size=[n_gauss_rows, 2])
@@ -628,7 +633,8 @@ def main_habituation_runs(
     results_file = h5py.File(filename, "w")
     dict_to_hdf5(results_file.attrs, attributes)
     param_group = results_file.create_group("parameters")
-    param_group = dict_to_hdf5(param_group, parameters)
+    #param_group = dict_to_hdf5(param_group, parameters)
+    param_group = save_params_individually(param_group, parameters)
     # Also save model options in the param_group.attrs
     dict_to_hdf5(param_group.attrs, model_options)
 
@@ -745,6 +751,7 @@ def initialize_recognition(id, nwork, gp, odors_gp,
         "proj_kwargs": projkw,
         "model_options": modopt,
     }
+    gp.attrs["spawn_seed"] = str(hex(spseed.entropy))
     test_fct = (test_new_odor_recognition_lean if lean 
                 else test_new_odor_recognition)
     n_threads = count_threads_per_process(nwork)

@@ -27,6 +27,22 @@ def dict_to_hdf5(gp, di):
     return gp
 
 
+def save_params_individually(gp, di):
+    """ More robust version of dict_to_hdf5, recursively
+    applies to array slices of uneven lengths """
+    for k in di.keys():
+        try:
+            v = np.asarray(di[k])
+        # Recursively try to split the uneven array into a dict of arrays
+        # label them as k_i
+        except ValueError:
+            vdict = {k + "_" + str(i):di[k][i] for i in range(len(di[k]))}
+            save_params_individually(gp, vdict)
+        else:
+            gp[k] = v
+    return gp
+
+
 def hdf5_to_dict(gp):
     """ Retrieve datasets of hdf5 group gp into a dictionary"""
     di = {}
