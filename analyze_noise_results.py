@@ -132,7 +132,7 @@ def main_plot_perf_vs_noise():
         axes[i].set_xscale("log")
     axes[-1].legend()
     fig.tight_layout()
-    fig.savefig(pj("figures", "detection", 
+    fig.savefig(pj("figures", "noise_struct", 
                 f"compare_models_gaussnoise_{activ_fct}.pdf"),
                 transparent=True, bbox_inches="tight")
     #plt.show()
@@ -332,18 +332,6 @@ def main_export_new_mix_distance_stats(dest_name):
         dists_m = np.moveaxis(dists_m, source=4, destination=1)
         dists_m = dists_m.reshape(dists_m.shape[0], dists_m.shape[1], -1)
         all_dists[m] = stats_df_from_samples(dists_m, noise_range, new_concs)
-    
-    # Also add distance between random odors
-    dists_random = []
-    for n, ns in enumerate(noise_range):
-        fname = f"similarity_random_odors_gaussnoise_{n}.npz"
-        dists_m = np.load(pj(folder, fname))["y_l2_distances"]
-        # Shaped [pairs of iid odors], 1d axis, one per N_S: already flattened
-        dists_random.append(dists_m)
-    dists_random = np.stack(dists_random, axis=0).reshape(len(noise_range), 1, -1)
-    dists_random = np.tile(dists_random, (1, n_new_concs, 1))
-    all_dists["random"] = stats_df_from_samples(
-                            dists_random, noise_range, new_concs)
     
     # Concatenate all models
     all_dists = pd.concat(all_dists, names=["Model"])
