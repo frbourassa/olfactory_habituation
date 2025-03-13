@@ -1,8 +1,15 @@
+""" Analyze and save to disk a summary of the simulations results
+for various OSN Gaussian noise amplitudes. Similar script to
+analyze_dimensionality_results. 
+
+@author: frbourassa
+March 2025
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-from simulfcts.plotting import hist_outline
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
 import os
@@ -11,10 +18,6 @@ pj = os.path.join
 from simulfcts.analysis import (
     concat_jaccards, 
     concat_new_mix_distances,
-    concat_ystats, 
-    concat_wmats, 
-    concat_mmats, 
-    concat_lmats
 )
 
 
@@ -25,6 +28,7 @@ def noise_from_file(fname):
     noise_ampli = f.attrs["noise_ampli"]
     f.close()
     return noise_ampli
+
 
 def get_noise_range_from_files(fold, models):
     ns_ranges = []
@@ -47,7 +51,8 @@ def get_noise_range_from_files(fold, models):
 def main_plot_perf_vs_noise():
     # Compare all algorithms
     folder = pj("results", "performance_noise")
-    models = ["none", "avgsub", "orthogonal", "biopca", "ibcm", "optimal"]
+    models = ["none", "avgsub", "orthogonal", "biopca", 
+              "ibcm", "ideal", "optimal"]
     model_nice_names = {
         "ibcm": "IBCM",
         "biopca": "BioPCA",
@@ -156,13 +161,13 @@ def stats_df_from_samples(samp, ns_range, new_concs):
     return df
 
 
-def main_export_jaccard_stats(dest_name):
+def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
     # Compare all algorithms
-    folder = pj("results", "performance_ns")
+    folder = pj("results", "performance_noise")
     models = ["ibcm", "biopca", "avgsub", "ideal", 
               "optimal", "orthogonal", "none"]
-    # Get the range of N_S tested for each model
-    ns_range = get_noise_range_from_files(folder, models)
+    # Get the range of noise amplitudes tested for each model
+    noise_range = get_noise_range_from_files(folder, models)
     try:
         example_file_ibcm = [a for a in os.listdir(folder) 
             if a.startswith("ibcm") and a.endswith(".h5")][0]
@@ -177,57 +182,49 @@ def main_export_jaccard_stats(dest_name):
         assert len(new_concs) == n_new_concs
         activ_fct = f.get("parameters").attrs.get("activ_fct")
 
-    # For each model, extract the matrix of Jaccard similarities for all N_S,
+    # For each model, extract the Jaccard similarities array for all noises,
     # concatenate, compute statistics, then save Jaccard stats for all models
     # into one npz archive file.
     all_jacs = {}
     for m in models:
         jacs_m = []
-        for ns in ns_range:
-            fname = f"{m}_performance_results_ns_{ns}.h5"
+        for i, ns in enumerate(noise_range):
+            fname = f"{m}_performance_results_gaussnoise_{i}.h5"
             f = h5py.File(pj(folder, fname), "r")
-            jacs_m.append(concat_jaccards(f))
+            jacs_m.append(concat_jaccards(f, k=k))
             f.close()
         jacs_m = np.stack(jacs_m, axis=0)  
-        # currently indexed [n_s, run, new_odor, test_time, new_conc, back_sample] 
+        # currently indexed [noise, run, new_odor, test_time, new_conc, back_sample] 
         # Reshape to flatten last dimensions and 
-        # be indexed [n_s, new_conc, replicate]
+        # be indexed [noise, new_conc, replicate]
         jacs_m = np.moveaxis(jacs_m, source=4, destination=1)
         jacs_m = jacs_m.reshape(jacs_m.shape[0], jacs_m.shape[1], -1)
-        all_jacs[m] = stats_df_from_samples(jacs_m, ns_range, new_concs)
-    
-    # Also, compare to Jaccard between random odors
-    jacs_random = []
-    for ns in ns_range:
-        fname = f"similarity_random_odors_ns_{ns}.npz"
-        jacs = np.load(pj(folder, fname))["jaccard_scores"]
-        # shaped [n_runs, pairs of odors], flatten because all
-        # runs/projection matrices should be concatenated as samples
-        jacs_random.append(jacs.flatten())
-    # Reshape to be indexed [N_S, new odor conc. (dummy), sample]
-    jacs_random = np.stack(jacs_random, axis=0).reshape(len(ns_range), 1, -1)
-    jacs_random = np.tile(jacs_random, (1, n_new_concs, 1))
-    all_jacs["random"] = stats_df_from_samples(jacs_random, ns_range, new_concs)
+        all_jacs[m] = stats_df_from_samples(jacs_m, noise_range, new_concs)
 
     # Concatenate all models
     all_jacs = pd.concat(all_jacs, names=["Model"])
 
-    # Save, the information about new concentrations and N_S dimensions
-    # is saved in the DataFrame index. 
+    # Save the jacs
     print(all_jacs.shape)
-    all_jacs.to_hdf(dest_name + "_" + activ_fct + ".hdf", key="df")
+    dest_name_full = dest_name + "_" + activ_fct + ".hdf"
+    all_jacs.to_hdf(dest_name_full, key="df")
+    # and the information about the noise range in a separate Series
+    # in the same file, with key "noise_range"
+    noise_ser = pd.Series(noise_range, name="noise_ampli", 
+        index=pd.Index(np.arange(len(noise_range)), name="noise_index"))
+    noise_ser.to_hdf(dest_name_full, key="noise_range")
     return None
 
 
 def main_export_new_back_distances(dest_name):
     """ The concatenated array of background-new odor distances
-    will have shape [len(ns_range), n_backs, n_news]"""
+    will have shape [len(noise_range), n_backs, n_news]"""
     # Compare all algorithms
-    folder = pj("results", "performance_ns")
+    folder = pj("results", "performance_noise")
     models = ["ibcm", "biopca", "avgsub", "ideal", 
               "optimal", "orthogonal", "none"]
-    # Get the range of N_S tested for each model
-    ns_range = get_noise_range_from_files(folder, models)
+    # Get the range of noises tested for each model
+    noise_range = get_noise_range_from_files(folder, models)
     try:
         example_file_ibcm = [a for a in os.listdir(folder) 
             if a.startswith("ibcm") and a.endswith(".h5")][0]
@@ -244,32 +241,32 @@ def main_export_new_back_distances(dest_name):
 
     # Check that all models were exposed to the same background indeed
     backs, news = {}, {}
-    for ns in ns_range:
-        backs[ns] = {}
-        news[ns] = {}
+    for n, ns in enumerate(noise_range):
+        backs[n] = {}
+        news[n] = {}
         for m in models:
-            fname = pj(folder, f"{m}_performance_results_ns_{ns}.h5")
+            fname = pj(folder, f"{m}_performance_results_gaussnoise_{n}.h5")
             with h5py.File(fname, "r") as f:
-                backs[ns][m] = f.get("odors").get("back_odors")[()]
-                news[ns][m] = f.get("odors").get("new_odors")[()]
+                backs[n][m] = f.get("odors").get("back_odors")[()]
+                news[n][m] = f.get("odors").get("new_odors")[()]
                 activ_fct = f.get("parameters").attrs.get("activ_fct")
                 n_backs, n_news = f.get("parameters").get("repeats")[[0, 3]]  # type: ignore
-        assert np.all([backs[ns]["ibcm"] == backs[ns][m] 
-                       for m in backs[ns]]), "Different backs"
-        assert np.all([news[ns]["ibcm"] == news[ns][m] 
-                       for m in news[ns]]), "Different news"
-        backs[ns] = backs[ns]["ibcm"]
-        news[ns] = news[ns]["ibcm"]
+        assert np.all([backs[n]["ibcm"] == backs[n][m] 
+                       for m in backs[n]]), "Different backs"
+        assert np.all([news[n]["ibcm"] == news[n][m] 
+                       for m in news[n]]), "Different news"
+        backs[n] = backs[n]["ibcm"]
+        news[n] = news[n]["ibcm"]
 
     # n_runs, n_test_times, n_back_samples, n_new_odors, n_new_concs, skp
-    new_back_distances = np.zeros([len(ns_range), n_backs, n_news])
-    for n, ns in enumerate(ns_range):
+    new_back_distances = np.zeros([len(noise_range), n_backs, n_news])
+    for n, ns in enumerate(noise_range):
         for i in range(n_backs):
-            back_proj = find_projector(backs[ns][i].T)
+            back_proj = find_projector(backs[n][i].T)
             for j in range(n_news):
                 new_par = find_parallel_component(
-                    news[ns][j], backs[ns][i], back_proj)
-                new_ort = news[ns][j] - new_par
+                    news[n][j], backs[n][i], back_proj)
+                new_ort = news[n][j] - new_par
                 new_back_distances[n, i, j] = l2_norm(new_ort)
     np.savez_compressed(
         dest_name + "_" + str(activ_fct) + ".npz",
@@ -280,11 +277,11 @@ def main_export_new_back_distances(dest_name):
 
 def main_export_new_mix_distance_stats(dest_name):
     # Compare all algorithms
-    folder = pj("results", "performance_ns")
+    folder = pj("results", "performance_noise")
     models = ["ibcm", "biopca", "avgsub", "ideal", 
               "optimal", "orthogonal", "none"]
     # Get the range of N_S tested for each model
-    ns_range = get_noise_range_from_files(folder, models)
+    noise_range = get_noise_range_from_files(folder, models)
     try:
         example_file_ibcm = [a for a in os.listdir(folder) 
             if a.startswith("ibcm") and a.endswith(".h5")][0]
@@ -301,21 +298,21 @@ def main_export_new_mix_distance_stats(dest_name):
 
     # Check that all models were exposed to the same background indeed
     backs, news = {}, {}
-    for ns in ns_range:
-        backs[ns] = {}
-        news[ns] = {}
+    for n, ns in enumerate(noise_range):
+        backs[n] = {}
+        news[n] = {}
         for m in models:
-            fname = pj(folder, f"{m}_performance_results_ns_{ns}.h5")
+            fname = pj(folder, f"{m}_performance_results_gaussnoise_{n}.h5")
             with h5py.File(fname, "r") as f:
-                backs[ns][m] = f.get("odors").get("back_odors")[()]
-                news[ns][m] = f.get("odors").get("new_odors")[()]
+                backs[n][m] = f.get("odors").get("back_odors")[()]
+                news[n][m] = f.get("odors").get("new_odors")[()]
                 activ_fct = f.get("parameters").attrs.get("activ_fct")
-        assert np.all([backs[ns]["ibcm"] == backs[ns][m] 
-                       for m in backs[ns]]), "Different backs"
-        assert np.all([news[ns]["ibcm"] == news[ns][m] 
-                       for m in news[ns]]), "Different news"
-        backs[ns] = backs[ns]["ibcm"]
-        news[ns] = news[ns]["ibcm"]
+        assert np.all([backs[n]["ibcm"] == backs[n][m] 
+                       for m in backs[n]]), "Different backs"
+        assert np.all([news[n]["ibcm"] == news[n][m] 
+                       for m in news[n]]), "Different news"
+        backs[n] = backs[n]["ibcm"]
+        news[n] = news[n]["ibcm"]
 
     # For each model, extract the matrix of new odor - mixture distances 
     # for all N_S, concatenate, then save concatenated distances for all models
@@ -323,8 +320,8 @@ def main_export_new_mix_distance_stats(dest_name):
     all_dists = {}
     for m in models:
         dists_m = []
-        for ns in ns_range:
-            fname = f"{m}_performance_results_ns_{ns}.h5"
+        for n, ns in enumerate(noise_range):
+            fname = f"{m}_performance_results_gaussnoise_{n}.h5"
             f = h5py.File(pj(folder, fname), "r")
             dists_m.append(concat_new_mix_distances(f))
             f.close()
@@ -334,49 +331,67 @@ def main_export_new_mix_distance_stats(dest_name):
         # be indexed [n_s, new_conc, replicate]
         dists_m = np.moveaxis(dists_m, source=4, destination=1)
         dists_m = dists_m.reshape(dists_m.shape[0], dists_m.shape[1], -1)
-        all_dists[m] = stats_df_from_samples(dists_m, ns_range, new_concs)
+        all_dists[m] = stats_df_from_samples(dists_m, noise_range, new_concs)
     
     # Also add distance between random odors
     dists_random = []
-    for ns in ns_range:
-        fname = f"similarity_random_odors_ns_{ns}.npz"
+    for n, ns in enumerate(noise_range):
+        fname = f"similarity_random_odors_gaussnoise_{n}.npz"
         dists_m = np.load(pj(folder, fname))["y_l2_distances"]
         # Shaped [pairs of iid odors], 1d axis, one per N_S: already flattened
         dists_random.append(dists_m)
-    dists_random = np.stack(dists_random, axis=0).reshape(len(ns_range), 1, -1)
+    dists_random = np.stack(dists_random, axis=0).reshape(len(noise_range), 1, -1)
     dists_random = np.tile(dists_random, (1, n_new_concs, 1))
     all_dists["random"] = stats_df_from_samples(
-                            dists_random, ns_range, new_concs)
+                            dists_random, noise_range, new_concs)
     
     # Concatenate all models
     all_dists = pd.concat(all_dists, names=["Model"])
 
-    # Save, the information about new concentrations and N_S dimensions
-    # is saved in the DataFrame index. 
+    # Save the results
     print(all_dists.shape)
-    all_dists.to_hdf(dest_name + "_" + activ_fct + ".hdf", key="df")
+    dest_name_full = dest_name + "_" + activ_fct + ".hdf"
+    all_dists.to_hdf(dest_name_full, key="df")
+    # and the information about the noise range in a separate Series
+    # in the same file, with key "noise_range"
+    noise_ser = pd.Series(noise_range, name="noise_ampli", 
+        index=pd.Index(np.arange(len(noise_range)), name="noise_index"))
+    noise_ser.to_hdf(dest_name_full, key="noise_range")
+
     return None
 
 if __name__ == "__main__":
     print("Starting up analysis script...")
 
     main_plot_perf_vs_noise()
-    print("Finished plotting performance vs OSN dimensionality")
-    raise NotImplementedError()
+    print("Finished plotting performance vs OSN Gaussian noise")
     
+    # Export Jaccard similarities to new odors
     main_export_jaccard_stats(pj("results", 
-       "for_plots", "jaccard_similarities_stats_dimensionality")
+       "for_plots", "noise", "jaccard_similarities_stats_gaussnoise")
     )
     print("Finished exporting Jaccard similarity stats")
-    
+
+    # Also export Jaccard similarities to background
+    # The resulting file will have Jaccard similiarities in key "df"
+    # and the noise amplitudes corresponding to the 
+    # integer indices in key "noise_range"
+    main_export_jaccard_stats(
+        os.path.join("results", "for_plots", "noise", "jaccard_similarities_back_gaussnoise"),
+        k='jaccard_scores_back'
+    )
+
+    # With Gaussian noise, it will be interesting
+    # to plot ymix - ynew distance, and ynew - s_back distance too. 
+    # These distances will increase. 
     main_export_new_mix_distance_stats(pj("results",  
-       "for_plots", "new_mix_distances_stats_dimensionality")
+       "for_plots", "noise", "new_mix_distances_stats_gaussnoise")
     )
     print("Finished exporting distances between"
           + " model responses to mixtures and new odors"
     )
- 
+    
     main_export_new_back_distances(pj("results",  
-       "for_plots", "new_back_distances_dimensionality")
+       "for_plots", "noise", "new_back_distances_gaussnoise")
     )
     print("Finished exporting distances between new odors and backgrounds")

@@ -1,8 +1,14 @@
+""" Analyze and save to disk a summary of the simulations results
+for various background space dimensionality. 
+
+@author: frbourassa
+November 2024
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-from simulfcts.plotting import hist_outline
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
 import os
@@ -10,10 +16,6 @@ import os
 from simulfcts.analysis import (
     concat_jaccards, 
     concat_new_mix_distances,
-    concat_ystats, 
-    concat_wmats, 
-    concat_mmats, 
-    concat_lmats
 )
 
 

@@ -37,7 +37,7 @@ if __name__ == "__main__":
     common_seed = 0xe4a1f15c70ecc52736db51e441a451dd
 
     # Dimensionalities
-    n_s = 300  # n_R: choose 25 (half of full Drosophila dimensionality)
+    n_s = 25  # n_R: choose 25 (half of full Drosophila dimensionality)
     n_b = 6   # n_B: check against 6 background odors.
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
     n_k = 1000 * n_s // 25  # n_K: number of Kenyon cells for neural tag generation

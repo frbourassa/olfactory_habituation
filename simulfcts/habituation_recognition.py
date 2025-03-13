@@ -318,7 +318,6 @@ def test_new_odor_recognition_lean(snaps, attrs, params, sim_odors, test_params)
                 test_params['pmat'], **test_params['proj_kwargs']
         ))
 
-    
     # Profiling only one simulation, to keep track of time without
     # producing too much text. 
     switch = False
