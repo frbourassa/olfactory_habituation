@@ -42,12 +42,13 @@ if __name__ == "__main__":
     # level so child processes do not get started often. 
     multiprocessing.set_start_method('spawn')
     folder = os.path.join("results", "performance_noise")
+    do_main_runs = True
 
     # Dimensionalities -- will be updated for each launched simulation
-    n_s = 25  # n_S: stay small, since we need noise for each OSN
+    n_s = 100  # n_S: stay small, since we need noise for each OSN
     n_b = 6   # n_B: check against 6 background odors.
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM (avg. 4 / odor)
-    n_k = 1000  # n_K: number of Kenyon cells for neural tag generation
+    n_k = 4000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
     noise_range = np.asarray([0.0, 1e-4, 1e-3, 1e-2, 0.01*np.sqrt(10.0), 0.1])
     #noise_range = np.asarray([0.01])
@@ -61,10 +62,10 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 64  # nb of habituation runs, each with a different background
+    n_runs = 30  # nb of habituation runs, each with a different background
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
-    n_new_odors = 100  # nb new odors at each test time
+    n_new_odors = 30  # nb new odors at each test time
     skip_steps = 100
     repeats_array = np.asarray([
                         n_runs, n_test_times, n_back_samples,
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
-        "n_pn_per_kc": 6,  # Needs to be updated to 3/25*N_S for each N_S
+        "n_pn_per_kc": 3 * n_s // 25,
         "project_thresh_fact": 0.05
     }
     activ_fct_choice = "identity"
@@ -162,13 +163,14 @@ if __name__ == "__main__":
         ibcm_attrs["noise_ampli"] = n_s_i
         ibcm_file_name = os.path.join(folder, 
                             "ibcm_performance_results_gaussnoise_{}.h5".format(i))
-        all_ibcm_file_names[n_s_i] = str(ibcm_file_name)
-        print("Starting IBCM simulation for noise level = {}".format(n_s_i))
-        main_habituation_runs(ibcm_file_name, ibcm_attrs,
-                            ibcm_params, ibcm_options, lean=True)
-        print("Starting IBCM recognition for noise_level = {}".format(n_s_i))
-        main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
-                            ibcm_options, projection_arguments, lean=True)
+        all_ibcm_file_names[i] = str(ibcm_file_name)
+        if do_main_runs:
+            print("Starting IBCM simulation for noise level = {}".format(n_s_i))
+            main_habituation_runs(ibcm_file_name, ibcm_attrs,
+                                ibcm_params, ibcm_options, lean=True)
+            print("Starting IBCM recognition for noise_level = {}".format(n_s_i))
+            main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
+                                ibcm_options, projection_arguments, lean=True)
 
     ### BIOPCA RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -216,12 +218,13 @@ if __name__ == "__main__":
         biopca_attrs["noise_ampli"] = n_s_i
         pca_file_name = os.path.join(folder, 
             "biopca_performance_results_gaussnoise_{}.h5".format(i))
-        print("Starting BioPCA recognition for noise level = {}".format(n_s_i))
-        main_habituation_runs(pca_file_name, biopca_attrs,
-                          biopca_params, biopca_options, lean=True)
-        print("Starting BioPCA recognition for noise_level = {}".format(n_s_i))
-        main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
-                          biopca_options, projection_arguments, lean=True)
+        if do_main_runs:
+            print("Starting BioPCA recognition for noise level = {}".format(n_s_i))
+            main_habituation_runs(pca_file_name, biopca_attrs,
+                            biopca_params, biopca_options, lean=True)
+            print("Starting BioPCA recognition for noise_level = {}".format(n_s_i))
+            main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
+                            biopca_options, projection_arguments, lean=True)
 
     ### AVERAGE INHIBITION RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -256,20 +259,21 @@ if __name__ == "__main__":
         avg_attrs["noise_ampli"] = n_s_i
         avg_file_name = os.path.join(folder, 
             "avgsub_performance_results_gaussnoise_{}.h5".format(i))
-        print("Starting average sub. simulation for noise level = {}".format(n_s_i))
-        main_habituation_runs(avg_file_name, avg_attrs,
-                            avg_params, avg_options, lean=True)
-        print("Starting average sub. recognition for noise level = {}".format(n_s_i))
-        main_recognition_runs(avg_file_name, avg_attrs, avg_params,
-                            avg_options, projection_arguments, lean=True)
+        if do_main_runs:
+            print("Starting average sub. simulation for noise level = {}".format(n_s_i))
+            main_habituation_runs(avg_file_name, avg_attrs,
+                                avg_params, avg_options, lean=True)
+            print("Starting average sub. recognition for noise level = {}".format(n_s_i))
+            main_recognition_runs(avg_file_name, avg_attrs, avg_params,
+                                avg_options, projection_arguments, lean=True)
 
     ### IDEAL AND NO INHIBITION ###
     for kind in ["orthogonal", "ideal", "optimal", "none"]:
-        for n_s_i in noise_range:
+        for i, n_s_i in enumerate(noise_range):
             print("Starting idealized habituation of kind "
                 +"{} recognition tests for noise level = {}".format(kind, n_s_i))
             ideal_file_name = os.path.join(folder, 
                     kind+"_performance_results_gaussnoise_{}.h5".format(i))
-            ibcm_fname = all_ibcm_file_names[n_s_i]
+            ibcm_fname = all_ibcm_file_names[i]
             idealized_recognition_from_runs(
                 ideal_file_name, ibcm_fname, kind, lean=True)

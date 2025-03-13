@@ -177,6 +177,120 @@ def no_habituation_one_sim(sim_id, filename_ref, lean=False):
     return sim_id, test_results, projmat
 
 
+def orthogonal_recognition_one_sim_gaussnoise(sim_id, filename_ref, lean=False):
+    """ Load new odors, background samples and projection matrix
+    for a given simulation in ref_file, and test odor recognition
+    after ideal habituation where all that is left is the new odor component
+    perpendicular to the background subspace.
+
+    We don't need background samples: we assume the entire background
+    is removed anyways. This changes a little bit dimensionalities:
+        - We don't need back_samples or back_concs
+        - mixture_yvecs has shape [n_new_odors, 1,  n_new_concs, 1, n_r]
+            as it is simply the orthogonal component of the new odor
+        - mixture_tags has shape [n_new_odors, 1,  n_new_concs, 1, n_kc]
+        - jaccard_scores has shape [n_new_odors, 1, n_new_concs, 1]
+    new_odor_tags still has shape [n_new_odors, n_kc]
+
+    This is actually not the best method at very low concentrations,
+    since the orthogonal component can get lost in the KC threshold.
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    sim_gp = ref_file.get(id_to_simkey(sim_id))
+    projmat = hdf5_to_csr_matrix(sim_gp.get("kc_proj_mat"))
+    new_odors = ref_file.get("odors").get("new_odors")[()]
+    back_odors = ref_file.get("odors").get("back_odors")[sim_id, :, :]
+    new_concs = ref_file.get("parameters").get("new_concs")[()]
+    bkname = ref_file.attrs["background"]
+
+    # Dimensions, etc.
+    n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
+    (n_times, n_back_samples, n_new_odors,
+        n_new_concs) = ref_file.get("parameters").get("repeats")[1:5]
+    proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
+    activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
+
+    # Get the average of background samples to set the KC thresholds
+    back_samples = recover_back_samples(sim_gp, back_odors, bkname, ref_file, lean)
+    average_back = np.mean(back_samples, axis=(0, 1))
+
+    # Projector to subtract the parallel component
+    projector = find_projector(back_odors.T)
+
+    # Containers for the results
+    jaccard_scores = np.zeros([n_new_odors, n_times, 
+                            n_new_concs, n_back_samples])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    back_tags = []
+    for b in range(n_b):
+        back_tags.append(
+            project_neural_tag(back_odors[b], back_odors[b],
+                projmat, **proj_kwargs
+        ))
+    # Since there is orthogonal noise unique to each simulation, 
+    # we need to loop over background samples and test times now
+    if lean:
+        y_l2_distances = np.zeros((n_new_odors, n_times, 
+                                n_new_concs, n_back_samples))
+    else:
+        new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
+        mixture_tags = SparseNDArray((n_new_odors, n_times, n_new_concs,
+                                    n_back_samples, n_kc), dtype=bool)
+        mixture_yvecs = np.zeros([n_new_odors, n_times,
+                                n_new_concs, n_back_samples, n_r])
+    # Treat one new odor at a time, one new conc. at a time, etc.
+    for i in range(n_new_odors):
+        new_tag = project_neural_tag(
+                    new_odors[i], new_odors[i], projmat, **proj_kwargs)
+        if not lean:
+            new_odor_tags[i, list(new_tag)] = True
+        for k in range(n_new_concs):
+            mixtures_ik = back_samples + new_concs[k]*new_odors[i]
+            # Project the mixture, subtract the projection 
+            # to keep the orthogonal component
+            yvecs_ik = mixtures_ik - mixtures_ik.dot(projector.T)
+            if str(activ_fct).lower() == "relu":
+                yvecs_ik = relu_inplace(yvecs_ik)
+            # Now tag each mixture
+            for j in range(n_times):
+                for l in range(n_back_samples):
+                    perp_tag = project_neural_tag(
+                                yvecs_ik[j, l], mixtures_ik[j, l], projmat, **proj_kwargs
+                                )
+                    jaccard_scores[i, j, k, l] = jaccard(new_tag, perp_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_b):
+                        jaccard_backs_indiv[b] = jaccard(perp_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
+                    # Distance to new odor
+                    ydiff = yvecs_ik[j, l] - new_concs[k]*new_odors[i]
+                    if lean:
+                        y_l2_distances[i, j, k, l] = l2_norm(ydiff)
+                    else:
+                        mixture_yvecs[i, j, k, l] = yvecs_ik[j, l]
+                        mixture_tags[i, j, k, l, list(perp_tag)] = True
+
+    ref_file.close()
+
+    # Prepare simulation results dictionary
+    test_results = {
+        "jaccard_scores": jaccard_scores,
+        "jaccard_scores_back":jaccard_scores_back
+    }
+    if lean:
+        test_results["y_l2_distances"] = y_l2_distances
+    else:
+        new_odor_tags = new_odor_tags.tocsr()
+        test_results.update({
+            "new_odor_tags": new_odor_tags,
+            "mixture_yvecs": mixture_yvecs,
+            "mixture_tags": mixture_tags,
+        })
+    return sim_id, test_results, projmat
+
+
 def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
     """ Load new odors, background samples and projection matrix
     for a given simulation in ref_file, and test odor recognition
@@ -248,12 +362,6 @@ def orthogonal_recognition_one_sim(sim_id, filename_ref, lean=False):
             if str(activ_fct).lower() == "relu":
                 yvec = relu_inplace(yvec)
             x_mix = average_back + new_concs[j]*new_odors[i]
-            # TODO: If Gaussian noise, add the orthogonal component of that noise
-            # Should have different background samples... contrary to other back process types
-            # TODO: figure out how to store more maybe. 
-            if bkname == "turbulent_gaussnoise":
-                x_mix = back_samples[j] + new_concs[j]*new_odors[i]
-
             perp_tag = project_neural_tag(
                         yvec, x_mix, projmat, **proj_kwargs
                         )
@@ -341,10 +449,16 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
                                 n_new_concs, n_back_samples])
     else:
         new_odor_tags = sparse.lil_array((n_new_odors, n_kc), dtype=bool)
-        mixture_tags = SparseNDArray( (n_new_odors, n_times, n_new_concs,
+        mixture_tags = SparseNDArray((n_new_odors, n_times, n_new_concs,
                                     n_back_samples, n_kc), dtype=bool)
         mixture_yvecs = np.zeros([n_new_odors, n_times,
-                                    n_new_concs, n_back_samples, n_r])
+                                n_new_concs, n_back_samples, n_r])
+    
+    # Orthogonal components of the background samples, if any
+    if bkname.endswith("gaussnoise"):
+        back_ort_comp = back_samples - back_samples.dot(projector.T)
+    else:
+        back_ort_comp = 0.0
 
     # Treat one new odor at a time, one new conc. at a time, etc.
     for i in range(n_new_odors):
@@ -360,6 +474,8 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
                 for l in range(n_back_samples):
                     yvec = (factors[k]*back_samples[j, l]
                         + new_concs[k] * (factors[k]*x_par + x_ort))
+                    # Add back the orthogonal part of the background, if any
+                    yvec += (1.0 - factors[k]) * back_ort_comp[j, l]
                     if str(activ_fct).lower() == "relu":
                         yvec = relu_inplace(yvec)
                     mix_tag = project_neural_tag(
@@ -478,11 +594,11 @@ def optimal_recognition_one_sim(sim_id, filename_ref, lean=False):
             new_odor_tags[i, list(new_tag)] = True
         for k in range(n_new_concs):
             mixtures_ik = back_samples + new_concs[k]*new_odors[i]
+            # Can compute all mixture responses at once for this i, k
+            yvecs_ik = mixtures_ik - mixtures_ik.dot(optimal_ws[k].T)
             for j in range(n_times):
                 for l in range(n_back_samples):
-                    yvec = (
-                        mixtures_ik[j, l] - optimal_ws[k].dot(mixtures_ik[j, l])
-                    )
+                    yvec = yvecs_ik[j, l]
                     if activ_fct == "relu":
                         yvec = relu_inplace(yvec)
                     mix_tag = project_neural_tag(
@@ -609,6 +725,9 @@ def idealized_recognition_from_runs(
         "optimal": optimal_recognition_one_sim
     }
     recognition_one_sim = func_choices.get(kind, no_habituation_one_sim)
+    # Special choice depending on the background
+    if res_file.attrs["background"] == "turbulent_gaussnoise" and kind == "orthogonal":
+        recognition_one_sim = orthogonal_recognition_one_sim_gaussnoise
 
     # Define callback functions
     def callback(result):
