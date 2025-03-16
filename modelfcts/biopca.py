@@ -349,3 +349,61 @@ def biopca_respond_new_odors(odors, mlx, wmat, biopca_rates, options={}):
     else:
         raise ValueError("Unknown activation function: {}".format(activ_fct))
     return yvec
+
+
+
+def biopca_ln_response_series(odors, mlx_series, biopca_rates, options={}):
+    """
+    Recompute the LN response to some series of odors. 
+    Useful to analyze the LN response to components of 
+    the full simulated background. 
+
+    Args:
+        odors (np.ndarray): indexed [time, n_orn]
+            so can take dot product properly with m and store many
+            odors along arbitrary other axes.
+        mlx_series (list of 3 np.ndarrays):
+            current_m (np.ndarray): shape [time, n_neurons, n_orn]
+            current_l (np.ndarray): shape [time, n_neurons, n_neurons]
+            current_x (np.ndarray): shape [time, n_orn]
+        biopca_rates (np.ndarray): [lrate, mrate, lambda_range, xmean_rate]
+    Keyword args:
+        remove_mean (bool): whether to learn the average input and subtract
+            it before PCA projection
+        remove_lambda (bool): if True, multiply projection by Lambda^-1,
+            i.e., get an orthonormal basis.
+        activ_fct (str): either "ReLU" or "identity"
+    """
+    mmatser, lmatser, xmeanser = mlx_series
+    remove_mean = options.get("remove_mean", False)
+    remove_lambda = options.get("remove_lambda", True)
+    # Choose Lambda diagonal matrix as advised in Minden et al., 2018
+    lambda_max = biopca_rates[2]
+    lambda_range = biopca_rates[3]
+    n_neu = mmatser[0].shape[0]
+    lambda_diag = build_lambda_matrix(lambda_max, lambda_range, n_neu)
+
+    # Check all dimensions are equal
+    ntimes = mmatser.shape[0]
+    assert ntimes == lmatser.shape[0] == xmeanser.shape[0] == odors.shape[0]
+
+    hbarsvecs = np.zeros([ntimes, n_neu])
+    for i in range(mmatser.shape[0]):
+        mmat, lmat, xmean = mmatser[i], lmatser[i], xmeanser[i]
+        inv_l_diag = 1.0 / np.diagonal(lmat)
+
+        if remove_mean:
+            # Subtracting the mean background from c and from s too
+            # c is just the projection of the variation around the mean
+            # inv_l_diag broadcast across odors in first axes, OK in this order
+            h = inv_l_diag * ((odors[i] - xmean).dot(mmat.T))  # L_d^(-1) M x_0
+        else:
+            h = inv_l_diag*(odors[i].dot(mmat.T))  # L_d^(-1) M x_0
+        # Lateral inhibition between neurons
+        hbar = h - inv_l_diag*np.dot(h, (lmat - np.diagflat(1.0/inv_l_diag)).T)
+        # Remove lambda scale from eigenvectors
+        if remove_lambda:
+            hbar = hbar / lambda_diag
+        hbarsvecs[i] = hbar
+    
+    return hbarsvecs

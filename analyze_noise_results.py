@@ -148,7 +148,7 @@ def stats_df_from_samples(samp, ns_range, new_concs):
     samp: 3d array, indexed [N_S, new_conc, replicate]
     """
     df_idx = pd.MultiIndex.from_product(
-        [ns_range, new_concs], names=["N_S", "new_conc"])
+        [ns_range, new_concs], names=["noise_ampli", "new_conc"])
     df_cols = pd.Index(["mean", "median", "var", 
         "quantile_05", "quantile_95"], name="stats")
     df = pd.DataFrame(0.0, index=df_idx, columns=df_cols)
