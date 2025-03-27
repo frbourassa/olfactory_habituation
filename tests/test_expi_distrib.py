@@ -6,12 +6,24 @@ import matplotlib.pyplot as plt
 import scipy as sp
 from scipy.optimize import root_scalar, RootResults
 import scipy.special
+import math
 
 from time import perf_counter
 
 cmyk_blue = "#3E529F"
 cmyk_red = "#DA3833"
 cmyk_green = "#307F54"
+
+
+# New Scipy >= 1.12: RootResults takes "method" argument
+# we want the new behavior for older versions
+def create_root_results(root, iterations, function_calls, flag, method=None):
+    try:
+        rr = RootResults(root, iterations, function_calls, flag, method=method)
+    except TypeError:  # old version compatibility
+        rr = RootResults(root, iterations, function_calls, flag)
+    return rr
+
 
 ## Inverse exponential integral
 # The first two derivatives of E_1(y) for Halley's method.
@@ -23,6 +35,17 @@ def deriv_exp1(y, x):
 
 def deriv2_exp1(y, x):
     return np.exp(-y) / y * (1.0 + 1.0 / y)
+
+
+def deriv_logexp1(y, x):
+    return -np.exp(-y) / y / sp.special.exp1(y)
+
+
+def deriv2_logexp1(y, x):
+    exp1y = sp.special.exp1(y)
+    expy = np.exp(-y)
+    d_logexp = -expy / y / exp1y
+    return d_logexp**2 + expy / y * (1.0 + 1.0 / y) / exp1y
 
 
 # Implicit equation for y, the inverse of exp1
@@ -40,35 +63,42 @@ def implicit_inverse_exp1_equation_log_full(y, logx):
     return logexpi - logx, deriv, deriv2
 
 def implicit_inverse_exp1_equation_log(y, logx):
-    return np.log(sp.special.exp1(y)) - logx
+    return math.log(sp.special.exp1(y)) - logx
+
+def implicit_inverse_exp1_equation_logy(logy, x):
+    return sp.special.exp1(math.exp(logy)) - x
 
 # Inverse exponential integral using Halley's method.
 def inverse_exp1(x):
     if x <= 0:
         raise ValueError("x = E_1(y) does not take negative values for y > 0")
     # If x is small, better solve in log scale
-    elif x < 5:
+    elif x < 1.0:
         # Define decent limits based on x
         logx = np.log(x)
         ylo = max(1e-16, (-5-logx)/1.1)
         yhi = max(10, 5-logx)
         # Solve E_1(y) = x for y, which is the result to return
         res = root_scalar(implicit_inverse_exp1_equation_log, x0=1.0,
-            args=(np.log(x),), method="brentq", fprime=False, fprime2=False,
+            args=(logx,), method="brentq", fprime=deriv_logexp1, fprime2=deriv2_logexp1,
             bracket=[ylo, yhi])
-    # Otherwise, solve in linear scale, bracket should be
-    # between some very small positive number and y=0.5, since E_1(0.5) < 5 already
-    elif x < 25:
-        ylo = 1e-14  # E1(1e-12) = 25, approximately.
-        yhi = 0.5
-        res = root_scalar(implicit_inverse_exp1_equation, x0=0.1,
-            args=(x,), method="brentq", fprime=deriv_exp1, fprime2=deriv2_exp1,
-            bracket=[ylo, yhi])
+    # Otherwise, solve for log(y)=z, but x and E_1(y) in linear scale, bracket should be
+    # between some very small positive number and y=0.5, since E_1(0.5) < 1 already
+    # E1(1e-8) \approx 18, error on the Taylor series of E1 at order y^2 is then 1e-16
+    # then we don't need to solve using root_scalar
+    elif x < 30:
+        logylo = math.log(1e-15)
+        logyhi = math.log(0.5)
+        res = root_scalar(implicit_inverse_exp1_equation_logy, x0=math.log(0.1),
+            args=(x,), method="brentq", fprime=None, fprime2=None,
+            bracket=[logylo, logyhi])
+        if res.converged:
+            res.root = np.exp(res.root)
     # Beyond x=25, very hard to solve at all, cancellation errors occur.
     # Use the Taylor series E1(y) = -gamma - log(y)
     else:
         #raise ValueError("Can't invert x=E1(y) beyond x = 25, cancellations")
-        res = RootResults(root=np.exp(-x - np.euler_gamma), iterations=1,
+        res = create_root_results(root=np.exp(-x - np.euler_gamma), iterations=1,
             function_calls=1, flag=0)
         res.converged = True
     if res.converged:
@@ -80,13 +110,18 @@ vec_inverse_exp1 = np.vectorize(inverse_exp1)
 
 # Test the inverse E_1 function just coded
 def test_inverse_exp1():
-    xrange = np.arange(0.01, 50, 0.1)
+    xrange = np.arange(0.001, 50, 0.1)
+    inverse_soln = np.zeros(xrange.shape)
+    for i, x in enumerate(xrange):
+        inverse_soln[i] = inverse_exp1(x)
+        print("x = {:.2f}".format(x), ", E_1^{-1}(x) =", inverse_soln[i])
     inverse_soln = vec_inverse_exp1(xrange)
     exp1_vals = sp.special.exp1(inverse_soln)  # Should give xrange back
     fig, ax = plt.subplots()
-    ax.plot(xrange, exp1_vals, lw=4)
-    ax.plot(xrange, xrange, color="r", lw=1.5, ls="--")
-    ax.set(xlabel="x", ylabel=r"$E_1(E_1^{-1}(x))$")
+    ax.plot(xrange, exp1_vals / xrange - 1.0, lw=3)
+    #ax.plot(xrange, xrange, color="r", lw=1.5, ls="--")
+    ax.set(xlabel="x", ylabel=r"Relative error, $E_1(E_1^{-1}(x)) \, / \, x - 1$")
+    #ax.set(xscale="log", yscale="log")
     plt.show()
     plt.close()
 
@@ -117,7 +152,8 @@ def truncexp1_density(c, c0, alpha_c0):
 
 if __name__ == "__main__":
     # 1. Test the inverse exp1
-    #test_inverse_exp1()
+    test_inverse_exp1()
+    raise NotImplementedError()
 
     # 2. Test the power law with unlimited upper value
     rgen = np.random.default_rng(seed=0xe746043073634d83a2bc6fb83ba4b2fd)
