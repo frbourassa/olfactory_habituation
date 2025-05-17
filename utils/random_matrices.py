@@ -9,6 +9,7 @@ import numpy as np
 
 
 # Generate a random orthogonal matrix
+# Method from https://www.ams.org/notices/200705/fea-mezzadri-web.pdf
 def random_orthogonal_mat(n, rng=None):
     if rng is None:
         rng = np.random.default_rng()
