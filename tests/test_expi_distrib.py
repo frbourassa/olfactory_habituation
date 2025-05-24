@@ -29,14 +29,21 @@ def create_root_results(root, iterations, function_calls, flag, method=None):
 # The first two derivatives of E_1(y) for Halley's method.
 # Assumes y > 0 for now. Need same call form as implicit_inverse_exp1_equation
 # so x needs to be a second argument
-def deriv_exp1(y, x):
-    return -np.exp(y) / y
+from modelfcts.distribs import (
+    deriv_exp1, 
+    deriv2_exp1, 
+    create_root_results, 
+    # Implicit equation for y, the inverse of exp1, solved in log.
+    # Also return first and second derivatives, since results can be
+    # reused in this way.
+    implicit_inverse_exp1_equation, 
+    implicit_inverse_exp1_equation_log, 
+    implicit_inverse_exp1_equation_logy, 
+    inverse_exp1
 
+)
 
-def deriv2_exp1(y, x):
-    return np.exp(-y) / y * (1.0 + 1.0 / y)
-
-
+# Derivatives in log space
 def deriv_logexp1(y, x):
     return -np.exp(-y) / y / sp.special.exp1(y)
 
@@ -48,25 +55,6 @@ def deriv2_logexp1(y, x):
     return d_logexp**2 + expy / y * (1.0 + 1.0 / y) / exp1y
 
 
-# Implicit equation for y, the inverse of exp1
-def implicit_inverse_exp1_equation(y, x):
-    return sp.special.exp1(y) - x
-
-# Implicit equation for y, the inverse of exp1, solved in log.
-# Also return first and second derivatives, since results can be
-# reused in this way.
-def implicit_inverse_exp1_equation_log_full(y, logx):
-    expi = sp.special.exp1(y)
-    logexpi = np.log(expi)
-    deriv = -np.exp(-y) / (y * expi)
-    deriv2 = deriv*deriv - deriv * (1.0 + 1.0 / y)
-    return logexpi - logx, deriv, deriv2
-
-def implicit_inverse_exp1_equation_log(y, logx):
-    return math.log(sp.special.exp1(y)) - logx
-
-def implicit_inverse_exp1_equation_logy(logy, x):
-    return sp.special.exp1(math.exp(logy)) - x
 
 # Inverse exponential integral using Halley's method.
 def inverse_exp1(x):

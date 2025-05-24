@@ -8,56 +8,6 @@ from utils.metrics import l2_norm, powerset
 from modelfcts.ideal import relu_inplace
 
 ### Special solution for toy background with 2 odors, 1 varying proportion ###
-def fixedpoints_m_2vectors(components, sigma, eta, lambd=1.0, n_r=2):
-    """ components: x_a and x_b, components of the fluctuating background mixture
-    sigma: standard deviation of nu (the composition of the mixture)
-    eta: coupling coefficient < 1
-
-    Returns a 3D array where each element on axis 0 is a fixed point,
-        the axis 1 indexes the neurons, and axis 2, the components.
-        So the return array is a stack of matrices where each row is a neuron.
-
-    Also returns a list of labels giving the order of fixed points:
-        (+, +), (-, -), (+, -), (-, +)
-    """
-    ss_mat = np.zeros([2*2, 2, n_r])
-    norm_a = np.sum(components[0]**2)
-    norm_b = np.sum(components[1]**2)
-    overlap = components[0].dot(components[1])
-
-    # Fixed points where both neurons' synaptic weight vectors are equal
-    cplus = (1 + 0.5/sigma) / (1 - eta) * lambd
-    cminus = (1 - 0.5/sigma) / (1 - eta) * lambd
-
-    # (+, +)
-    ss_mat[0, 0] = (cplus*norm_b - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[0]
-    ss_mat[0, 0] += (cminus*norm_a - overlap*cplus)/(norm_a*norm_b - overlap**2) * components[1]
-    ss_mat[0, 1] = ss_mat[0, 0]
-
-    # (-, -)
-    ss_mat[1, 0] = (cminus*norm_b - overlap*cplus)/(norm_a*norm_b - overlap**2) * components[0]
-    ss_mat[1, 0] += (cplus*norm_a - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[1]
-    ss_mat[1, 1] = ss_mat[1, 0]
-
-    # Fixed points where the two neurons are at opposite fixed points
-    cplus = (1 / (1 - eta) + 1 / (2*sigma*(1 + eta))) * lambd
-    cminus = (1 / (1 - eta) - 1 / (2*sigma*(1 + eta))) * lambd
-
-    # (+, -)
-    ss_mat[2, 0] = (cplus*norm_b - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[0]
-    ss_mat[2, 0] += (cminus*norm_a - overlap*cplus)/(norm_a*norm_b - overlap**2) * components[1]
-    ss_mat[2, 1] = (cminus*norm_b - overlap*cplus)/(norm_a*norm_b - overlap**2) * components[0]
-    ss_mat[2, 1] += (cplus*norm_a - overlap*cminus)/(norm_a*norm_b - overlap**2) * components[1]
-
-    # (-, +)
-    ss_mat[3, 0] = ss_mat[2, 1]
-    ss_mat[3, 1] = ss_mat[2, 0]
-
-    fixed_pts_labels = ["(+, +)", "(-, -)", "(+, -)", "(-, +)"]
-
-    return ss_mat, fixed_pts_labels
-
-
 def fixedpoints_barm_2vectors(components, sigma, eta, lambd=1.0, n_r=2):
     """ Analytical fixed points for IBCM neurons in terms of the reduced m variables.
     These are simpler because they have the same possible values for all neurons individually,
@@ -138,24 +88,6 @@ def fixedpoint_s_2vectors_instant(rates, x_instant, lambd=1.0, options={}):
         return bet / (2*alph*lambd**2 + bet) * x_instant
 
 
-def fixedpoint_s_2vectors_mean(rates, bk_components, lambd=1.0, options={}):
-    activ_fct = str(options.get("activ_fct", "ReLU")).lower()
-    x_d = 0.5 * (bk_components[0] + bk_components[1])
-    alph, bet = rates
-    if activ_fct == "relu":
-        return relu_inplace(bet / (2*alph*lambd**2 + bet) * x_d)
-    else:
-        return bet / (2*alph*lambd**2 + bet) * x_d
-
-
-def fixedpoint_s_2vectors_norm2(rates, bk_components, sigm2, lambd=1.0):
-    x_d = 0.5 * (bk_components[0] + bk_components[1])
-    x_s = bk_components[0] - bk_components[1]
-    alph, bet = rates
-    factor = bet / (2*alph*lambd**2 + bet)
-    return factor**2 * (l2_norm(x_d) + sigm2*l2_norm(x_s))
-
-
 def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9, lambd=1.0):
     """ Predict times for c_d and c_s to converge to fixed points.
     Valid for small sigma^2, when we expect c_d to converge before c_s
@@ -224,104 +156,6 @@ def fixedpoint_thirdmoment_onecval(avgnu, variance, epsilon, nb, m3=1.0, lambd=1
     cd = y*nb*avgnu
     u2 = nb*y**2
     return y, y, cd, u2
-
-
-def fixedpoint_thirdmoment_perturbtheory(avgnu, variance, epsilon, k1, k2, m3=1.0, order=1, lambd=1.0):
-    r""" Calculate the two possible values taken by the dot product of a neuron's \vec{\bar{m}}
-    with each component, from a perturbation solution at first order in the magnitude
-    of the third moment m_3 of the \nu_{\alpha}. It depends on $k_1$ and $k_2$, the number
-    of components that have either of the two possible dot product values with \vec{\bar{m}}.
-
-    We always take the plus sign in x (value appearing k_1 times); to have the minus sign,
-    switch k_1 and k_2, and then y will be the minus sign solution.
-
-    Valid for the special case where all nus have the same average and variance,
-    and zero correlation.
-
-    The solution proceeds in two times: first, we find first-order corrections
-    to $u^2 = \sum_i c_i^2 = \frac{1}{variance} + \epsilon v$   and
-    $c_d = avgnu*\sum_i c_i = 1 + \epsilon w$. Second, we recover x and y, the two
-    possible values taken by each of the dot products c_i, from inverting
-    $u^2 = k_1 x^2 + k_2 y^2$ and $c_d = avgnu*(k_1 x + k_2 y)$. There are two
-    possibilities for x and y for a given u^2 and c_d:
-        $x = c_d/(N*avgnu) \pm \frac{1}{N} \sqrt{k_2/k_1}\sqrt{Nu^2 - avgnu^2 c_d^2} $
-        $y = c_d/(N*avgnu) \mp \frac{1}{N} \sqrt{k_1/k_2}\sqrt{Nu^2 - avgnu^2 c_d^2} $
-    x and y take opposite signs (choosing sign in x expression forces opposite sign in y).
-
-    I'm pretty sure the only stable fixed point is when one k_i = 1, and only
-    one of the signs for x (don't know which yet), but I don't have analytical
-    evidence for it, so I return both possible pairs of (x, y) for a given k_1, k_2.
-
-    For N_K > 3, I will have to compute such pairs for all choices of k_1 and pick
-    the solution(s) that match simulations.
-    Eventually, I will be able to empirically decide on which k_i value and which pair
-    of (x, y) sign gives stable fixed points (e.g. k_1=1 and plus sign
-    - always taking x to be the unique value).
-
-
-    Args:
-        avgnu (float): average value of the nus.
-        variance (float): variance of the nus.
-        epsilon (float): small amplitude of the third centered moment.
-        k1 (int): number of components with one dot product value.
-        k2 (int): number of components with the other dot product.
-            k1+k2 = N, the number of components.
-        m3 (float): third moment amplitude; multiplies epsilon.
-            Default: 1.0, epsilon alone is sufficient.
-        lambd (float): Lambda scale parameter.
-    Returns:
-        x, y: the two possible values of dot products
-        cd, u2: the sum of c_gammas and c_gamma^2s, respectively
-    """
-    # All c_gammas equal. Probably unstable, can compute anyways.
-    if k1 == 0 or k2 == 0:
-        return fixedpoint_thirdmoment_onecval(avgnu, variance, epsilon, max(k1, k2), m3=m3)
-
-    nn = k1 + k2  # number of components
-
-    # First, compute corrections to u^2 and c_d, choosing the plus sign in x
-    radical = np.sqrt(nn/variance - 1/(avgnu*avgnu))
-    if order == 1:
-        sigma4v = m3*(
-            2/avgnu/nn
-            + ((k2/k1 - k1/k2)/variance + (1/k2 - 1/k1)/(avgnu*avgnu))
-                / ((np.sqrt(k2/k1) + np.sqrt(k1/k2))*radical)
-        )
-        # Uncorrected x, appears in expression for w in terms of sigma4v
-        x0 = 1/nn/avgnu + np.sqrt(k2/k1)*radical/nn
-        w = (
-            m3/2/nn/avgnu/k1 * (k2/variance - 1/(avgnu*avgnu))
-            + (2*m3/nn/avgnu - sigma4v)*x0/2/avgnu
-        )
-        u2 = 1/variance + epsilon*sigma4v/variance/variance  # We had v * sigma^4
-        cd = 1 + epsilon*w
-
-        # Second, compute x and y, remembering we chose the plus sign in x
-        # for the derivation. If you want the negative signfor a given k_1,
-        # call the function with k_1 and k_2 switched; then y will be the x you want.
-        radical2 = np.sqrt(nn*u2 - (cd/avgnu)**2)
-        x = cd/nn/avgnu + np.sqrt(k2/k1)*radical2/nn
-        y = cd/nn/avgnu - np.sqrt(k1/k2)*radical2/nn
-
-    # Zeroth order x and y, uncorrected, if cd=1 and u2 = 1/variance still
-    # Does not really make sense to stop at zeroth order, because then degeneracy is not lifted
-    # and the neurons can take any value on the N-2 dimensional subspace of fixed points.
-    elif order == 0:
-        x = 1/nn/avgnu + np.sqrt(k2/k1)*radical/nn
-        y = 1/nn/avgnu - np.sqrt(k1/k2)*radical/nn
-        u2 = 1/variance
-        cd = 1
-        # They don't match simulations as well as first-order, fortunately
-
-    # Second order or more?
-    else:
-        raise NotImplementedError("I never tried to calculate above first-order perturbation theory!")
-
-    # I think the stable fixed points are for k1<k2, plus sign in x. That makes the
-    # less frequent value x the largest, and the most frequent, y, small and < 0.
-    # That looks like the numerical fixed points we get.
-    # Add lambda at the very end
-    return x*lambd, y*lambd, cd*lambd, u2*lambd**2
 
 
 # Exact fixed points

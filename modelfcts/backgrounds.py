@@ -87,30 +87,6 @@ def update_ou_2inputs(nu_bk, params_bk, noise, dt):
     return bkvec, nu_bk
 
 
-def update_ou_2inputs_clip(nu_bk, params_bk, noise, dt):
-    """ Same update as update_ou_2inputs, but the concentration of each odor
-    is clipped to be non-negative. This ensures that ORN activities
-    are non-negative as well if the background vectors x_a, x_b
-    are non-negative.
-    """
-    # Extract parameters
-    mean_nu, upcoef_mean, upcoef_noise, vecs_nu = params_bk
-
-    # Update the proportions nu: exact update rule from Gillespie 1996 (c of Gillespie = 2/tau*sigma^2)
-    # Coef for mean: exp(-dt/tau)
-    # Coef for noise: sqrt(sigma^2*(1 - exp(-2dt/tau)))
-    # Works for mean=0, so remove the mean first, then put it back after update
-    nu_bk = nu_bk - mean_nu  # At time t
-    nu_bk = upcoef_mean*nu_bk + upcoef_noise*noise  # At time t+dt now
-     # Put mean back at t+dt and clip
-    nu_bk = np.clip(nu_bk + mean_nu, a_min=-0.5, a_max=0.5)
-
-    # Compute new background vector:  bk_j = \sum_i nu_i vecs_{ij}
-    bkvec = (0.5 + nu_bk) * vecs_nu[0] + (0.5 - nu_bk) * vecs_nu[1]
-
-    return bkvec, nu_bk
-
-
 ### NON-NORMAL PROCESSES BASED ON TRANSFORMATIONS OF ORNSTEIN-UHLENBECK ###
 def update_thirdmoment_kinputs(x_bk, params_bk, noises, dt):
     r"""
@@ -210,6 +186,7 @@ def update_logou_kinputs(nu_bk, params_bk, noises, dt):
 ### ALTERNATING PROCESS ###
 def update_alternating_inputs(idx_bk, params_bk, noises, dt):
     """ Select randomly the next background input.
+    Not used in the final project, but kept as an option in the code. 
     Args:
         nu_bk (np.ndarray): array of length k-1, containing proportions nu_i of odorants
         params_bk (list):  Contains the following parameters
@@ -222,15 +199,6 @@ def update_alternating_inputs(idx_bk, params_bk, noises, dt):
     cumul_probs, vecs = params_bk
     idx = np.argmax(cumul_probs > noises[0])
     return vecs[idx], np.asarray([idx])
-
-
-### UTILITY FUNCTIONS ###
-## Decompose on some non-orthogonal basis, for the purpose here of
-# the basis x_d = 1/2(x_a + x_b), x_s = (x_a - x_b)
-def decompose_nonorthogonal_basis(vec, basis):
-    """ Each column of basis contains one of the basis vectors"""
-    coefs = np.linalg.solve(basis, vec)
-    return coefs
 
 
 ### POWER LAW WAIT TIMES BETWEEN WHIFFS ###
@@ -299,9 +267,7 @@ def update_powerlaw_times_concs(tc_bk, params_bk, noises, dt):
         tc_bk_new[i] = update_tc_odor(tc_bk[i], dt, noises[i],
                                 *[p[i] for p in params_bk[:-1]])
 
-    # Compute backgound vector (even if it didn't change)
-    # TODO: this could be optimized too by giving the current back vec
-    # as an input, but this requires editing the ibcm simulation functions
+    # Compute backgound vector (even if it didn't change, for systematicity)
     vecs_nu = params_bk[-1]
     new_bk_vec = np.squeeze(np.dot(tc_bk_new[:, 1:2].T, vecs_nu))
     return new_bk_vec, tc_bk_new
@@ -445,9 +411,7 @@ def update_powerlaw_gauss_noise(tc_bk, params_bk, noises, dt):
     tc_bk_new[n_odors:] = box_muller_2d(noises[n_odors:], pair_axis=1)
     norm_noises = tc_bk_new[n_odors:].flatten()
 
-    # Compute backgound vector (even if it didn't change)
-    # TODO: this could be optimized too by giving the current back vec
-    # as an input, but this requires editing the ibcm simulation functions
+    # Compute backgound vector (even if it didn't change, for systematicity)
     new_bk_vec = np.dot(tc_bk_new[:n_odors, 1], vecs_nu)
     #noise_ampli = params_bk[-2]
     new_bk_vec += params_bk[-2] * norm_noises[:new_bk_vec.shape[0]]  # If odd n_R, remove last noise

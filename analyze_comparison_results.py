@@ -93,7 +93,6 @@ def main_export_jaccards(dest_name, k='jaccard_scores'):
     }
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
-    # TODO: check it is indeed the same
     with h5py.File(model_file_choices["ibcm"], "r") as f:
         n_new_concs = f.get("parameters").get("repeats")[4]
         new_concs = f.get("parameters").get("new_concs")[()]

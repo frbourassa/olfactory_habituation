@@ -4,7 +4,7 @@ as a function of the olfactory space dimensionality, N_R.
 
 This requires running multiple simulations for each dimension value, 
 hence we use multiprocessing. Launch one 
-"compare_recognition_performance.py"-like simulation for each 
+"run_performance_recognition.py"-like simulation for each 
 tested dimension, to be saved to a separate file. 
 
 Need to skip more steps for large dimensions, 

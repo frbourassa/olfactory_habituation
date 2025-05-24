@@ -4,7 +4,7 @@ as we increase the magnitude of independent Gaussian noise added to OSNs.
 
 This requires running multiple simulations for each noise value, 
 hence we use multiprocessing. Launch one 
-"compare_recognition_performance.py"-like simulation for each 
+"run_performance_recognition.py"-like simulation for each 
 tested noise magnitude, to be saved to a separate file. 
 
 Need to skip more steps than usual

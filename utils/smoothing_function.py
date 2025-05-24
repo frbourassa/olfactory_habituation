@@ -2,7 +2,7 @@ import numpy as np
 
 
 def moving_average(points, kernelsize, boundary="free"):
-    """ Moving average filtering on the array of experimental points,
+    r""" Moving average filtering on the array of experimental points,
     averages over a block of size kernelsize.
     kernelsize should be an odd number; otherwise,
     the odd number just lower is used.
