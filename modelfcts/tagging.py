@@ -162,27 +162,3 @@ def project_neural_tag(y_vec, x_vec, projmat, **proj_kwargs):
     thresh_keep = np.quantile(kc_vec, 1.0 - kc_sparsity)
     z_set = set(np.nonzero(np.logical_and(mask, kc_vec >= thresh_keep))[0])
     return z_set
-
-
-def tags_list_to_csr_matrix(tag_list, n_neu):
-    """ Given a list of sets of active neurons (i.e. a list of tags),
-    and the size of the layer, save to a scipy.sparse.csr_matrix
-    where each row is one tag. This minimizes memory use compared
-    to saving to a dense padded 2d array, yet is easier to save
-    to disk (without pickling) than a list of Python sets.
-
-    Args:
-        tag_list (list of sets of ints): a list of sets of
-            indices of active neurons
-        n_neu (int): number of neurons in the layer, e.g.
-            largest possible neuron index + 1.
-    Returns:
-        tags_matrix (sp.sparse.csr_matrix): each row is one tag
-    """
-    tag_lengths = list(map(len, tag_list))
-    tags_indptr = np.concatenate([[0], np.cumsum(tag_lengths)])
-    tags_indices = np.concatenate(list(map(list, tag_list)), axis=0)
-    tags_data = np.ones(len(tags_indices), dtype=bool)
-    tags_matrix = sp.sparse.csr_matrix((tags_data, tags_indices, tags_indptr),
-                                   shape=[len(tag_list), n_neu])
-    return tags_matrix

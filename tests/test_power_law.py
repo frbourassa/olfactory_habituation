@@ -4,6 +4,10 @@ Test sampling from a power law.
 import numpy as np
 import matplotlib.pyplot as plt
 from time import perf_counter
+import sys
+if ".." not in sys.path:
+    sys.path.insert(1, "..")
+from modelfcts.distribs import powerlaw_cutoff_inverse_transform
 
 cmyk_blue = "#3E529F"
 cmyk_red = "#DA3833"
@@ -12,10 +16,6 @@ cmyk_green = "#307F54"
 # Transform U(0, 1) samples into power law samples
 def powerlaw_inverse_transform(unif, tmin):
     return tmin / ((1.0 - unif)**2)
-
-def powerlaw_cutoff_inverse_transform(unif, tmin, tmax):
-    factor = (1.0 - np.sqrt(tmin/tmax))
-    return tmin / ((1.0 - unif * factor)**2)
 
 
 if __name__ == "__main__":

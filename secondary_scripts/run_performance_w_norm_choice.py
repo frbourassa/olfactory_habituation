@@ -23,13 +23,15 @@ May 2024
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import os, sys
 import itertools
 import json
+if ".." not in sys.path:
+    sys.path.insert(1, "..")
 
 from modelfcts.ideal import relu_inplace, rerun_w_dynamics
 from modelfcts.ibcm import integrate_inhib_ibcm_network_options
-from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
+from modelfcts.biopca import integrate_inhib_biopca_network_skip
 from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact, lambda_pca_equivalent
 
 from modelfcts.distribs import truncexp1_average
@@ -157,7 +159,7 @@ def integrate_w_given_xc(xser, cser, w_init, inhib_params, dt, **options):
 
 if __name__ == "__main__":
     # Results folder
-    folder = os.path.join("results", "performance_w")
+    folder = os.path.join("..", "results", "performance_w")
 
     # Global seed, used to spawn more seeds for different background instances
     common_seed = 0xe4a1f15c70ecc52736db51e441a451de

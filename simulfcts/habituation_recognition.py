@@ -73,7 +73,7 @@ from modelfcts.ibcm import (
     ibcm_respond_new_odors
 )
 from modelfcts.biopca import (
-    integrate_inhib_ifpsp_network_skip,
+    integrate_inhib_biopca_network_skip,
     biopca_respond_new_odors
 )
 from modelfcts.average_sub import (
@@ -409,7 +409,7 @@ def select_model_functions(attrs):
     if attrs["model"] == "IBCM":
         integrate = integrate_inhib_ibcm_network_options
     elif attrs["model"] == 'PCA':
-        integrate = integrate_inhib_ifpsp_network_skip
+        integrate = integrate_inhib_biopca_network_skip
     elif attrs["model"] == "AVG":
         integrate = integrate_inhib_average_sub_skip
     else:

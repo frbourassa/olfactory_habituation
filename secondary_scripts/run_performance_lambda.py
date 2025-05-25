@@ -16,7 +16,10 @@ January 2024
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import os, sys
+if ".." not in sys.path:
+    sys.path.insert(1, "..")
+    
 from modelfcts.ibcm_analytics import (
     fixedpoint_thirdmoment_exact, 
     lambda_pca_equivalent
@@ -31,7 +34,7 @@ from simulfcts.habituation_recognition_lambda import (
 
 if __name__ == "__main__":
     # Results folder
-    folder = os.path.join("results", "performance_lambda")
+    folder = os.path.join("..", "results", "performance_lambda")
 
     # Global seed, used for all models to get exact same backgrounds
     common_seed = 0xe4a1f15c70ecc52736db51e441a451dd

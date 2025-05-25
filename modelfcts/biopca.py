@@ -51,7 +51,7 @@ def build_lambda_matrix(l_max, l_range, n_neu):
     return l_max * lambda_mat
 
 
-def integrate_inhib_ifpsp_network_skip(ml_inits, update_bk, bk_init,
+def integrate_inhib_biopca_network_skip(ml_inits, update_bk, bk_init,
                 biopca_params, inhib_params, bk_params, tmax, dt,
                 seed=None, noisetype="normal", skp=1, **model_options):
     """ Integrate the feedforward inhibition network with online PCA learning

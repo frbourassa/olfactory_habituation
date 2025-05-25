@@ -1,12 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
+import os, sys
+if ".." not in sys.path:
+    sys.path.insert(1, "..")
+
 from simulfcts.habituation_recognition import id_to_simkey
 from simulfcts.plotting import hist_outline
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
-import os
-
 from simulfcts.analysis import (
     concat_jaccards,
     concat_ystats
@@ -43,7 +45,7 @@ def get_hnorm_at_lambda0(f):
 def main_plot_performance(dim=25):
     # Compare IBCM and PCA as a function of Lambda
     # Plot s statistics vs lambda, plot Jaccard statistics vs Lambda
-    folder = os.path.join("results", "performance_lambda")
+    folder = os.path.join("..", "results", "performance_lambda")
     models = ["ibcm", "biopca"]
     model_nice_names = {
         "ibcm": "IBCM",
@@ -113,7 +115,7 @@ def main_plot_performance(dim=25):
         axes[i].set_xscale("log")
     axes[0].legend(loc="upper right")
     fig.tight_layout()
-    fig.savefig(f"figures/detection/y_stats_vs_lambda_{dim}.pdf", transparent=True,
+    fig.savefig(f"../figures/detection/y_stats_vs_lambda_{dim}.pdf", transparent=True,
                 bbox_inches="tight")
     plt.close()
 
@@ -152,7 +154,7 @@ def main_plot_performance(dim=25):
         axes[1, i].set_xscale("log")
     axes[0, 0].legend(loc="lower left")
     fig.tight_layout()
-    fig.savefig(f"figures/detection/jaccard_vs_lambda_{dim}.pdf", transparent=True,
+    fig.savefig(f"../figures/detection/jaccard_vs_lambda_{dim}.pdf", transparent=True,
                 bbox_inches="tight")
     plt.close()
     return None
@@ -160,7 +162,7 @@ def main_plot_performance(dim=25):
 
 def main_export_ystats(dest_name, dim=25):
     # Compare all algorithms
-    folder = os.path.join("results", "performance_lambda")
+    folder = os.path.join("..", "results", "performance_lambda")
     models = ["ibcm", "biopca"]
     model_file_choices = {
         a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
@@ -209,7 +211,7 @@ def main_export_ystats(dest_name, dim=25):
 
 def main_export_jaccards(dest_name, dim=25):
     # Compare all algorithms
-    folder = os.path.join("results", "performance_lambda")
+    folder = os.path.join("..", "results", "performance_lambda")
     models = ["ibcm", "biopca"]
     model_file_choices = {
         a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
@@ -238,7 +240,7 @@ def main_export_jaccards(dest_name, dim=25):
 
 def main_export_new_back_distances(dest_name, dim=25):
     # Compare all algorithms
-    folder = os.path.join("results", "performance_lambda")
+    folder = os.path.join("..", "results", "performance_lambda")
     models = ["ibcm", "biopca"]
     model_file_choices = {
         a:os.path.join(folder, a+f"_performance_lambda_{dim}.h5")
@@ -276,11 +278,11 @@ if __name__ == "__main__":
     n_s_dim = 300
     main_plot_performance(dim=n_s_dim)
     main_export_jaccards(
-        os.path.join("results", "for_plots", "jaccard_similarities"), dim=n_s_dim
+        os.path.join("..", "results", "for_plots", "jaccard_similarities"), dim=n_s_dim
     )
     main_export_ystats(
-        os.path.join("results", "for_plots", "ystats"), dim=n_s_dim
+        os.path.join("..", "results", "for_plots", "ystats"), dim=n_s_dim
     )
     main_export_new_back_distances(
-        os.path.join("results", "for_plots", "new_back_distances"), dim=n_s_dim
+        os.path.join("..", "results", "for_plots", "new_back_distances"), dim=n_s_dim
     )

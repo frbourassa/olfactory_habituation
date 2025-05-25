@@ -2,13 +2,16 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
+import json
+import itertools
+import os, sys
+if ".." not in sys.path:
+    sys.path.insert(1, "..")
+
 from simulfcts.habituation_recognition import id_to_simkey
 from simulfcts.plotting import hist_outline
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
-import os
-import json
-import itertools
 
 from simulfcts.analysis import (
     concat_jaccards,
@@ -174,7 +177,7 @@ def create_or_load(f, model):
     else:
         print("Aggregating stats for {}".format(f))
         df_stats = aggregate_result_files(
-            os.path.join("results", "performance_w"), model
+            os.path.join("..", "results", "performance_w"), model
         )
         df_stats.to_hdf(f, key="df")
     return df_stats
@@ -223,7 +226,7 @@ def main_plot_w_norms(df_ibcm, df_pca):
         axes.flat[i].set(ylabel=m, xlabel="Grid search index")
     axes.flat[0].legend()
     fig.tight_layout()
-    fig.savefig(os.path.join("figures", "noise_struct", "line_plots_w_norm.pdf"),
+    fig.savefig(os.path.join("..", "figures", "noise_struct", "line_plots_w_norm.pdf"),
                 transparent=True, bbox_inches="tight")
     #plt.show()
     plt.close()
@@ -270,7 +273,7 @@ def main_plot_w_norms(df_ibcm, df_pca):
             axes.flat[i].spines[s].set_visible(False)
     fig.tight_layout()
     fig.savefig(
-        os.path.join("figures", "noise_struct", "bar_graphs_pq_w_norms.pdf"),
+        os.path.join("..", "figures", "noise_struct", "bar_graphs_pq_w_norms.pdf"),
         transparent=True, bbox_inches="tight"
     )
     #plt.show()
@@ -381,7 +384,7 @@ def main_plot_m_w_magnitudes(df_ibcm, df_pca):
 
     fig.tight_layout()
     fig.savefig(
-        os.path.join("figures", "noise_struct", "scatter_m_w_magnitudes_pq.pdf"),
+        os.path.join("..", "figures", "noise_struct", "scatter_m_w_magnitudes_pq.pdf"),
         transparent=True, bbox_inches="tight"
     )
     plt.show()
@@ -392,9 +395,9 @@ def main_plot_m_w_magnitudes(df_ibcm, df_pca):
 
 if __name__ == "__main__":
     # Create or load statistics dfs
-    ibcm_df_f = os.path.join("results", "performance_w", "df_w_stats_ibcm.h5")
+    ibcm_df_f = os.path.join("..", "results", "performance_w", "df_w_stats_ibcm.h5")
     df_stats_ibcm = create_or_load(ibcm_df_f, "IBCM")
-    pca_df_f = os.path.join("results", "performance_w", "df_w_stats_biopca.h5")
+    pca_df_f = os.path.join("..", "results", "performance_w", "df_w_stats_biopca.h5")
     df_stats_biopca = create_or_load(pca_df_f, "PCA")
 
     # Now, plot results
@@ -402,7 +405,7 @@ if __name__ == "__main__":
     main_plot_w_norms(df_stats_ibcm, df_stats_biopca)
 
     # Compare W and M magnitudes in IBCM and PCA, see if one more realistic
-    folder = os.path.join("results", "performance_w")
+    folder = os.path.join("..", "results", "performance_w")
     df_m_w_ibcm = main_compare_lm_w_magnitudes(folder, "IBCM")
     df_m_w_pca = main_compare_lm_w_magnitudes(folder, "PCA")
     main_plot_m_w_magnitudes(df_m_w_ibcm, df_m_w_pca)
@@ -410,7 +413,7 @@ if __name__ == "__main__":
     # Save concatenated dataframe for further final plotting
     df_both = pd.concat({"ibcm": df_stats_ibcm, "biopca":df_stats_biopca}, 
                         names=["Model"], axis=0)
-    df_both.to_hdf(os.path.join("results", "for_plots", 
+    df_both.to_hdf(os.path.join("..", "results", "for_plots", 
                     "df_w_pqnorms_stats_bothmodels.h5"), key="df")
 
     print("Done!")

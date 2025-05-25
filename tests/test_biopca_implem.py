@@ -5,13 +5,13 @@ import matplotlib.pyplot as plt
 if not ".." in sys.path:
     sys.path.insert(1, "..")
 
-from modelfcts.biopca import integrate_inhib_ifpsp_network_skip
+from modelfcts.biopca import integrate_inhib_biopca_network_skip
 from modelfcts.backgrounds import update_ou_kinputs
 from utils.statistics import seed_from_gen
 from utils.random_matrices import random_orthogonal_mat
 
 
-# Call signature of integrate_inhib_ifpsp_network_skip:
+# Call signature of integrate_inhib_biopca_network_skip:
 #   ml_init, l_init, update_bk, bk_init,
 #   biopca_params, inhib_params, bk_params, tmax, dt,
 #   seed=None, noisetype="normal", skp=1
@@ -131,7 +131,7 @@ def test_olfactory_back():
     lambda_range = 0.5
     # Choose Lambda diagonal matrix as advised in Minden et al., 2018
     lambda_mat_diag = np.asarray([1.0 - lambda_range*k / (n_neurons - 1) for k in range(n_neurons)])
-    biopca_rates = [learnrate, rel_lrate, lambda_range]
+    biopca_rates = [learnrate, rel_lrate, lambda_mat_diag]
 
     inhib_rates = [25e-5, 5e-5]  # alpha, beta
 
@@ -186,10 +186,13 @@ def test_olfactory_back():
     tser1, bkvecser1, mser1, lser1, cbarser1 = res1
 
     # Run inhibition implementation
-    res2 = integrate_inhib_ifpsp_network_skip(init_mmat, init_lmat, update_ou_kinputs,
+    inhib_rates = [0.00025, 0.00005]
+    biopca_rates = [learnrate, rel_lrate, 1.0, lambda_range, 1.0]
+    init_ml = [init_mmat, init_lmat]
+    res2 = integrate_inhib_biopca_network_skip(init_ml, update_ou_kinputs,
             init_back_list, biopca_rates, inhib_rates, back_params, duration,
-            deltat, seed=common_seed, noisetype="normal")
-    tser2, bkser2, bkvecser2, mser2, lser2, cbarser2, wser2, yser2 = res2
+            deltat, seed=common_seed, noisetype="normal", remove_mean=False)
+    tser2, bkser2, bkvecser2, mser2, lser2, xmeanser2, cbarser2, wser2, yser2 = res2
 
     assert np.allclose(mser1, mser2)
     assert np.allclose(lser1, lser2)
@@ -253,10 +256,12 @@ def test_mvnormal_back():
 
     # Run inhibition implementation
     inhib_rates = [0.00025, 0.00005]
-    res2 = integrate_inhib_ifpsp_network_skip(init_m, init_l, update_mvnormal,
+    biopca_params = [1.1e-3, 1.0/tau_const, 1.0, 0.3, 1.0]
+    init_ml = [init_m, init_l]
+    res2 = integrate_inhib_biopca_network_skip(init_ml, update_mvnormal,
             init_bk, biopca_params, inhib_rates, back_params, duration,
-            deltat, seed=common_seed, noisetype="normal")
-    tser2, bkser2, bkvecser2, mser2, lser2, cbarser2, wser2, yser2 = res2
+            deltat, seed=common_seed, noisetype="normal", remove_mean=False)
+    tser2, bkser2, bkvecser2, mser2, lser2, xmeanser2, cbarser2, wser2, yser2 = res2
 
     assert np.allclose(mser1, mser2)
     assert np.allclose(lser1, lser2)
@@ -272,5 +277,5 @@ def test_mvnormal_back():
     plt.close()
 
 if __name__ == "__main__":
-    #test_olfactory_back()
+    test_olfactory_back()
     test_mvnormal_back()

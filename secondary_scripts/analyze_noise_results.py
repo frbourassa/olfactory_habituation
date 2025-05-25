@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
+import os, sys
+pj = os.path.join
+if ".." not in sys.path:
+    sys.path.insert(1, "..")
+
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
-import os
-pj = os.path.join
-
 from simulfcts.analysis import (
     concat_jaccards, 
     concat_new_mix_distances,
