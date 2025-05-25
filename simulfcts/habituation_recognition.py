@@ -6,8 +6,7 @@ new odor recongition.
 We test three different background statistics: weakly non-gaussian, log-normal,
 and turbulent.
 
-We test with random odor components (n_R = 25 dimensions), maybe in the future
-with components from the Hallem and Carson 2006 dataset (n_R=25 dimensions).
+We test with random odor components (N_S = 25 dimensions). 
 The number of Kenyon cells (generating neural tags) are scaled appropriately.
 
 We collect statistics across multiple parameters:
