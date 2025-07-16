@@ -18,6 +18,7 @@ notes/
 *.blg
 *.npy
 *.npz
+archived_notebooks/
 results/for_plots/*.json
 results/for_plots/*.txt
 results/for_plots/backups/*.json
