@@ -274,7 +274,7 @@ def ibcm_fixedpoint_w_thirdmoment(inhib_rates, moments_nu, back_vecs, cs_cn, spe
 
     # 1. Compute the number of neurons specific to each odor, n_gammas
     specif_gammas = specif_gammas.astype(int)
-    n_gammas = np.bincount(specif_gammas)
+    n_gammas = np.bincount(specif_gammas, minlength=n_B)
 
     # 2. Compute a few terms that appear often.
     x_d = avgnu * np.sum(back_vecs, axis=0)

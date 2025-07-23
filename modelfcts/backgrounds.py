@@ -492,6 +492,85 @@ def sample_background_powerlaw_gauss_noise(vecs_nu, *args, size=1, rgen=None):
     return vec_samp, nu_samp
 
 
+def update_powerlaw_mixed_concs(tc_bk, params_bk, noises, dt):
+    """
+    Simulate independent turbulent odors and mix them with the Cholesky
+    decomposition of the target covariance matrix. 
+
+    Args:
+        tc_bk (np.ndarray): array of t, c for each independent underlying odor
+            where t = time left until next change, c = current concentration
+            of the odor. Shaped [n_odors, 2]
+        params_bk (list): contains the following elements (a lot needed!):
+            whiff_tmins (np.ndarray): lower cutoff in the power law
+                of whiff durations, for each odor
+            whiff_tmaxs (np.ndarray): upper cutoff in the power law
+                of whiff durations, for each odor
+            blank_tmins (np.ndarray): same as whiff_tmins but for blanks
+            blank_tmaxs (np.ndarray): same as whiff_tmaxs but for blanks
+            c0s (np.ndarray): c0 concentration scale for each odor
+            alphas (np.ndarray): alpha*c0 is the lower cutoff of p_c
+            chol (np.ndarray): Cholesky decomposition of the target
+            meanconc (float): mean of the independent underlying concs 
+                covariance matrix for mixed odors. 
+            vecs (np.ndarray): 2d array where each row is one of the
+                possible input vectors
+
+        noises (np.ndarray): fresh U(0, 1) samples, shaped [n_odors, 2],
+            in case we need to pull a new t and/or c.
+        dt (float): time step duration, in simulation units
+    """
+    # Extract parameters
+    turbul_params = params_bk[:-3]
+    meanconc = params_bk[-3]
+    chol = params_bk[-2]
+    vecs_nu = params_bk[-1]
+   
+   # Update one odor's t and c at a time, if necessary
+    tc_bk_new = np.zeros(tc_bk.shape)
+    for i in range(tc_bk.shape[0]):
+        tc_bk_new[i] = update_tc_odor(tc_bk[i], dt, noises[i],
+                                *[p[i] for p in turbul_params])
+    newconcs = tc_bk_new[:, 1]
+    mixed_concs = chol.dot(newconcs - meanconc) + meanconc
+    # Compute backgound vector
+    new_bk_vec = np.squeeze(np.dot(mixed_concs.T, vecs_nu))
+    return new_bk_vec, tc_bk_new
+
+
+# Steady-state sampling from the powerlaw and exp1 background
+def sample_ss_mixed_concs_powerlaw(*args, size=1, rgen=None):
+    """ First generate independent samples from turbulent distribution:
+    either zero or non-zero conc., with prob. 1-chi or chi respectively,
+    where chi = E(t_w)/(E(t_b) + E(t_w)). For non-zero variables,
+    sample concentration from the truncated exp1 law.
+    Then, mix concentrations. 
+    """
+    # Extract parameters
+    twlo, twhi, tblo, tbhi, c0, alpha, meanconc, chol = args
+    n_odors = len(twlo)
+    if rgen is None:
+        rgen = np.random.default_rng()
+    
+    # 1. Generate uniform samples to determine which concentrations will be above zero
+    r_sampl = rgen.random(size=[size, n_odors])
+    chi_prob = 1.0 / (1.0 + np.sqrt(tblo*tbhi/twlo/twhi))
+    
+    # 2. Determine which odors will have non-zero concentration
+    wh = (r_sampl < chi_prob)
+    nu_samp = np.zeros(r_sampl.shape)
+    
+    # 3. Generate uniform samples and transform to conc. distribution
+    # Need to treat one odor (column) at a time to use the right params
+    for i in range(n_odors):
+        r_sampl = rgen.random(size=np.sum(wh[:, i]))
+        nu_samp[wh[:, i], i] = truncexp1_inverse_transform(r_sampl, c0[i], alpha[i])
+    
+    # 4. Mix the underlying independent concentrations
+    mixed_concs =  (nu_samp - meanconc).dot(chol.T) + meanconc
+    return mixed_concs
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # Test the power law background
