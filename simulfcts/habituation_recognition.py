@@ -87,14 +87,19 @@ from modelfcts.backgrounds import (
     update_ou_kinputs,
     update_alternating_inputs,
     update_thirdmoment_kinputs,
-    update_logou_kinputs,
     update_powerlaw_times_concs,
     sample_background_powerlaw,
     sample_ss_conc_powerlaw,
     generate_odorant, 
     update_powerlaw_gauss_noise, 
     sample_ss_conc_powerlaw_gauss_noise,
-    sample_background_powerlaw_gauss_noise
+    sample_background_powerlaw_gauss_noise, 
+    update_powerlaw_mixed_concs,
+    sample_background_mixed_concs_powerlaw,
+    sample_ss_mixed_concs_powerlaw,
+    update_logou_kinputs,
+    sample_background_lognormal, 
+    sample_ss_conc_lognormal
 )
 from modelfcts.tagging import (
     project_neural_tag,
@@ -116,11 +121,17 @@ def select_sampling_functions(attrs):
     process in attrs"""
     back_conc_map = {
         "turbulent": sample_ss_conc_powerlaw, 
-        "turbulent_gaussnoise": sample_ss_conc_powerlaw_gauss_noise
+        "turbulent_gaussnoise": sample_ss_conc_powerlaw_gauss_noise,
+        "turbulent_correlation": sample_ss_mixed_concs_powerlaw,
+        "log-normal": sample_ss_conc_lognormal,
+        "lognormal_correlation": sample_ss_conc_lognormal,
     }
     back_vec_map = {
         "turbulent": sample_background_powerlaw, 
-        "turbulent_gaussnoise": sample_background_powerlaw_gauss_noise
+        "turbulent_gaussnoise": sample_background_powerlaw_gauss_noise, 
+        "turbulent_correlation": sample_background_mixed_concs_powerlaw,
+        "lognormal_correlation": sample_background_lognormal,
+        "log-normal": sample_background_lognormal
     }
     try:
         sample_conc = back_conc_map[attrs["background"]]
@@ -418,7 +429,9 @@ def select_model_functions(attrs):
     back_function_map = {
         "turbulent": (update_powerlaw_times_concs, "uniform"),
         "turbulent_gaussnoise": (update_powerlaw_gauss_noise, "uniform"),
+        "turbulent_correlation": (update_powerlaw_mixed_concs, "uniform"),
         "log-normal": (update_logou_kinputs, "normal"),
+        "lognormal_correlation": (update_logou_kinputs, "normal"),
         "third_moment": (update_thirdmoment_kinputs, "normal"),
         "gaussian": (update_ou_kinputs, "normal"),
         "alternating": (update_alternating_inputs, "uniform")
@@ -493,7 +506,23 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
         # Add the initial noise to the OSN activity vector too
         back_vec += noise_amplis * init_noises.flatten()[:dim_ns]
         back_init = [back_tc, back_vec]
-
+    elif attrs["background"] == "turbulent_correlation":
+        i_nus = sample_ss_conc_powerlaw(*back_params[:6], size=1, rgen=rng)
+        i_times = powerlaw_cutoff_inverse_transform(
+                rng.random(size=dimensions[1]), *back_params[2:4])
+        back_tc = np.stack([i_times, i_nus.squeeze()], axis=1)
+        # Mix underlying independent nu processes
+        meanconcs = back_params[6]
+        chol = back_params[7]
+        mixed_concs = chol.dot(i_nus[0] - meanconcs) + meanconcs
+        back_vec = mixed_concs.dot(back_vecs)
+        back_init = [back_tc, back_vec]
+    elif attrs["background"] == "lognormal_correlation":
+        # Initialize with all concentrations equal to their mean
+        averages_nu = back_params[3]
+        init_nu = averages_nu.copy()
+        init_bkvec = np.exp(averages_nu*np.log(10.0)).dot(back_vecs)
+        back_init = [init_nu, init_bkvec]
     else:
         raise NotImplementedError("Did not implement background type"
                 + "{} initialization".format(attrs["background"]))

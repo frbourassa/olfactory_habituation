@@ -288,9 +288,9 @@ def plot_background_neurons_inhibition(ts, bks, ss, skp=100, colors=[]):
         if j - n_cols >= 0:
             axes[j - n_cols].set_xlabel("Time (x{})".format(tfactor))
             axes[j - n_cols].set_xticklabels(axes[n_plots - n_neu].get_xticklabels())
-
+    axes = list(axes)
     for j in range(n_neu, n_plots):  # Remove from the axes list.
-        axes[j].pop(-1)
+        axes.pop(-1)
     fig.tight_layout()
 
     return fig, axes_mat, axes

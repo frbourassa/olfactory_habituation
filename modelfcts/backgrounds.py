@@ -6,8 +6,11 @@ September 2021
 Updated June 2022
 """
 import numpy as np
-from modelfcts.distribs import (truncexp1_inverse_transform,  # whiff concs
-            powerlaw_cutoff_inverse_transform)   # whiff or blank durations
+from modelfcts.distribs import (
+    truncexp1_inverse_transform,  # whiff concs
+    powerlaw_cutoff_inverse_transform,   # whiff or blank durations
+    truncexp1_average  # average whiff conc
+)
 
 
 # Realistic model of olfactory receptor activation patterns:
@@ -172,7 +175,7 @@ def update_logou_kinputs(nu_bk, params_bk, noises, dt):
             and their average is added before the background is computed
         noises: 1d array of pre-generated normal(0, 1) samples, one per component in nu_bk
     """
-    mateA, matJB, vecs_nu, means_nu = params_bk
+    mateA, matJB, vecs_nu, means_nu = params_bk[:4]
     nu_bk_new = np.dot(mateA, nu_bk) + np.dot(matJB, noises)
     # Update background vector, putting back the mean value of the nu's and
     # exponentiating because the nu's are the logarithms of
@@ -181,6 +184,36 @@ def update_logou_kinputs(nu_bk, params_bk, noises, dt):
     bkvec = np.squeeze(np.dot(concentrations[np.newaxis, :], vecs_nu))
 
     return bkvec, nu_bk_new
+
+
+def sample_ss_conc_lognormal(*args, size=1, rgen=None):
+    """ Steady-state probability distribution: log-normal
+    """
+    _, _, _, means_nu, covmat_nu = args[3:5]
+    nusamples = rgen.multivariate_normal(means_nu, covmat_nu, size=size)
+    concentrations = np.exp(nusamples*logof10)  # 10**nu_\alpha
+    return concentrations
+
+
+def sample_background_lognormal(vecs_nu, *args, size=1, rgen=None):
+    """
+    Args:
+        vecs_nu (np.ndarray): array of background odor vectors,
+            indexed [odor, dimension]
+        args:
+            matA, matB, vecs_nu: not used but standard parameter
+            format for update_logou_kinputs
+        size (int): number of background samples to generate (default: 1)
+        rgen (np.random.Generator): random generator (optional).
+    """
+    # Get samples of concentration variables nu first
+    nu_samp = sample_ss_conc_lognormal(*args, size=size, rgen=rgen)
+
+    # Then, combine background vectors with those nu coefficients
+    # Each row in nu_samp is a different sample, so taking the dot product
+    # the first dimension still indexes samples, the second gives components.
+    vec_samp = np.dot(nu_samp, vecs_nu)
+    return vec_samp, nu_samp
 
 
 ### ALTERNATING PROCESS ###
@@ -315,6 +348,7 @@ def sample_ss_conc_powerlaw(*args, size=1, rgen=None):
 
     return nu_samp
 
+
 def sample_background_powerlaw(vecs_nu, *args, size=1, rgen=None):
     """
     Args:
@@ -340,6 +374,14 @@ def sample_background_powerlaw(vecs_nu, *args, size=1, rgen=None):
     # the first dimension still indexes samples, the second gives components.
     vec_samp = np.dot(nu_samp, vecs_nu)
     return vec_samp, nu_samp
+
+# Calculate mean concentration across blanks and whiffs for each odor
+def mean_turbulent_concs(back_params):
+    tblo, tbhi, twlo, twhi = back_params[2], back_params[3], back_params[0], back_params[1]
+    whiffprobs = 1.0 / (1.0 + np.sqrt(tblo*tbhi/twlo/twhi))
+    avg_whiff_concs = truncexp1_average(*back_params[4:6])
+    mean_concs = whiffprobs * avg_whiff_concs  # average time in whiffs vs blanks * average whiff conc
+    return mean_concs
 
 
 ### Turbulent background with Gaussian noise on OSNs ###
@@ -492,6 +534,7 @@ def sample_background_powerlaw_gauss_noise(vecs_nu, *args, size=1, rgen=None):
     return vec_samp, nu_samp
 
 
+### Turbulent background with correlated concentrations ###
 def update_powerlaw_mixed_concs(tc_bk, params_bk, noises, dt):
     """
     Simulate independent turbulent odors and mix them with the Cholesky
@@ -532,6 +575,7 @@ def update_powerlaw_mixed_concs(tc_bk, params_bk, noises, dt):
         tc_bk_new[i] = update_tc_odor(tc_bk[i], dt, noises[i],
                                 *[p[i] for p in turbul_params])
     newconcs = tc_bk_new[:, 1]
+    # Mix underlying independent processes
     mixed_concs = chol.dot(newconcs - meanconc) + meanconc
     # Compute backgound vector
     new_bk_vec = np.squeeze(np.dot(mixed_concs.T, vecs_nu))
@@ -569,6 +613,37 @@ def sample_ss_mixed_concs_powerlaw(*args, size=1, rgen=None):
     # 4. Mix the underlying independent concentrations
     mixed_concs =  (nu_samp - meanconc).dot(chol.T) + meanconc
     return mixed_concs
+
+
+def sample_background_mixed_concs_powerlaw(vecs_nu, *args, size=1, rgen=None):
+    """
+    Args:
+        vecs_nu (np.ndarray): array of background odor vectors,
+            indexed [odor, dimension]
+        args:
+            whiff_tmins (np.ndarray): lower cutoff in the power law
+                of whiff durations, for each odor
+            whiff_tmaxs (np.ndarray): upper cutoff in the power law
+                of whiff durations, for each odor
+            blank_tmins (np.ndarray): same as whiff_tmins but for blanks
+            blank_tmaxs (np.ndarray): same as whiff_tmaxs but for blanks
+            c0s (np.ndarray): c0 concentration scale for each odor
+            alphas (np.ndarray): alpha*c0 is the lower cutoff of p_c
+            chol (np.ndarray): Cholesky decomposition of the target
+            meanconc (float): mean of the independent underlying concs 
+                covariance matrix for mixed odors. 
+        size (int): number of background samples to generate (default: 1)
+        rgen (np.random.Generator): random generator (optional).
+    """
+    # Get samples of concentration variables nu first
+    nu_samp = sample_ss_mixed_concs_powerlaw(*args, size=size, rgen=rgen)
+
+    # Then, combine background vectors with those nu coefficients
+    # Each row in nu_samp is a different sample, so taking the dot product
+    # the first dimension still indexes samples, the second gives components.
+    vec_samp = np.dot(nu_samp, vecs_nu)
+    return vec_samp, nu_samp
+
 
 
 if __name__ == "__main__":
