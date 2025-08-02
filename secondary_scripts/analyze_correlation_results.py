@@ -1,5 +1,7 @@
 """ Analyze and save to disk a summary of the simulations results
 for correlated odors. Similar script to analyze_dimensionality_results. 
+Run from main folder as 
+>>> python secondary_scripts/analyze_correlation_results.py
 
 @author: frbourassa
 July 2025
@@ -34,9 +36,9 @@ def correl_from_file(fname):
 def get_correl_range_from_files(fold, models):
     rho_ranges = []
     for m in models:
-        model_ns = [correl_from_file(pj(fold, a)) for a in os.listdir(fold) 
+        model_rho = [correl_from_file(pj(fold, a)) for a in os.listdir(fold) 
                     if (a.startswith(m) and a.endswith(".h5"))]
-        rho_ranges.append(model_ns)
+        rho_ranges.append(model_rho)
     # Check all these lists are equal, i.e. we tested the same
     # N_S for all models
     assert sum([sum([rho_ranges[j][i] == rho_ranges[0][i] 
@@ -96,7 +98,7 @@ def main_plot_perf_vs_correl():
     std_jaccard_ranges = {}
     for m in models:
         jacs_m = []
-        for i, ns in enumerate(correl_range):
+        for i, rho in enumerate(correl_range):
             fname = f"{m}_performance_results_correlation_{i}.h5"
             f = h5py.File(pj(folder, fname), "r")
             # Isolate new odor concentration axis, bunch other replicates
@@ -130,7 +132,6 @@ def main_plot_perf_vs_correl():
         axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
         axes[i].set_xlabel(r"Odor correlation, $\rho$")
         axes[i].set_ylabel("Mean Jaccard similarity")
-        axes[i].set_xscale("log")
     axes[-1].legend()
     fig.tight_layout()
     fig.savefig(pj("figures", "correlation", 
@@ -189,7 +190,7 @@ def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
     all_jacs = {}
     for m in models:
         jacs_m = []
-        for i, ns in enumerate(correl_range):
+        for i, rho in enumerate(correl_range):
             fname = f"{m}_performance_results_correlation_{i}.h5"
             f = h5py.File(pj(folder, fname), "r")
             jacs_m.append(concat_jaccards(f, k=k))
@@ -321,7 +322,7 @@ def main_export_new_mix_distance_stats(dest_name):
     all_dists = {}
     for m in models:
         dists_m = []
-        for n, ns in enumerate(correl_range):
+        for n, rho in enumerate(correl_range):
             fname = f"{m}_performance_results_correlation_{n}.h5"
             f = h5py.File(pj(folder, fname), "r")
             dists_m.append(concat_new_mix_distances(f))
