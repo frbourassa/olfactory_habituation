@@ -72,11 +72,11 @@ if __name__ == "__main__":
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    correl_range = np.arange(-0.9, 1.01, 0.1)  # rho = 1 needs special handling
+    correl_range = np.around(np.arange(-0.9, 1.01, 0.1), 12)  # rho = 1 needs special handling
 
     # Common global seeds, one per correlation strength tested, 
     # used for all models to get exact same backgrounds
-    root_seed = 0x9c3508db054c8102665d8bfbed2a9c17
+    root_seed = 0x9b197c191e12251f7f430c795ca02c01
     n_mags_tested = correl_range.shape[0]
     seed_generator = np.random.default_rng(root_seed)
     common_seeds = [seed_from_gen(seed_generator, nbits=128) for _ in correl_range]
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     new_test_concs *= avg_whiff_conc
 
     # Compute moments of the background concentration process
-    dummy_rgen = np.random.default_rng(0xcc1e0a471820fd7d4ffd193e6d7ade58)
+    dummy_rgen = np.random.default_rng(0xd915ff2054e9e76dc76983185d14f1f9)
     conc_samples = sample_ss_mixed_concs_powerlaw(
                         *turbulent_back_params, size=int(1e5), rgen=dummy_rgen
                     )
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         "dimensions": dimensions_array,
         "repeats": repeats_array,
         # learnrate, tau_avg, eta, lambda, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.00125, 1200.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
+        "m_rates": np.asarray([0.001, 1200.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,

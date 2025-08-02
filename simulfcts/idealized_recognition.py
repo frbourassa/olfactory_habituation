@@ -65,7 +65,14 @@ def recover_back_samples(gp, backvecs, backtype, reffile, lean):
             noises = np.concatenate([nu_samples[:, :, n_odors:], extra_gauss], axis=2)
             conc_samples = nu_samples[:, :, :n_odors]
             back_samples = conc_samples.dot(backvecs) + noises*noise_amplis
-        else:
+        elif backtype == "turbulent_correlation":
+            # Need to mix underlying nu samples
+            paramgp = reffile.get("parameters")
+            mean_concs = paramgp["back_params_6"][:]
+            target_chol = paramgp["back_params_7"][:]
+            mixed_concs = (nu_samples - mean_concs).dot(target_chol.T) + mean_concs
+            back_samples = mixed_concs.dot(backvecs)
+        else:  # includes log-normal with correlations
             conc_samples = nu_samples
             back_samples = conc_samples.dot(backvecs)
     else:
@@ -458,7 +465,7 @@ def ideal_recognition_one_sim(sim_id, filename_ref, lean=False):
     if bkname.endswith("gaussnoise"):
         back_ort_comp = back_samples - back_samples.dot(projector.T)
     else:
-        back_ort_comp = 0.0
+        back_ort_comp = np.zeros((n_times, n_back_samples))
 
     # Treat one new odor at a time, one new conc. at a time, etc.
     for i in range(n_new_odors):
