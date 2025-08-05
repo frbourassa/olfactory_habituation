@@ -73,8 +73,8 @@ class SparseNDArray(sparse.lil_array):
         csr_matrix_to_hdf5(hdf_gp, self.tocsr())
         hdf_gp.create_dataset("ndshape", data=self.ndshape)
 
-    def to_dense(self):
-        return super().to_dense().reshape(self.ndshape)
+    def todense(self):
+        return super().todense().reshape(self.ndshape)
 
     # Class function, call SparseNDArray.read_from_hdf(hdf_group)
     def read_from_hdf(self, hdf_gp):

@@ -82,6 +82,33 @@ def jaccard(s1, s2):
         return 0.0
 
 
+def jaccard_distinct(mix_tag, new_tag, back_tag):
+    """ 
+    Compute the fraction of new odor-specific neural tag
+    elements also present in the mixture tag. 
+        f = card(z_mix & (z_new - z_b)) / card(z_new - z_b)
+        
+    Args:
+        mix_tag (set): z_mix, neural tag in response to the mixture
+            of background and new odor
+        new_tag (set): z_new, neural tag of the new odor alone
+        back_tag (set): z_b, neural tag of the background
+            sample
+    
+    Returns:
+        frac (float): Fraction of new odor-specific neural tag
+            elements also present in the mixture tag. 
+    
+    """
+    new_distinct = new_tag - back_tag
+    mix_distinct = mix_tag - back_tag
+    if len(new_distinct) > 0:
+        frac = len(mix_distinct & new_distinct) / len(new_distinct)
+    else:
+        frac = 0.0
+    return frac
+
+
 # From the itertools documentation
 def powerset(iterable):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
