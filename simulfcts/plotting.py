@@ -81,7 +81,8 @@ def plot_w_matrix(ts, ws, skp=500, **kwargs):
     cpal = sns.color_palette(n_colors=n_dim)
 
     fig, axes_mat = plt.subplots(n_rows, n_cols, sharex=True, sharey=True)
-    fig.set_size_inches(max(n_cols*2.5, 3.), n_rows*1.75)
+    default_size = fig.get_size_inches()
+    fig.set_size_inches(max(n_cols*default_size[0]*0.75, 3.), n_rows*default_size[1]*0.75)
     if n_rows == 1 and n_cols == 1:
         axes_mat = np.asarray([[axes_mat]])
     if axes_mat.ndim == 1:  # only one row
@@ -221,8 +222,6 @@ def plot_background_norm_inhibition(ts, bks, ss, norm_fct=l2_norm, skp=100, colo
             color=colors[1], label="After inhibition (PNs)")
     ax.set(xlabel="Time (x{})".format(time_factor), ylabel="Activity vector norm")
 
-    fig.set_size_inches(4.5, 3)
-
     return fig, ax, bks_norm, ss_norm
 
 def plot_background_neurons_inhibition(ts, bks, ss, skp=100, colors=[]):
@@ -263,7 +262,8 @@ def plot_background_neurons_inhibition(ts, bks, ss, skp=100, colors=[]):
         axes_mat = axes_mat.reshape(1, n_cols)
     elif n_cols == 1:
         axes_mat = axes_mat.reshape(n_rows, 1)
-    fig.set_size_inches(max(n_cols*2.5, 3.), n_rows*1.75)
+    default_size = fig.get_size_inches()
+    fig.set_size_inches(max(n_cols*default_size[0]*0.75, 3.), n_rows*default_size[1]*0.75)
     axes = axes_mat.flatten()
     for i in range(n_neu):
         axes[i].plot(ts[::skp]/time_factor, bks[::skp, i], lw=0.7, alpha=0.8,
@@ -393,8 +393,8 @@ def plot_cbars_gamma_series(ts, cbg_ser, skp=200, transient=None):
     ax.annotate(cbg_counts["below"], ha="left",
         xy=(ts[-1]*1.005/tfactor, cbg_means.min()*1.2),)
     ax.set(xlabel="Time (x{} steps)".format(tfactor),
-           ylabel=r"Reduced dot product $\bar{c}_{\gamma} ="
-                    + r" \vec{\bar{m}} \cdot \vec{x}_{\gamma}$")
+           ylabel=r"Alignment $\bar{h}_{\gamma} ="
+                    + r" \vec{\bar{m}} \cdot \vec{s}_{\gamma}$")
     ax.legend()
 
     return fig, ax, cbg_counts

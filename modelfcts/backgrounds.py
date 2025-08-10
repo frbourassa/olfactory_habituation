@@ -29,6 +29,13 @@ def generate_odorant(n_rec, rgen, lambda_in=0.1):
     return rgen.exponential(scale=1.0/lambda_in, size=n_rec)
 
 
+def generate_gamma_odorant(n_rec, rgen, a=0.37, b=0.36):
+    """From Zavatone-Veth et al., 2023, fitting data from Zak et al, 2020:
+    OSN activations are sampled from Gamma(a, b) with a=0.37, b=0.36. 
+    In numpy, a=k=shape, b=theta=scale"""
+    return rgen.gamma(shape=a, scale=b, size=n_rec)
+
+
 ### ORNSTEIN-UHLENBECK PROCESSES ###
 # Function to update the fluctuating background variable
 def update_ou_kinputs(nu_bk, params_bk, noises, dt):
