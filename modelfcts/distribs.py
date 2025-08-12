@@ -146,3 +146,12 @@ def truncexp1_average(c0, alpha_c0):
 def powerlaw_cutoff_inverse_transform(unif, tmin, tmax):
     factor = (1.0 - np.sqrt(tmin/tmax))
     return tmin / ((1.0 - unif * factor)**2)
+
+
+# More general truncated power-law: Y between y_0, y_1, 
+# pdf with exponent a-1. Transform U(0, 1) samples into such Y. 
+def power_range_inverse_transform(unif, y0, y1, alpha):
+    y0a = y0**alpha
+    y1a = y1**alpha
+    y = (unif*(y1a-y0a) + y0a)**(1.0 / alpha)
+    return y
