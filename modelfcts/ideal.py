@@ -204,6 +204,59 @@ def compute_optimal_matrices(back_odors, new_odors, moments_conc, new_concs):
     return optimal_ws
 
 
+### Optimal matrices without above assumptions, from numerical samples
+# of the background, of new odors, and mixtures thereof.
+def compute_optimal_matrix_fromsamples(s_samp, mix_samp):
+    """ Optimal matrix for manifold learning from samples of background s
+    and s + x mixtures. This allows for correlated odors, nonlinear
+    addition of odors, etc. Samples should be matched for the same s. 
+    These samples allow us to compute the optimum
+        W = LM^+ with L = <s(x + s)^T>, M = <(s+x)(s+x)^T> . 
+    This computes one matrix for the ensemble of s samples, supposedly
+    one new odor concentration. 
+    """
+    # Memory use: chunksize * dimension**2 * 8bytes, limit to 1.2 GB/process
+    n_osn = mix_samp.shape[1]
+    assert n_osn == s_samp.shape[1], "Dimension mismatch for s and s+x samples"
+
+    n_samp = mix_samp.shape[0]
+    assert n_samp == s_samp.shape[0], "mismatch in the number of samples"
+    chunksize = int(1.2e9 / (n_osn**2 * 8))
+
+    # First, compute M = <(s+x)(s+x)^T>, by chunks if needed            
+    # Second, compute L = <s(x + s)^T>
+    if chunksize >= n_samp:  # One chunk is enough
+        mmat = np.mean(mix_samp[:, :, None] * mix_samp[:, None, :], axis=0)
+        lmat = np.mean(s_samp[:, :, None] * mix_samp[:, None, :], axis=0)
+    else:  # Too many odors at once, need to loop over chunks
+        nchunks = n_samp // chunksize
+        last_chunksize = n_samp % chunksize
+        mmat = np.zeros([n_osn, n_osn])
+        lmat = np.zeros([n_osn, n_osn])
+        for i in range(nchunks):
+            istart = i*chunksize
+            iend = (i+1)*chunksize
+            mmat += np.sum(
+                mix_samp[istart:iend, :, None] * mix_samp[istart:iend, None, :], 
+                axis=0) / n_samp
+            lmat += np.sum(
+                s_samp[istart:iend, :, None] * mix_samp[istart:iend, None, :], 
+                axis=0) / n_samp
+        if last_chunksize > 0:
+            istart = nchunks*chunksize
+            mmat += np.sum(
+                mix_samp[istart:, :, None] * mix_samp[istart:, None, :], 
+                axis=0) / n_samp
+            lmat += np.sum(
+                s_samp[istart:, :, None] * mix_samp[istart:, None, :], 
+                axis=0) / n_samp
+
+    # With the average L, M, compute  W = LM^+
+    mmatplus = np.linalg.pinv(mmat)
+    optimal_w = lmat.dot(mmatplus)
+    return optimal_w
+
+
 ### Re-run W for any model
 def rerun_w_dynamics(w_init, xc_series, inhib_params, dt, skp=1, scale=1.0, **options):
     """ Run W dynamics given the background and cbar series of some model
