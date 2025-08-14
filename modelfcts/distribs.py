@@ -155,3 +155,11 @@ def power_range_inverse_transform(unif, y0, y1, alpha):
     y1a = y1**alpha
     y = (unif*(y1a-y0a) + y0a)**(1.0 / alpha)
     return y
+
+### POWER-LAW TAIL WITH tanh PLATEAU
+# For affinities sampling in a nonlinear OSN adaptation model
+def inverse_transform_tanhcdf(r, logb, alpha):
+    """ Inverse transform method to sample from a distribution with
+    complementary CDF tanh(1/(b*x^a)) """
+    return (10.0**logb * np.arctanh(r))**(-1.0 / alpha)
+
