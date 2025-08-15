@@ -6,7 +6,7 @@ new odor recongition.
 We test three different background statistics: weakly non-gaussian, log-normal,
 and turbulent.
 
-We test with random odor components (N_S = 25 dimensions). 
+We test with random odor components (N_S = 25 dimensions or more). 
 The number of Kenyon cells (generating neural tags) are scaled appropriately.
 
 We collect statistics across multiple parameters:
@@ -33,7 +33,7 @@ the PN to neural tag mapping is the same for all models and trials.
 In fact, we will only save PN values and map them to KC during analysis.
 
 The results are analyzed and plotted elsewhere.
-For each run, I save:
+For each run, the code saves:
     - The background vectors for that run (we do one run per background)
     - Snapshots of the network state at each test time,
         including the background concentration state
@@ -101,6 +101,11 @@ from modelfcts.backgrounds import (
     sample_background_lognormal, 
     sample_ss_conc_lognormal
 )
+from modelfcts.nonlin_adapt_osn import (
+    sample_background_powerlaw_nl_osn,
+    update_powerlaw_times_concs_affinities,
+    combine_odors_affinities
+)
 from modelfcts.tagging import (
     project_neural_tag,
     create_sparse_proj_mat,
@@ -125,13 +130,15 @@ def select_sampling_functions(attrs):
         "turbulent_correlation": sample_ss_mixed_concs_powerlaw,
         "log-normal": sample_ss_conc_lognormal,
         "lognormal_correlation": sample_ss_conc_lognormal,
+        "turbulent_nl_osn": sample_ss_conc_powerlaw
     }
     back_vec_map = {
         "turbulent": sample_background_powerlaw, 
         "turbulent_gaussnoise": sample_background_powerlaw_gauss_noise, 
         "turbulent_correlation": sample_background_mixed_concs_powerlaw,
         "lognormal_correlation": sample_background_lognormal,
-        "log-normal": sample_background_lognormal
+        "log-normal": sample_background_lognormal,
+        "turbulent_nl_osn": sample_background_powerlaw_nl_osn,
     }
     try:
         sample_conc = back_conc_map[attrs["background"]]
@@ -414,8 +421,10 @@ def id_to_simkey(id):
     """ Decide on a group name format for each simulation based on its id """
     return f"sim{id:04}"
 
+
 def select_model_functions(attrs):
     # Select integration function
+    # TODO: will need to add options for OSN adaptation
     if attrs["model"] == "IBCM":
         integrate = integrate_inhib_ibcm_network_options
     elif attrs["model"] == 'PCA':
@@ -434,7 +443,8 @@ def select_model_functions(attrs):
         "lognormal_correlation": (update_logou_kinputs, "normal"),
         "third_moment": (update_thirdmoment_kinputs, "normal"),
         "gaussian": (update_ou_kinputs, "normal"),
-        "alternating": (update_alternating_inputs, "uniform")
+        "alternating": (update_alternating_inputs, "uniform"),
+        "turbulent_nl_osn": (update_powerlaw_times_concs_affinities, "uniform")
     }
     try:
         update_bk, noise_dist = back_function_map[attrs["background"]]
@@ -445,6 +455,7 @@ def select_model_functions(attrs):
 
 
 def save_simul_results(id, res, attrs, gp, snap_i, full_file=None, lean=False):
+    # TODO: will need extra snapshots for epsilons for OSN adaptation
     result_items = {
         "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
                  "hbar_snaps", "theta_snaps", "w_snaps", "y_snaps"],
@@ -454,6 +465,9 @@ def save_simul_results(id, res, attrs, gp, snap_i, full_file=None, lean=False):
                  "w_snaps", "y_snaps"]
     }
     drops = ["tser"]
+    # For nonlinear OSN simulations, we only use the lean option
+    if attrs["background"] == "turbulent_nl_osn":
+        lean = True
     if lean: drops += ["hbar_snaps", "theta_snaps", "y_snaps"]
     try:
         result_items[attrs["model"]]
@@ -477,6 +491,7 @@ def save_simul_results(id, res, attrs, gp, snap_i, full_file=None, lean=False):
 def error_callback(excep):
     print()
     print(excep)
+    raise excep
     print()
     return -1
 
@@ -523,12 +538,25 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
         init_nu = averages_nu.copy()
         init_bkvec = np.exp(averages_nu*np.log(10.0)).dot(back_vecs)
         back_init = [init_nu, init_bkvec]
+    elif attrs["background"] == "turbulent_nl_osn":
+        i_concs = sample_ss_conc_powerlaw(*back_params[:-2], size=1, rgen=rng)
+        i_times = powerlaw_cutoff_inverse_transform(
+                rng.random(size=dimensions[1]), *back_params[2:4])
+        back_tc = np.stack([i_times, i_concs.squeeze()], axis=1)
+        # TODO: this will need adjustment for epsils with OSN adaptation
+        epsils_vec = back_params[-1]
+        max_osn_ampli = back_params[-2]
+        # Combine odors non-linearly with the tc_init concentrations
+        init_bkvec = combine_odors_affinities(back_tc[:, 1], 
+                        back_vecs, epsils_vec, fmax=max_osn_ampli)
+        back_init = [back_tc, init_bkvec]
     else:
         raise NotImplementedError("Did not implement background type"
                 + "{} initialization".format(attrs["background"]))
     return back_init
 
 
+# TODO: will need to initialize epsils maybe
 def initialize_weights(attrs, dims, rgen, params):
     # IBCM: only m_init
     if attrs["model"] == "IBCM":
@@ -582,7 +610,7 @@ def initialize_integration(
                     init_weights,
                     back_update,
                     back_init_sim,
-                    params["m_rates"],
+                    params["m_rates"],  # TODO: OSN adaptation rate within m_rates?
                     params["w_rates"],
                     back_params_sim,
                     *params["time_params"]

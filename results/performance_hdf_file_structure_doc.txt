@@ -37,6 +37,9 @@ HDF file structure
 
     proj_kwargs (group): with datasets for kc_sparsity=0.05,
                 adapt_kc=True, n_pn_per_kc=3, project_thresh_fact=0.1
+    
+    odor_gen_kwargs (group): dictionary of odor generation function
+            additional args, useful for simulations with non-standard odors
 
     sim0000 (group): one group per simulation, with all initial conditions
     and results from that simulation. 0000 is replaced by the simulation id,

@@ -12,7 +12,10 @@ August 2025
 
 import numpy as np
 from modelfcts.distribs import inverse_transform_tanhcdf
-from modelfcts.backgrounds import update_tc_odor
+from modelfcts.backgrounds import (
+    update_tc_odor, 
+    sample_ss_conc_powerlaw
+)
 
 
 def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946, 
@@ -40,7 +43,7 @@ def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946,
     nonlinearity in the OSNs without making them always saturated. 
     
     Args:
-        n_rec (int): number of receptor types, length of vectors
+        n_rec (int or tuple): number of receptor types, length of vectors
             n_rec can be an int (n_son, to make a single odor) or a tuple
             (n_components, n_osn) to make two matrices of odor vectors.
         rgen (np.random.Generator): random generator (numpy >= 1.17)
@@ -50,10 +53,8 @@ def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946,
             PDF with exponent alpha-1
     
     Returns:
-        k1vec (np.ndarray): 1d vector of inactive complex binding affinities
-        k2vec (np.ndarray): 1d vector of active complex binding affinities
-
-    
+        kmats (np.ndarray): matrix of inactive and active complex binding 
+            affinities, shaped [n_rec, 2]
     """
     k1vec = np.full(n_rec, k1val * unit_scale)
     
@@ -62,20 +63,18 @@ def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946,
     # In the sampled distribution, the lower cutoff is at x^alpha=1/b, roughly
     k2vec = np.clip(k2vec, 0.0, k2range * unit_scale * 10.0**(-logb/alpha))
     
-    return k1vec, k2vec
+    return np.stack([k1vec, k2vec], axis=-1)
 
 
-def combine_odors_affinities(concs, k1mat, k2mat, epsils, fmax=1.0):
+def combine_odors_affinities(concs, kmats, epsils, fmax=1.0):
     """ Combine odors coming in with concentrations conc and defined
     by active and inactive binding affinities kappa1, kappa2. 
     OSN types have free energy differences epsils. 
 
     Args:
         concs (np.ndarray): 1d array of odor concentrations, indexed [n_odors]
-        k1mat (np.ndarray): shape [n_odors, n_osns], 
-            affinity of active complexes
-        k2mat (np.ndarray):  shape [n_odors, n_osns], 
-            affinity of inactive complexes
+        kmats (np.ndarray): shape [n_odors, n_osns, 2], 
+            affinities of inactive and active complexes, respectively
         epsils (np.ndarray): shape [n_osns], free energy difference 
             of each OSN type
         fmax (float): maximum amplitude, default 1, but we usually scale
@@ -86,6 +85,7 @@ def combine_odors_affinities(concs, k1mat, k2mat, epsils, fmax=1.0):
     Returns:
         activ (np.ndarray): 1d array of ORN activation, indexed [n_receptors]
     """
+    k1mat, k2mat = kmats[:, :, 0], kmats[:, :, 1]
     # Dot products over odors
     kc1 = concs.dot(k1mat)
     kc2 = concs.dot(k2mat)
@@ -121,12 +121,12 @@ def update_powerlaw_times_concs_affinities(tc_bk, params_bk, noises, dt):
             blank_tmaxs (np.ndarray): same as whiff_tmaxs but for blanks
             c0s (np.ndarray): c0 concentration scale for each odor
             alphas (np.ndarray): alpha*c0 is the lower cutoff of p_c
-            vecs (np.ndarray): 3d array where axis 0 has length 2, 
-                the first sub-array giving the K vectors of each odor, 
-                and the second, giving K* vectors. 
+            fmax (float): maximum OSN activation amplitude (normalization)
             epsils (np.ndarray): free energy difference of each OSN type, 
                 shaped [n_osn]. 
-            fmax (float): maximum OSN activation amplitude (normalization)
+            vecs (np.ndarray): 3d array where axis 2 has length 2, 
+                the first sub-array giving the K vectors of each odor, 
+                and the second, giving K* vectors. 
         noises (np.ndarray): fresh U(0, 1) samples, shaped [n_odors, 2],
             in case we need to pull a new t and/or c.
         dt (float): time step duration, in simulation units
@@ -138,14 +138,52 @@ def update_powerlaw_times_concs_affinities(tc_bk, params_bk, noises, dt):
                                 *[p[i] for p in params_bk[:-3]])
 
     # Compute backgound vector (even if it didn't change)
-    k1vecs, k2vecs = params_bk[-3]  # k, k*
+    kmats = params_bk[-1]  # k, k*
     epsils = params_bk[-2]
-    fmax = params_bk[-1]
-    new_bk_vec = combine_odors_affinities(tc_bk_new[:, 1], k1vecs, 
-                                     k2vecs, epsils, fmax=fmax)
+    fmax = params_bk[-3]
+    new_bk_vec = combine_odors_affinities(tc_bk_new[:, 1], 
+                                    kmats, epsils, fmax=fmax)
     return new_bk_vec, tc_bk_new
 
 
+# Sampling concentrations is the same, but sampling background vectors
+# requires applying the nonlinear response function
+def sample_background_powerlaw_nl_osn(kmats, *args, size=1, rgen=None):
+    """
+    Args:
+        k_mats (np.ndarray): array of background odor affinities K, K^*,
+            indexed [2, odor, dimension]
+        args:
+            whiff_tmins (np.ndarray): lower cutoff in the power law
+                of whiff durations, for each odor
+            whiff_tmaxs (np.ndarray): upper cutoff in the power law
+                of whiff durations, for each odor
+            blank_tmins (np.ndarray): same as whiff_tmins but for blanks
+            blank_tmaxs (np.ndarray): same as whiff_tmaxs but for blanks
+            c0s (np.ndarray): c0 concentration scale for each odor
+            alphas (np.ndarray): alpha*c0 is the lower cutoff of p_c
+            fmax (float): maximum OSN activation amplitude (normalization)
+            epsils (np.ndarray): free energy difference of each OSN type, 
+                shaped [n_osn]. 
+            vecs (np.ndarray): 3d array where axis 0 has length 2, 
+                the first sub-array giving the K vectors of each odor, 
+                and the second, giving K* vectors. 
+        size (int): number of background samples to generate (default: 1)
+        rgen (np.random.Generator): random generator (optional).
+    """
+    # Get samples of concentration variables nu first
+    nu_samp = sample_ss_conc_powerlaw(*args[:6], size=size, rgen=rgen)
+
+    # Then, combine background vectors with those concentrations
+    epsils, fmax_osn = args[6], args[7]
+    vec_samp = combine_odors_affinities(nu_samp, kmats, epsils, fmax=fmax_osn)
+    return vec_samp, nu_samp
+
+
+
+
+
+### Simplified version with one affinity per odor ###
 def combine_odors_compet(concs, kmat, epsils, fmax=1.0):
     """ Combine odors coming in with concentrations conc and defined
     by active and inactive binding affinities kappa1, kappa2. 
@@ -168,6 +206,7 @@ def combine_odors_compet(concs, kmat, epsils, fmax=1.0):
     kc = concs.dot(kmat)
     activs = fmax * kc / (np.exp(epsils) + kc)
     return activs
+
 
 def update_powerlaw_times_concs_compet(tc_bk, params_bk, noises, dt):
     """
