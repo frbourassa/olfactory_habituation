@@ -23,7 +23,8 @@ def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946,
     
     K = small affinity, 0.01 in Kadakia and Emonet
     K^* = larger affinities, can be up to 10^9 in Si et al.'s units, here 
-    we clip them to 10^6 * unit_scale to prevent crazily sensitive odors. 
+    we clip them to k2range times the lower cutoff sensitivity in Si et al., 
+    which is at roughly (1/b)^{1/alpha} * unit_scale, to prevent extreme values. 
     
     We use the distribution 1-CDF = tanh(1/bx^a) fitted on Si et al. data
     in the notebook si2019_hill_tanh_distribution_fits.ipynb, 
