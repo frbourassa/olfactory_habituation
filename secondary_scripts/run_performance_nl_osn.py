@@ -21,19 +21,15 @@ if ".." not in sys.path:
 
 from simulfcts.habituation_recognition_nonlin_osn import (
     main_habituation_runs_nl_osn,
-    main_recognition_runs_nl_osn
-)
-from simulfcts.idealized_recognition import (
-    idealized_recognition_from_runs
+    main_recognition_runs_nl_osn,
+    idealized_recognition_from_runs_nl_osn
 )
 from modelfcts.distribs import truncexp1_average
 from modelfcts.nonlin_adapt_osn import (
     combine_odors_affinities, 
     generate_odor_tanhcdf
 )
-from modelfcts.backgrounds import (
-    sample_ss_conc_powerlaw, logof10
-)
+from modelfcts.backgrounds import sample_ss_conc_powerlaw
 from modelfcts.ibcm_analytics import (
     fixedpoint_thirdmoment_exact, lambda_pca_equivalent
 )
@@ -71,7 +67,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 4  # nb of habituation runs, each with a different background
+    n_runs = 96  # nb of habituation runs, each with a different background
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -159,6 +155,7 @@ if __name__ == "__main__":
     all_ibcm_file_names = {}
     max_osn_amplitudes_scales = []
     for i, sc_i in enumerate(unit_scale_range):
+        continue
         odor_gen_arguments["unit_scale"] = sc_i
         # Compute the typical OSN amplitude at this level of nonlinearity
         # scale the max_osn_amplitude to maintain a constant amplitude
@@ -218,6 +215,7 @@ if __name__ == "__main__":
         "remove_lambda": False
     }
     for i, sc_i in enumerate(unit_scale_range):
+        continue
         odor_gen_arguments["unit_scale"] = sc_i
         max_osn_ampli = max_osn_amplitudes_scales[i] 
         turbulent_back_params[-2] = max_osn_ampli
@@ -263,6 +261,7 @@ if __name__ == "__main__":
         "activ_fct": activ_fct_choice
     }
     for i, sc_i in enumerate(unit_scale_range):
+        continue
         odor_gen_arguments["unit_scale"] = sc_i
         max_osn_ampli = max_osn_amplitudes_scales[i]
         turbulent_back_params[-2] = max_osn_ampli
@@ -284,7 +283,7 @@ if __name__ == "__main__":
     ### IDEAL AND NO INHIBITION ###
     raise NotImplementedError("Need to implement idealized"
                               +" simulations for nonlinear OSN")
-    for kind in ["orthogonal", "ideal", "optimal", "none"]:
+    for kind in ["orthogonal", "optimal", "none"]:
         for i, rho_i in enumerate(unit_scale_range):
             print("Starting idealized habituation of kind "
                 +"{} recognition tests for unit_scale = {}".format(kind, rho_i))

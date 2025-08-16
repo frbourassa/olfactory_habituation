@@ -14,13 +14,19 @@ All HDF results files are saved in the results/performance/ folder.
 July 2023
 """
 import numpy as np
+from scipy import sparse
 import h5py
 import multiprocessing
 from utils.profiling import IterationProfiler
 
 
 # Local imports
-from modelfcts.ideal import relu_inplace
+from modelfcts.ideal import (
+    find_projector,
+    find_parallel_component,
+    relu_inplace, 
+    compute_optimal_matrix_fromsamples
+)
 from modelfcts.nonlin_adapt_osn import (
     combine_odors_affinities,
     combine_odors_compet, 
@@ -52,7 +58,12 @@ from utils.export import (
     save_params_individually,
     csr_matrix_to_hdf5,
     add_to_npz,
-    hdf5_to_dict
+    hdf5_to_dict,
+    hdf5_to_csr_matrix
+)
+from simulfcts.idealized_recognition import (
+    save_examples, 
+    func_wrapper_threadpool
 )
 
 
@@ -490,4 +501,493 @@ def main_recognition_runs_nl_osn(
     pool.close()
     pool.join()
     results_file.close()
+    return 0
+
+
+### IDEALIZED RECOGNITION MODELS ###
+
+def no_habituation_one_sim_nl_osn(sim_id, filename_ref, lean=True):
+    """ Load new odors, background samples and projection matrix
+    for a given simulation in ref_file, and test odor recognition
+    without any habituation.
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    sim_gp = ref_file.get(id_to_simkey(sim_id))
+    projmat = hdf5_to_csr_matrix(sim_gp.get("kc_proj_mat"))
+    new_odors = ref_file.get("odors").get("new_odors")[()]
+    back_odors = ref_file.get("odors").get("back_odors")[sim_id]
+    new_concs = ref_file.get("parameters").get("new_concs")[()]
+    bkname = ref_file.attrs["background"]
+    response_fct = select_osn_response(ref_file.attrs)
+    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    back_params = ref_file.get("parameters").get("back_params")
+    epsils_vec = back_params[-1]  
+    max_osn_ampli = back_params[-2]
+
+    # Dimensions, etc.
+    n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
+    (n_times, n_back_samples, n_new_odors,
+        n_new_concs) = ref_file.get("parameters").get("repeats")[1:5]
+    proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
+    activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
+
+    # Get the background concentration samples
+    # gp, backvecs, backtype, paramgp, lean
+    conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+
+    # Containers for the results
+    jaccard_scores = np.zeros([n_new_odors, n_times,
+                            n_new_concs, n_back_samples])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    
+    #  For single-odor responses, typical concentration
+    standard_conc = np.asarray([np.mean(new_concs)])
+    back_tags = []
+    for b in range(n_b):
+        # Compute the OSN response at a standard concentration
+        odor_vec = back_odors[b:b+1]
+        back_response = response_fct(standard_conc, odor_vec,
+                                     epsils_vec, fmax=max_osn_ampli)
+        back_tags.append(
+            project_neural_tag(back_response, back_response,
+                projmat, **proj_kwargs)
+        )
+
+    # only save scores and L2 distances 
+    y_l2_distances = np.zeros((n_new_odors, n_times, 
+                               n_new_concs, n_back_samples))
+
+    # Treat one new odor at a time, one new conc. at a time, etc.
+    for i in range(n_new_odors):
+        new_odor = new_odors[i:i+1]
+        # Apply the OSN response function to it for a standard conc.
+        new_odor_response = response_fct(standard_conc, new_odor, 
+                                         epsils_vec, fmax=max_osn_ampli)
+        new_tag = project_neural_tag(
+            new_odor_response, new_odor_response, projmat, 
+            **proj_kwargs
+        )
+        # Prepare joint affinity matrices for the background + new odor
+        joint_kmats = np.concatenate([back_odors, new_odor], axis=0)
+        for k in range(n_new_concs):
+            new_conc = new_concs[k]
+            joint_concs = np.concatenate([conc_samples[j], 
+                        np.full((n_back_samples, 1), new_conc)], axis=1)
+            mixtures_ik = response_fct(joint_concs, joint_kmats, 
+                                       epsils_vec, fmax=max_osn_ampli)
+            if str(activ_fct).lower() == "relu":
+                mixtures_ik = relu_inplace(mixtures_ik)
+            # Compute L2 distance between response to mixtures 
+            # with back_samples and new odor vector at the current conc. 
+            # ydiffs shaped [n_back_samples, n_s], compute norm along axis 1
+            ydiffs = mixtures_ik - new_concs[k] * new_odors[i]
+            y_l2_distances[i, :, k] = l2_norm(ydiffs, axis=2)
+            for j in range(n_times):
+                for l in range(n_back_samples):
+                    mix_tag = project_neural_tag(
+                        mixtures_ik[j, l], mixtures_ik[j, l],
+                        projmat, **proj_kwargs
+                    )
+                    jaccard_scores[i, j, k, l] = jaccard(mix_tag, new_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_b):
+                        jaccard_backs_indiv[b] = jaccard(mix_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
+                    
+    ref_file.close()
+
+    # Prepare simulation results dictionary
+    test_results = {
+        "jaccard_scores": jaccard_scores, 
+        "jaccard_scores_back": jaccard_scores_back,
+        "y_l2_distances": y_l2_distances
+    }
+
+    return sim_id, test_results, projmat
+
+
+def orthogonal_recognition_one_sim_nl_osn(sim_id, filename_ref, lean=True):
+    """ Load new odors, background samples and projection matrix
+    for a given simulation in ref_file, and test odor recognition
+    after ideal habituation where all that is left is the mixture
+    component perpendicular to the linear background subspace.
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    sim_gp = ref_file.get(id_to_simkey(sim_id))
+    projmat = hdf5_to_csr_matrix(sim_gp.get("kc_proj_mat"))
+    new_odors = ref_file.get("odors").get("new_odors")[()]
+    back_odors = ref_file.get("odors").get("back_odors")[sim_id]
+    new_concs = ref_file.get("parameters").get("new_concs")[()]
+    bkname = ref_file.attrs["background"]
+    response_fct = select_osn_response(ref_file.attrs)
+    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    back_params = ref_file.get("parameters").get("back_params")
+    epsils_vec = back_params[-1]  
+    max_osn_ampli = back_params[-2]
+
+    # Dimensions, etc.
+    n_r, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
+    (n_times, n_back_samples, n_new_odors,
+        n_new_concs) = ref_file.get("parameters").get("repeats")[1:5]
+    proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
+    activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
+
+    # Get the background concentration samples
+    # gp, backvecs, backtype, paramgp, lean
+    conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+
+    # Containers for the results
+    jaccard_scores = np.zeros([n_new_odors, n_times,
+                            n_new_concs, n_back_samples])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    
+    #  For single-odor responses, typical concentration
+    standard_conc = np.asarray([np.mean(new_concs)])
+    back_tags = []
+    for b in range(n_b):
+        # Compute the OSN response at a standard concentration
+        odor_vec = back_odors[b:b+1]
+        back_response = response_fct(standard_conc, odor_vec,
+                                     epsils_vec, fmax=max_osn_ampli)
+        back_tags.append(
+            project_neural_tag(back_response, back_response,
+                projmat, **proj_kwargs)
+        )
+    # Build unit-normed odor vectors corresponding to the small concentration 
+    # limit, to get the projector to the linear manifold
+    if bkname == "turbulent_nl_osn":
+        back_vecs = back_odors[:, :, 1] - back_odors[:, :, 0]
+        back_vecs /= l2_norm(back_vecs, axis=1)[:, None]
+    else:
+        raise NotImplementedError()
+
+    # Projector to subtract the parallel component
+    projector = find_projector(back_vecs.T)
+
+    # For the lean version, we only save the l2 distances
+    y_l2_distances = np.zeros((n_new_odors, n_times, 
+                                n_new_concs, n_back_samples))
+    # Treat one new odor at a time, one new conc. at a time, etc.
+    for i in range(n_new_odors):
+        new_odor = new_odors[i:i+1]
+        # Apply the OSN response function to it for a standard conc.
+        new_odor_response = response_fct(standard_conc, new_odor, 
+                                         epsils_vec, fmax=max_osn_ampli)
+        new_tag = project_neural_tag(
+            new_odor_response, new_odor_response, projmat, 
+            **proj_kwargs
+        )
+        # Prepare joint affinity matrices for the background + new odor
+        joint_kmats = np.concatenate([back_odors, new_odor], axis=0)
+        for j in range(n_times):
+            for k in range(n_new_concs):
+                new_conc = new_concs[k]
+                joint_concs = np.concatenate([conc_samples[j], 
+                            np.full((n_back_samples, 1), new_conc)], axis=1)
+                mixtures_ijk = response_fct(joint_concs, joint_kmats, 
+                                        epsils_vec, fmax=max_osn_ampli)
+                yvecs_ijk = mixtures_ijk - mixtures_ijk.dot(projector.T)
+                if str(activ_fct).lower() == "relu":
+                    yvecs_ijk = relu_inplace(yvecs_ijk)
+                # Compute L2 distance between response to mixtures 
+                # with back_samples and new odor vector at the current conc. 
+                # ydiffs shaped [n_back_samples, n_s], compute norm along axis 1
+                ydiffs = yvecs_ijk - new_concs[k] * new_odor_response
+                y_l2_distances[i, j, k] = l2_norm(ydiffs, axis=2)
+                # Now tag each mixture
+                for l in range(n_back_samples):
+                    perp_tag = project_neural_tag(
+                                yvecs_ijk[l], mixtures_ijk[l], projmat, **proj_kwargs
+                                )
+                    jaccard_scores[i, j, k, l] = jaccard(new_tag, perp_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_b):
+                        jaccard_backs_indiv[b] = jaccard(perp_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
+
+    ref_file.close()
+
+    # Prepare simulation results dictionary
+    test_results = {
+        "jaccard_scores": jaccard_scores,
+        "jaccard_scores_back": jaccard_scores_back,
+        "y_l2_distances": y_l2_distances
+    }
+   
+    return sim_id, test_results, projmat
+
+
+def mix_new_back(back_odors, new_odors, cser, newconc, 
+                 combine_fct, epsils=5.0, max_ampli=1.0):
+    n_new = new_odors.shape[0]
+    assert n_new == cser.shape[0]  # one new odor per back sample
+    all_mixvecs = []
+    for n in range(n_new):
+        joint_concs = np.concatenate([cser[n], np.full(1, newconc)])
+        joint_components = np.concatenate([back_odors, new_odors[n:n+1]], axis=0)
+        mixvecs = combine_fct(joint_concs, joint_components, epsils, fmax=max_ampli)
+        all_mixvecs.append(mixvecs)
+    mixvecs = np.stack(all_mixvecs, axis=0)
+    return mixvecs
+
+def optimal_recognition_one_sim_nl_osn(sim_id, filename_ref, lean=False):
+    """Load new odors, background samples and projection matrix
+    for a given simulation in ref_file, and test odor recognition
+    after optimal habituation where the projection matrix W
+    is the optimum to minimize the distance between the linear background
+    manifold and the subtracted vector, <||b - W(b + s_n)||>^2. 
+    This will not be optimal for a non-linear background manifold, since
+    b will have a component outside of the subspace on which W projects. 
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    sim_gp = ref_file.get(id_to_simkey(sim_id))
+    projmat = hdf5_to_csr_matrix(sim_gp.get("kc_proj_mat"))
+    new_odors = ref_file.get("odors").get("new_odors")[()]
+    back_odors = ref_file.get("odors").get("back_odors")[sim_id]
+    new_concs = ref_file.get("parameters").get("new_concs")[()]
+    bkname = ref_file.attrs["background"]
+    response_fct = select_osn_response(ref_file.attrs)
+    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    back_params = ref_file.get("parameters").get("back_params")[()]
+    epsils_vec = back_params[-1]  
+    max_osn_ampli = back_params[-2]
+
+    # Dimensions, etc.
+    n_s, n_b, _, n_kc = ref_file.get("parameters").get("dimensions")
+    (n_times, n_back_samples, n_new_odors,
+        n_new_concs) = ref_file.get("parameters").get("repeats")[1:5]
+    proj_kwargs = hdf5_to_dict(ref_file.get("proj_kwargs"))
+    activ_fct = ref_file.get("parameters").attrs.get("activ_fct", "ReLU")
+
+    # Get the background concentration samples
+    # gp, backvecs, backtype, paramgp, lean
+    conc_samples = sim_gp.get("test_results").get("conc_samples")[()]
+
+    # Containers for the results
+    jaccard_scores = np.zeros([n_new_odors, n_times,
+                            n_new_concs, n_back_samples])
+    # Also compute similarity to background. First, need tags of back odors
+    jaccard_scores_back = np.zeros(jaccard_scores.shape)
+    jaccard_backs_indiv = np.zeros(n_b)
+    
+    #  For single-odor responses, typical concentration
+    standard_conc = np.asarray([np.mean(new_concs)])
+    back_tags = []
+    for b in range(n_b):
+        # Compute the OSN response at a standard concentration
+        odor_vec = back_odors[b:b+1]
+        back_response = response_fct(standard_conc, odor_vec,
+                                     epsils_vec, fmax=max_osn_ampli)
+        back_tags.append(
+            project_neural_tag(back_response, back_response,
+                projmat, **proj_kwargs)
+        )
+    # Build unit-normed odor vectors corresponding to the small concentration 
+    # limit, to get the projector to the linear manifold
+    if bkname == "turbulent_nl_osn":
+        back_vecs = back_odors[:, :, 1] - back_odors[:, :, 0]
+        back_vecs /= l2_norm(back_vecs, axis=1)[:, None]
+    else:
+        raise NotImplementedError()
+
+    # Compute optimal W matrix for all new odors possible
+    dummy_rgen = np.random.default_rng(0x8807275f5575f550d0f161011f1e59cf)
+    n_samp = int(1e4)
+    conc_sampling, _ = select_sampling_functions(ref_file.attrs)
+    # First, generate sample background concentrations
+    # Compute the corresponding background OSN activity
+    back_concs_extra = conc_sampling(*back_params[:6], 
+                            size=n_samp, rgen=dummy_rgen)
+    back_samples_extra = response_fct(back_concs_extra, back_odors, 
+                                      epsils_vec, fmax=max_osn_ampli)
+    # Then create new odors, one per background sample, for s_b + s_n samples
+    odor_gen_fct = select_odor_gen_fct(ref_file.attrs)
+    odor_gen_kwargs = hdf5_to_dict(ref_file.get("odor_gen_kwargs"))
+    new_odors_shape = [n_samp, n_s]
+    new_odors_from_distrib = odor_gen_fct(new_odors_shape, 
+                                dummy_rgen, **odor_gen_kwargs)
+
+    # And compute the mixture of these new odors with background samples
+    optimal_matrices = []
+    for newconc in new_concs:
+        # Mix new odors at newconc with background
+        s_new_mix = mix_new_back(back_odors, new_odors_from_distrib, 
+                        back_concs_extra, newconc, response_fct, 
+                        epsils=epsils_vec, max_ampli=max_osn_ampli)
+        mat = compute_optimal_matrix_fromsamples(back_samples_extra, s_new_mix)
+        optimal_matrices.append(mat)
+   
+    # For the lean version, we only save the l2 distances
+    y_l2_distances = np.zeros((n_new_odors, n_times, 
+                                n_new_concs, n_back_samples))
+    # Treat one new odor at a time, one new conc. at a time, etc.
+    for i in range(n_new_odors):
+        new_odor = new_odors[i:i+1]
+        # Apply the OSN response function to it for a standard conc.
+        new_odor_response = response_fct(standard_conc, new_odor, 
+                                         epsils_vec, fmax=max_osn_ampli)
+        new_tag = project_neural_tag(
+            new_odor_response, new_odor_response, projmat, 
+            **proj_kwargs
+        )
+        # Prepare joint affinity matrices for the background + new odor
+        joint_kmats = np.concatenate([back_odors, new_odor], axis=0)
+        for j in range(n_times):
+            for k in range(n_new_concs):
+                new_conc = new_concs[k]
+                joint_concs = np.concatenate([conc_samples[j], 
+                            np.full((n_back_samples, 1), new_conc)], axis=1)
+                mixtures_ijk = response_fct(joint_concs, joint_kmats, 
+                                        epsils_vec, fmax=max_osn_ampli)
+                yvecs_ijk = mixtures_ijk - mixtures_ijk.dot(optimal_matrices[k].T)
+                if str(activ_fct).lower() == "relu":
+                    yvecs_ijk = relu_inplace(yvecs_ijk)
+                # Compute L2 distance between response to mixtures 
+                # with back_samples and new odor vector at the current conc. 
+                # ydiffs shaped [n_back_samples, n_s], compute norm along axis 1
+                ydiffs = yvecs_ijk - new_concs[k] * new_odor_response
+                y_l2_distances[i, j, k] = l2_norm(ydiffs, axis=2)
+                # Now tag each mixture
+                for l in range(n_back_samples):
+                    perp_tag = project_neural_tag(
+                                yvecs_ijk[l], mixtures_ijk[l], projmat, **proj_kwargs
+                                )
+                    jaccard_scores[i, j, k, l] = jaccard(new_tag, perp_tag)
+                    # Also save similarity to the most similar background odor
+                    for b in range(n_b):
+                        jaccard_backs_indiv[b] = jaccard(perp_tag, back_tags[b])
+                    jaccard_scores_back[i, j, k, l] = np.amax(jaccard_backs_indiv)
+
+    ref_file.close()
+
+    # Prepare simulation results dictionary
+    test_results = {
+        "jaccard_scores": jaccard_scores,
+        "jaccard_scores_back": jaccard_scores_back,
+        "y_l2_distances": y_l2_distances
+    }
+   
+    return sim_id, test_results, projmat
+
+
+def idealized_recognition_from_runs_nl_osn(
+        filename, filename_ref, kind="none", example_file=None, lean=False
+    ):
+    """ After having performed several habituation runs and tested them
+    for recognition with some model, compute the recognition performance
+    that "ideal" but linear habituation models could have achieved 
+    when applied to this nonlinear manifold. 
+
+    Args:
+        filename (str): name of the file to contain the ideal results
+        filename_ref (str): name of the file with other simulation results
+            All necessary information is extracted from there.
+        kind (str): the kind of idealized habituation considered,
+            either "orthogonal", "none", or "optimal". 
+        example_file (str): if a npz filename is provided, save
+            the optimal matrix W or ideal factors are saved
+
+    Args: same as main_habituation_runs
+    Be careful to create a new random number generator, not re-creating
+    the generator with the same seed used in the previous main simulation.
+    """
+    ref_file = h5py.File(filename_ref, "r")
+    res_file = h5py.File(filename, "w")
+
+    # Extract parameters from simulation results
+    repeats = ref_file.get("parameters").get("repeats")[()]
+
+    # Copy some params to the results file, in case the ref_file changes
+    for k in ref_file.attrs.keys():
+        if k == "model":
+            res_file.attrs[k] = kind
+        else:
+            res_file.attrs[k] = ref_file.attrs[k]
+    param_group = res_file.create_group("parameters")
+    for p in ["dimensions", "repeats", "new_concs", "moments_conc"]:
+        param_group.create_dataset(p, data=ref_file.get("parameters").get(p)[()])
+    options = ref_file.get("parameters").attrs
+    param_group.attrs["activ_fct"] = (ref_file.get("parameters")
+                                        .attrs.get("activ_fct"))
+
+    # Background and new odors separately
+    odors_group = res_file.create_group("odors")
+    for k in ["back_odors", "new_odors"]:
+        odors_group.create_dataset(k, data=ref_file.get("odors").get(k))
+
+    # Projection kwargs
+    proj_gp = res_file.create_group("proj_kwargs")
+    dict_to_hdf5(ref_file.get("proj_kwargs"), proj_gp)
+
+    # Odor generation kwargs
+    odgen_gp = res_file.create_group("odor_gen_kwargs")
+    dict_to_hdf5(ref_file.get("odor_gen_kwargs"), odgen_gp)
+
+    # Close the file: each sub-process should reopen it to access
+    # the mixture samples (we avoid loading all of those in memory)
+    # This is safer to avoid hanging threads
+    ref_file.close()
+
+    # Choose the right idealized inhibition function
+    func_choices = {
+        "none": no_habituation_one_sim_nl_osn,
+        "orthogonal": orthogonal_recognition_one_sim_nl_osn,
+        "optimal": optimal_recognition_one_sim_nl_osn
+    }
+    recognition_one_sim = func_choices.get(kind, no_habituation_one_sim_nl_osn)
+
+    # Define callback functions
+    def callback(result):
+        sim_id, sim_results, projmat = result
+        sim_gp = res_file.create_group(id_to_simkey(sim_id))
+        if sim_gp.get("test_results") is None:
+            if not lean:
+                csr_matrix_to_hdf5(sim_gp.create_group("kc_proj_mat"), projmat)
+                # Different for each simulation with its own proj. matrix
+                # This is identical to what is saved in the reference file
+                # but convenient to have it in case the reference file changes.
+                csr_matrix_to_hdf5(sim_gp.create_group("new_odor_tags"),
+                                    sim_results.pop("new_odor_tags"))
+                # After ideal inhibition
+                sim_results.pop("mixture_tags").to_hdf(
+                                sim_gp.create_group("mixture_tags"))
+            dict_to_hdf5(sim_gp.create_group("test_results"), sim_results)
+        else:  # Group already exists, skip
+            print("test_results group for sim {}".format(sim_id)
+                    + " already exists; not saving")
+        # Save parts of the first sim. separately as an example to plot
+        if sim_id == 0 and example_file is not None and not lean:
+            save_examples(example_file, kind, sim_results)
+        print("Ideal recognition tested for simulation {}".format(sim_id))
+        return sim_id
+
+    # 2. For each background and run, test new odor recognition at snap times.
+    # Create a projection matrix, save to HDF file.
+    # Against n_back_samples backgrounds, including the simulation one.
+    # and test at 20 % or 50 % concentration
+    n_workers = min(count_parallel_cpu(), repeats[0])
+    threads_per_proc = count_threads_per_process(n_workers)
+    pool = multiprocessing.Pool(n_workers)
+    for sim_id in range(repeats[0]):
+        # Retrieve relevant results of that simulation,
+        # then create and save the proj. mat., and initialize arguments
+        apply_args = (recognition_one_sim, threads_per_proc, 
+                      sim_id, filename_ref)
+        apply_kwargs = dict(lean=lean)
+        pool.apply_async(func_wrapper_threadpool, args=apply_args,
+            kwds=apply_kwargs, callback=callback, error_callback=error_callback
+        )
+    
+    # Close and join the pool
+    # No need to .get() results: the callback takes care of it
+    # and in fact we don't want to get them, else they get stuck in the
+    # parent process memory and fill it up...
+    pool.close()
+    pool.join()
+    # Finally, close the results file
+    res_file.close()
     return 0
