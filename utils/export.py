@@ -43,6 +43,21 @@ def save_params_individually(gp, di):
     return gp
 
 
+def load_params_individually(gp, k):
+    """ Loads back a list of unevenly-sized parameters saved
+    by save_params_individually. Try to load gp.get(k), then if nothing
+    is found, look for keys of the form k + "_0", k + "_1", etc.
+    """
+    full_dset = gp.get(k)
+    if full_dset is None:
+        avail_keys = [ki for ki in gp.keys() if ki.startswith(k)]
+        avail_keys = sorted(avail_keys, key=lambda x: int(x.split("_")[-1]))
+        list_params = [gp.get(ki)[()] for ki in avail_keys]
+    else:
+        list_params = full_dset[()]
+    return list_params
+
+
 def hdf5_to_dict(gp):
     """ Retrieve datasets of hdf5 group gp into a dictionary"""
     di = {}

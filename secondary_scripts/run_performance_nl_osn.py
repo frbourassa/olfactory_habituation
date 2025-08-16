@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # level so child processes do not get started often. 
     multiprocessing.set_start_method('spawn')
     folder = os.path.join("..", "results", "performance_nl_osn")
-    do_main_runs = True
+    do_main_runs = False
 
     # Dimensionalities -- fixed
     n_s = 50  # n_S: stay small, fly size
@@ -155,7 +155,6 @@ if __name__ == "__main__":
     all_ibcm_file_names = {}
     max_osn_amplitudes_scales = []
     for i, sc_i in enumerate(unit_scale_range):
-        continue
         odor_gen_arguments["unit_scale"] = sc_i
         # Compute the typical OSN amplitude at this level of nonlinearity
         # scale the max_osn_amplitude to maintain a constant amplitude
@@ -215,7 +214,6 @@ if __name__ == "__main__":
         "remove_lambda": False
     }
     for i, sc_i in enumerate(unit_scale_range):
-        continue
         odor_gen_arguments["unit_scale"] = sc_i
         max_osn_ampli = max_osn_amplitudes_scales[i] 
         turbulent_back_params[-2] = max_osn_ampli
@@ -261,7 +259,6 @@ if __name__ == "__main__":
         "activ_fct": activ_fct_choice
     }
     for i, sc_i in enumerate(unit_scale_range):
-        continue
         odor_gen_arguments["unit_scale"] = sc_i
         max_osn_ampli = max_osn_amplitudes_scales[i]
         turbulent_back_params[-2] = max_osn_ampli
@@ -281,8 +278,6 @@ if __name__ == "__main__":
                 avg_options, projection_arguments, odor_gen_arguments,lean=True)
 
     ### IDEAL AND NO INHIBITION ###
-    raise NotImplementedError("Need to implement idealized"
-                              +" simulations for nonlinear OSN")
     for kind in ["orthogonal", "optimal", "none"]:
         for i, rho_i in enumerate(unit_scale_range):
             print("Starting idealized habituation of kind "
@@ -290,5 +285,5 @@ if __name__ == "__main__":
             ideal_file_name = os.path.join(folder, 
                     kind+"_performance_results_nl_osn_{}.h5".format(i))
             ibcm_fname = all_ibcm_file_names[i]
-            idealized_recognition_from_runs(
+            idealized_recognition_from_runs_nl_osn(
                 ideal_file_name, ibcm_fname, kind, lean=True)
