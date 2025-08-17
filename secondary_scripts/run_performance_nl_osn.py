@@ -55,9 +55,9 @@ if __name__ == "__main__":
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    n_mags_tested = 4   # CHANGE
+    n_mags_tested = 13
     #unit_scale_range = np.geomspace(1e-6, 5e-3, n_mags_tested)
-    epsils_range = np.linspace(2.7, 11.0, n_mags_tested)
+    epsils_range = np.linspace(2.5, 10.0, n_mags_tested)
 
     # Common global seeds, one per correlation strength tested, 
     # used for all models to get exact same backgrounds
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 32  # nb of habituation runs, each with a different background. CHANGE
+    n_runs = 96  # nb of habituation runs, each with a different background. 
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time

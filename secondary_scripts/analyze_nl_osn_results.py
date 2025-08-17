@@ -1,6 +1,6 @@
 """ Analyze and save to disk a summary of the simulations results
-for various levels of OSN nonlinearity. Similar script to
-analyze_dimensionality_results. 
+for various levels of OSN nonlinearity, controlled by the free energy
+difference, epsilon. Similar script to analyze_dimensionality_results. 
 
 @author: frbourassa
 August 2025
@@ -21,34 +21,34 @@ from simulfcts.analysis import (
 )
 
 
-def scale_from_file(fname):
-    """ Returns the affinity scale amplitude """
+def epsil_from_file(fname):
+    """ Returns the free energy difference, epsilon """
     f = h5py.File(fname, "r")
     #sd = int(f.attrs["main_seed"])
-    unit_scale = f.attrs["unit_scale"]
+    epsilon = f.attrs["epsilon"]
     f.close()
-    return unit_scale
+    return epsilon
 
 
-def get_scale_range_from_files(fold, models):
-    us_ranges = []
+def get_epsil_range_from_files(fold, models):
+    eps_ranges = []
     for m in models:
-        model_us = [scale_from_file(pj(fold, a)) for a in os.listdir(fold) 
+        model_us = [epsil_from_file(pj(fold, a)) for a in os.listdir(fold) 
                     if (a.startswith(m) and a.endswith(".h5"))]
-        us_ranges.append(model_us)
+        eps_ranges.append(model_us)
     # Check all these lists are equal, i.e. we tested the same
-    # unit scales for all models
-    assert sum([sum([us_ranges[j][i] == us_ranges[0][i] 
-                     for i in range(len(us_ranges[0]))]) 
-                     for j in range(len(us_ranges))])
-    us_range = np.sort(np.asarray(us_ranges[0]))
-    for i in range(len(us_range)):
-        assert us_range[i] == scale_from_file(
+    # epsilons for all models
+    assert sum([sum([eps_ranges[j][i] == eps_ranges[0][i] 
+                     for i in range(len(eps_ranges[0]))]) 
+                     for j in range(len(eps_ranges))])
+    eps_range = np.sort(np.asarray(eps_ranges[0]))
+    for i in range(len(eps_range)):
+        assert eps_range[i] == epsil_from_file(
             pj(fold, f"{models[0]}_performance_results_nl_osn_{i}.h5"))
-    return us_range
+    return eps_range
 
 
-def main_plot_perf_vs_affscale():
+def main_plot_perf_vs_epsilon():
     # Compare all algorithms
     folder = pj("results", "performance_nl_osn")
     models = ["none", "avgsub", "orthogonal", "biopca", 
@@ -84,7 +84,7 @@ def main_plot_perf_vs_affscale():
         activ_fct = f.get("parameters").attrs.get("activ_fct")
     
     # Get the range of N_S tested for each model
-    scale_range = get_scale_range_from_files(folder, models)
+    epsil_range = get_epsil_range_from_files(folder, models)
     all_jacs = {}
     median_jaccard_ranges = {}
     mean_jaccard_ranges = {}
@@ -93,7 +93,7 @@ def main_plot_perf_vs_affscale():
     std_jaccard_ranges = {}
     for m in models:
         jacs_m = []
-        for i, ns in enumerate(scale_range):
+        for i, ns in enumerate(epsil_range):
             fname = f"{m}_performance_results_nl_osn_{i}.h5"
             f = h5py.File(pj(folder, fname), "r")
             # Isolate new odor concentration axis, bunch other replicates
@@ -112,12 +112,12 @@ def main_plot_perf_vs_affscale():
     axes = axes.flatten()
     for m in models:  # Plot IBCM last
         for i in range(n_new_concs):
-            axes[i].fill_between(scale_range, 
+            axes[i].fill_between(epsil_range, 
                 mean_jaccard_ranges[m][:, i] - std_jaccard_ranges[m][:, i], 
                 mean_jaccard_ranges[m][:, i] + std_jaccard_ranges[m][:, i], 
                 color=model_colors.get(m), alpha=0.4
             )
-            axes[i].plot(scale_range, mean_jaccard_ranges[m][:, i],
+            axes[i].plot(epsil_range, mean_jaccard_ranges[m][:, i],
                 label=model_nice_names.get(m, m),
                 color=model_colors.get(m), alpha=1.0, marker="o"
             )
@@ -125,9 +125,9 @@ def main_plot_perf_vs_affscale():
     # Labeling the graphs
     for i in range(n_new_concs):
         axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
-        axes[i].set_xlabel(r"Scale of affinities $K^*$")
+        axes[i].set_xlabel(
+            r"Free energy difference $\epsilon$ ($k_\mathrm{B} T$)")
         axes[i].set_ylabel("Mean Jaccard similarity")
-        axes[i].set_xscale("log")
     axes[-1].legend()
     fig.tight_layout()
     fig.savefig(pj("figures", "nonlin_adapt", 
@@ -138,7 +138,7 @@ def main_plot_perf_vs_affscale():
     return None
 
 
-def stats_df_from_samples(samp, us_range, new_concs):
+def stats_df_from_samples(samp, eps_range, new_concs):
     """ 
     Take a multidimensional array of similarity metric samples, 
     aggregate them into a statistics DataFrame with index levels
@@ -146,7 +146,7 @@ def stats_df_from_samples(samp, us_range, new_concs):
     samp: 3d array, indexed [N_S, new_conc, replicate]
     """
     df_idx = pd.MultiIndex.from_product(
-        [us_range, new_concs], names=["unit_scale", "new_conc"])
+        [eps_range, new_concs], names=["epsilon", "new_conc"])
     df_cols = pd.Index(["mean", "median", "var", 
         "quantile_05", "quantile_95"], name="stats")
     df = pd.DataFrame(0.0, index=df_idx, columns=df_cols)
@@ -164,8 +164,8 @@ def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
     folder = pj("results", "performance_nl_osn")
     models = ["ibcm", "biopca", "avgsub", 
               "optimal", "orthogonal", "none"]
-    # Get the range of affinity scales tested for each model
-    scale_range = get_scale_range_from_files(folder, models)
+    # Get the range of epsilons tested for each model
+    epsil_range = get_epsil_range_from_files(folder, models)
     try:
         example_file_ibcm = [a for a in os.listdir(folder) 
             if a.startswith("ibcm") and a.endswith(".h5")][0]
@@ -180,24 +180,24 @@ def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
         assert len(new_concs) == n_new_concs
         activ_fct = f.get("parameters").attrs.get("activ_fct")
 
-    # For each model, extract the Jaccard similarities array for all scales,
+    # For each model, extract the Jaccard similarities array for all epsils,
     # concatenate, compute statistics, then save Jaccard stats for all models
     # into one npz archive file.
     all_jacs = {}
     for m in models:
         jacs_m = []
-        for i, ns in enumerate(scale_range):
+        for i, ns in enumerate(epsil_range):
             fname = f"{m}_performance_results_nl_osn_{i}.h5"
             f = h5py.File(pj(folder, fname), "r")
             jacs_m.append(concat_jaccards(f, k=k))
             f.close()
         jacs_m = np.stack(jacs_m, axis=0)  
-        # currently indexed [scale, run, new_odor, test_time, new_conc, back_sample] 
+        # currently indexed [epsil, run, new_odor, test_time, new_conc, back_sample] 
         # Reshape to flatten last dimensions and 
-        # be indexed [scale, new_conc, replicate]
+        # be indexed [epsil, new_conc, replicate]
         jacs_m = np.moveaxis(jacs_m, source=4, destination=1)
         jacs_m = jacs_m.reshape(jacs_m.shape[0], jacs_m.shape[1], -1)
-        all_jacs[m] = stats_df_from_samples(jacs_m, scale_range, new_concs)
+        all_jacs[m] = stats_df_from_samples(jacs_m, epsil_range, new_concs)
 
     # Concatenate all models
     all_jacs = pd.concat(all_jacs, names=["Model"])
@@ -206,11 +206,11 @@ def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
     print(all_jacs.shape)
     dest_name_full = dest_name + ".h5"
     all_jacs.to_hdf(dest_name_full, key="df")
-    # and the information about the scale range in a separate Series
-    # in the same file, with key "scale_range"
-    scale_ser = pd.Series(scale_range, name="unit_scale", 
-        index=pd.Index(np.arange(len(scale_range)), name="scale_index"))
-    scale_ser.to_hdf(dest_name_full, key="scale_range")
+    # and the information about the epsil range in a separate Series
+    # in the same file, with key "epsil_range"
+    epsil_ser = pd.Series(epsil_range, name="epsilon", 
+        index=pd.Index(np.arange(len(epsil_range)), name="epsil_index"))
+    epsil_ser.to_hdf(dest_name_full, key="epsil_range")
     return None
 
 
@@ -220,7 +220,7 @@ def main_export_new_mix_distance_stats(dest_name):
     models = ["ibcm", "biopca", "avgsub", 
               "optimal", "orthogonal", "none"]
     # Get the range of N_S tested for each model
-    scale_range = get_scale_range_from_files(folder, models)
+    epsil_range = get_epsil_range_from_files(folder, models)
     try:
         example_file_ibcm = [a for a in os.listdir(folder) 
             if a.startswith("ibcm") and a.endswith(".h5")][0]
@@ -237,7 +237,7 @@ def main_export_new_mix_distance_stats(dest_name):
 
     # Check that all models were exposed to the same background indeed
     backs, news = {}, {}
-    for n, ns in enumerate(scale_range):
+    for n, ns in enumerate(epsil_range):
         backs[n] = {}
         news[n] = {}
         for m in models:
@@ -259,7 +259,7 @@ def main_export_new_mix_distance_stats(dest_name):
     all_dists = {}
     for m in models:
         dists_m = []
-        for n, ns in enumerate(scale_range):
+        for n, ns in enumerate(epsil_range):
             fname = f"{m}_performance_results_nl_osn_{n}.h5"
             f = h5py.File(pj(folder, fname), "r")
             dists_m.append(concat_new_mix_distances(f))
@@ -270,7 +270,7 @@ def main_export_new_mix_distance_stats(dest_name):
         # be indexed [n_s, new_conc, replicate]
         dists_m = np.moveaxis(dists_m, source=4, destination=1)
         dists_m = dists_m.reshape(dists_m.shape[0], dists_m.shape[1], -1)
-        all_dists[m] = stats_df_from_samples(dists_m, scale_range, new_concs)
+        all_dists[m] = stats_df_from_samples(dists_m, epsil_range, new_concs)
     
     # Concatenate all models
     all_dists = pd.concat(all_dists, names=["Model"])
@@ -279,19 +279,19 @@ def main_export_new_mix_distance_stats(dest_name):
     print(all_dists.shape)
     dest_name_full = dest_name + "_" + activ_fct + ".h5"
     all_dists.to_hdf(dest_name_full, key="df")
-    # and the information about the scale range in a separate Series
-    # in the same file, with key "scale_range"
-    scale_ser = pd.Series(scale_range, name="unit_scale", 
-        index=pd.Index(np.arange(len(scale_range)), name="scale_index"))
-    scale_ser.to_hdf(dest_name_full, key="scale_range")
+    # and the information about the epsilon range in a separate Series
+    # in the same file, with key "epsil_range"
+    epsil_ser = pd.Series(epsil_range, name="epsilon", 
+        index=pd.Index(np.arange(len(epsil_range)), name="epsil_index"))
+    epsil_ser.to_hdf(dest_name_full, key="epsil_range")
 
     return None
 
 if __name__ == "__main__":
     print("Starting up analysis script...")
 
-    main_plot_perf_vs_affscale()
-    print("Finished plotting performance vs affinity scale (nonlinearity)")
+    main_plot_perf_vs_epsilon()
+    print("Finished plotting performance vs nonlinearity threshold (epsilon)")
     
     # Export Jaccard similarities to new odors
     main_export_jaccard_stats(pj("results", 
@@ -301,8 +301,8 @@ if __name__ == "__main__":
 
     # Also export Jaccard similarities to background
     # The resulting file will have Jaccard similiarities in key "df"
-    # and the unit scales corresponding to the 
-    # integer indices in key "scale_range"
+    # and the epsilons corresponding to the 
+    # integer indices in key "epsil_range"
     main_export_jaccard_stats(
         os.path.join("results", "for_plots", "nonlin_adapt", 
             "jaccard_similarities_back_nl_osn"), k='jaccard_scores_back'
