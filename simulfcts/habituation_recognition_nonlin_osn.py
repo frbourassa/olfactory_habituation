@@ -23,13 +23,11 @@ from utils.profiling import IterationProfiler
 # Local imports
 from modelfcts.ideal import (
     find_projector,
-    find_parallel_component,
     relu_inplace, 
     compute_optimal_matrix_fromsamples
 )
 from modelfcts.nonlin_adapt_osn import (
     combine_odors_affinities,
-    combine_odors_compet, 
     generate_odor_tanhcdf
 )
 from modelfcts.backgrounds import (
@@ -72,7 +70,6 @@ from simulfcts.idealized_recognition import (
 def select_osn_response(attrs):
     response_fct_map = {
         "turbulent_nl_osn": combine_odors_affinities,
-        "turbulent_compet_osn": combine_odors_compet
     }
     try:
         response_fct = response_fct_map[attrs["background"]]
@@ -84,7 +81,6 @@ def select_osn_response(attrs):
 def select_odor_gen_fct(attrs):
     generation_fct_map = {
         "turbulent_nl_osn": generate_odor_tanhcdf,
-        "turbulent_compet_osn": generate_odorant
     }
     try:
         generation_fct = generation_fct_map[attrs["background"]]
@@ -228,8 +224,7 @@ def test_new_odor_recognition_nl_osn(
             new_concs are relevant and same for all simulations.
         sim_odors (dict):
             "back": the background odors of that simulation
-                (not all of them like in the HDF file), shape [n_aff, n_b, n_r]
-                The first axis indexes the n_aff affinities describing an odor
+                (not all of them like in the HDF file), shape [n_b, n_r]
             "new": all new odors, shape [n_new_odors, n_r]
         test_params (dict):
             test_seed_seq (np.random.SeedSequence): child SeedSequence,
@@ -663,8 +658,7 @@ def orthogonal_recognition_one_sim_nl_osn(sim_id, filename_ref, lean=True):
     # Build unit-normed odor vectors corresponding to the small concentration 
     # limit, to get the projector to the linear manifold
     if bkname == "turbulent_nl_osn":
-        back_vecs = back_odors[:, :, 1] - back_odors[:, :, 0]
-        back_vecs /= l2_norm(back_vecs, axis=1)[:, None]
+        back_vecs = back_odors / l2_norm(back_odors, axis=1)[:, None]
     else:
         raise NotImplementedError()
 

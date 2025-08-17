@@ -1,11 +1,11 @@
 """
 Scripts to check the performance of each model (IBCM, BioPCA) when OSNs
 have the nonlinear response function of Kadakia and Emonet, with odors
-defined by OR types affinities K, K^* (without adaptation of the free
-energy difference for now). 
+defined by the affinity of each type of OR-Orco complex K^*
+(without adaptation of the free energy difference for now). 
 
 Also check how this performance changes as the strength of nonlinearity
-increases. This is controlled by scaling up $K^*$ via the unit_scale param, 
+increases. This is controlled by scaling down exp(epsilon) with respect to K^*, 
 and compensating the absolute OSN magnitude by scaling down max_osn_ampli. 
 
 For example runs at different nonlinearity strengths, I will use a separate
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # level so child processes do not get started often. 
     multiprocessing.set_start_method('spawn')
     folder = os.path.join("..", "results", "performance_nl_osn")
-    do_main_runs = False
+    do_main_runs = True
 
     # Dimensionalities -- fixed
     n_s = 50  # n_S: stay small, fly size
@@ -56,18 +56,19 @@ if __name__ == "__main__":
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
     n_mags_tested = 4   # CHANGE
-    unit_scale_range = np.geomspace(1e-6, 5e-3, n_mags_tested)
+    #unit_scale_range = np.geomspace(1e-6, 5e-3, n_mags_tested)
+    epsils_range = np.linspace(2.7, 11.0, n_mags_tested)
 
     # Common global seeds, one per correlation strength tested, 
     # used for all models to get exact same backgrounds
     root_seed = 0xb0252ee13b08dca462794d94d32e333d
     seed_generator = np.random.default_rng(root_seed)
     common_seeds = [seed_from_gen(seed_generator, nbits=128) 
-                    for _ in unit_scale_range]
+                    for _ in epsils_range]
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 64  # nb of habituation runs, each with a different background. CHANGE
+    n_runs = 32  # nb of habituation runs, each with a different background. CHANGE
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -91,7 +92,7 @@ if __name__ == "__main__":
         "project_thresh_fact": 0.05
     }
     odor_gen_arguments = {
-        "unit_scale": unit_scale_range[0]   # update for each sim
+        "unit_scale": 5e-4   # default, epsilon adjusted with respect to it
     }
     combine_fct = combine_odors_affinities
     activ_fct_choice = "identity"
@@ -103,9 +104,9 @@ if __name__ == "__main__":
         np.asarray([0.6] * n_b),        # c0s
         np.asarray([0.5] * n_b),        # alphas
     ]
-    # Add OSN amplitude (to be updated each simul), epsilons to back params
-    epsils_vec = np.full(n_s, 5.0)
+    # Add OSN amplitude, epsilons to back params, to be updated each simul
     turbulent_back_params.append(3.0 / np.sqrt(n_s))  # Changed for each sim.
+    epsils_vec = np.full(n_s, epsils_range[0])  # Changed for each sim.
     turbulent_back_params.append(epsils_vec)
 
     # Adjust new odor concentrations to average whiff concentration
@@ -132,7 +133,7 @@ if __name__ == "__main__":
         "background": "turbulent_nl_osn",
         # need to save 128-bit to str, too large for HDF5
         "main_seed": str(common_seeds[0]),  # Will be changed for each sim.
-        "unit_scale": unit_scale_range[0]  # Will be changed for each sim.
+        "epsilon": epsils_range[0]  # Will be changed for each sim.
     }
     ibcm_params = {
         "dimensions": dimensions_array,
@@ -154,28 +155,29 @@ if __name__ == "__main__":
     }
     all_ibcm_file_names = {}
     max_osn_amplitudes_scales = []
-    for i, sc_i in enumerate(unit_scale_range):
-        odor_gen_arguments["unit_scale"] = sc_i
+    for i, eps_i in enumerate(epsils_range):
+        epsils_vec = np.full(n_s, eps_i)
         # Compute the typical OSN amplitude at this level of nonlinearity
         # scale the max_osn_amplitude to maintain a constant amplitude
         dummy_odors = generate_odor_tanhcdf((n_b, n_s), 
-                            dummy_rgen, unit_scale=sc_i)
+                            dummy_rgen, **odor_gen_arguments)
         raw_osn_activ = np.amax(combine_fct(np.full(n_b, avg_whiff_conc), 
                                     dummy_odors, epsils_vec, fmax=1.0))
         max_osn_ampli = 3.0 / (raw_osn_activ * np.sqrt(n_s)) 
         max_osn_amplitudes_scales.append(max_osn_ampli)
         turbulent_back_params[-2] = max_osn_ampli
+        turbulent_back_params[-1] = epsils_vec
         ibcm_params["back_params"] = turbulent_back_params
         ibcm_attrs["main_seed"] = str(common_seeds[i])
-        ibcm_attrs["unit_scale"] = sc_i
+        ibcm_attrs["epsilon"] = eps_i
         ibcm_file_name = os.path.join(folder, 
                             "ibcm_performance_results_nl_osn_{}.h5".format(i))
         all_ibcm_file_names[i] = str(ibcm_file_name)
         if do_main_runs:
-            print("Starting IBCM simulation for unit_scale = {}".format(sc_i))
+            print("Starting IBCM simulation for epsilon = {}".format(eps_i))
             main_habituation_runs_nl_osn(ibcm_file_name, ibcm_attrs,
                 ibcm_params, ibcm_options, odor_gen_arguments, lean=True)
-            print("Starting IBCM recognition for unit_scale = {}".format(sc_i))
+            print("Starting IBCM recognition for epsilon = {}".format(eps_i))
             main_recognition_runs_nl_osn(ibcm_file_name, ibcm_attrs, ibcm_params,
                 ibcm_options, projection_arguments, odor_gen_arguments, lean=True)
 
@@ -188,7 +190,7 @@ if __name__ == "__main__":
         "background": "turbulent_nl_osn",
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seeds[0]),  # Updated for each sim
-        "unit_scale": unit_scale_range[0]  # Will be changed for each sim.
+        "epsilon": epsils_range[0]  # Will be changed for each sim.
     }
     # Adjust Lambda scale in BioPCA
     ibcm_preds = fixedpoint_thirdmoment_exact(moments_conc, 1, n_b-1)
@@ -213,22 +215,23 @@ if __name__ == "__main__":
         "remove_mean": True,
         "remove_lambda": False
     }
-    for i, sc_i in enumerate(unit_scale_range):
-        odor_gen_arguments["unit_scale"] = sc_i
+    for i, eps_i in enumerate(epsils_range):
+        epsils_vec = np.full(n_s, eps_i)
         max_osn_ampli = max_osn_amplitudes_scales[i] 
         turbulent_back_params[-2] = max_osn_ampli
+        turbulent_back_params[-1] = epsils_vec
         biopca_params["back_params"] = turbulent_back_params
         biopca_attrs["main_seed"] = str(common_seeds[i])
-        biopca_attrs["unit_scale"] = sc_i
+        biopca_attrs["epsilon"] = eps_i
         pca_file_name = os.path.join(folder, 
             "biopca_performance_results_nl_osn_{}.h5".format(i))
         if do_main_runs:
             print("Starting BioPCA recognition"
-                  + " for unit_scale = {}".format(sc_i))
+                  + " for epsilon = {}".format(eps_i))
             main_habituation_runs_nl_osn(pca_file_name, biopca_attrs,
                 biopca_params, biopca_options, odor_gen_arguments, lean=True)
             print("Starting BioPCA recognition"
-                  +" for unit_scale = {}".format(sc_i))
+                  +" for epsilon = {}".format(eps_i))
             main_recognition_runs_nl_osn(pca_file_name, biopca_attrs, 
                 biopca_params, biopca_options, projection_arguments, 
                 odor_gen_arguments, lean=True)
@@ -242,7 +245,7 @@ if __name__ == "__main__":
         "background": "turbulent_nl_osn",
         # Intentionally the same seed to test all models against same backs
         "main_seed": str(common_seeds[0]),  # updated each sim
-        "unit_scale": unit_scale_range[0]
+        "epsilon": epsils_range[0]  # updated each sim
     }
     avg_params = {
         "dimensions": dimensions_array,  # updated each sim
@@ -258,30 +261,31 @@ if __name__ == "__main__":
     avg_options = {
         "activ_fct": activ_fct_choice
     }
-    for i, sc_i in enumerate(unit_scale_range):
-        odor_gen_arguments["unit_scale"] = sc_i
+    for i, eps_i in enumerate(epsils_range):
+        epsils_vec = np.full(n_s, eps_i)
         max_osn_ampli = max_osn_amplitudes_scales[i]
         turbulent_back_params[-2] = max_osn_ampli
+        turbulent_back_params[-1] = epsils_vec
         avg_params["back_params"] = turbulent_back_params
         avg_attrs["main_seed"] = str(common_seeds[i])
-        avg_attrs["unit_scale"] = sc_i
+        avg_attrs["epsilon"] = eps_i
         avg_file_name = os.path.join(folder, 
             "avgsub_performance_results_nl_osn_{}.h5".format(i))
         if do_main_runs:
             print("Starting average sub. simulation"
-                  + " for unit_scale = {}".format(sc_i))
+                  + " for epsilon = {}".format(eps_i))
             main_habituation_runs_nl_osn(avg_file_name, avg_attrs,
                 avg_params, avg_options, odor_gen_arguments, lean=True)
             print("Starting average sub. recognition "
-                + "for unit_scale = {}".format(sc_i))
+                + "for epsilon = {}".format(eps_i))
             main_recognition_runs_nl_osn(avg_file_name, avg_attrs, avg_params,
                 avg_options, projection_arguments, odor_gen_arguments,lean=True)
 
-    ### IDEAL AND NO INHIBITION ###
-    for kind in ["orthogonal", "optimal", "none"]:
-        for i, rho_i in enumerate(unit_scale_range):
+    ### OPTIMAL, ORTHOGONAL, AND NO INHIBITION ###
+    for kind in ["optimal", "orthogonal", "none"]:
+        for i, eps_i in enumerate(epsils_range):
             print("Starting idealized habituation of kind "
-                +"{} recognition tests for unit_scale = {}".format(kind, rho_i))
+                +"{} recognition tests for epsilon = {}".format(kind, eps_i))
             ideal_file_name = os.path.join(folder, 
                     kind+"_performance_results_nl_osn_{}.h5".format(i))
             ibcm_fname = all_ibcm_file_names[i]
