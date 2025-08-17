@@ -15,8 +15,6 @@ pj = os.path.join
 if ".." not in sys.path:
     sys.path.insert(1, "..")
 
-from modelfcts.ideal import find_projector, find_parallel_component
-from utils.metrics import l2_norm
 from simulfcts.analysis import (
     concat_jaccards, 
     concat_new_mix_distances,
@@ -35,11 +33,11 @@ def scale_from_file(fname):
 def get_scale_range_from_files(fold, models):
     us_ranges = []
     for m in models:
-        model_ns = [scale_from_file(pj(fold, a)) for a in os.listdir(fold) 
+        model_us = [scale_from_file(pj(fold, a)) for a in os.listdir(fold) 
                     if (a.startswith(m) and a.endswith(".h5"))]
-        us_ranges.append(model_ns)
+        us_ranges.append(model_us)
     # Check all these lists are equal, i.e. we tested the same
-    # N_S for all models
+    # unit scales for all models
     assert sum([sum([us_ranges[j][i] == us_ranges[0][i] 
                      for i in range(len(us_ranges[0]))]) 
                      for j in range(len(us_ranges))])
@@ -54,12 +52,11 @@ def main_plot_perf_vs_affscale():
     # Compare all algorithms
     folder = pj("results", "performance_nl_osn")
     models = ["none", "avgsub", "orthogonal", "biopca", 
-              "ibcm", "ideal", "optimal"]
+              "ibcm", "optimal"]
     model_nice_names = {
         "ibcm": "IBCM",
         "biopca": "BioPCA",
         "avgsub": "Average",
-        "ideal": "Ideal",
         "optimal": "Manifold W",
         "orthogonal": "Orthogonal",
         "none": "None"
@@ -68,7 +65,6 @@ def main_plot_perf_vs_affscale():
         "ibcm": "xkcd:turquoise",
         "biopca": "xkcd:orangey brown",
         "avgsub": "xkcd:navy blue",
-        "ideal": "xkcd:light green",
         "optimal": "xkcd:powder blue",
         "orthogonal": "xkcd:pale rose",
         "none": "grey"
@@ -166,7 +162,7 @@ def stats_df_from_samples(samp, us_range, new_concs):
 def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
     # Compare all algorithms
     folder = pj("results", "performance_nl_osn")
-    models = ["ibcm", "biopca", "avgsub", "ideal", 
+    models = ["ibcm", "biopca", "avgsub", 
               "optimal", "orthogonal", "none"]
     # Get the range of affinity scales tested for each model
     scale_range = get_scale_range_from_files(folder, models)
@@ -221,7 +217,7 @@ def main_export_jaccard_stats(dest_name, k='jaccard_scores'):
 def main_export_new_mix_distance_stats(dest_name):
     # Compare all algorithms
     folder = pj("results", "performance_nl_osn")
-    models = ["ibcm", "biopca", "avgsub", "ideal", 
+    models = ["ibcm", "biopca", "avgsub", 
               "optimal", "orthogonal", "none"]
     # Get the range of N_S tested for each model
     scale_range = get_scale_range_from_files(folder, models)

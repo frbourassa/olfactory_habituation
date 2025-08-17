@@ -55,19 +55,19 @@ if __name__ == "__main__":
     n_i = 24  # n_I: depends on model choice. Use 24 for IBCM
     n_k = 2000  # n_K: number of Kenyon cells for neural tag generation
     dimensions_array = np.asarray([n_s, n_b, n_i, n_k])
-    unit_scale_range = np.geomspace(5e-5, 5e-3, 10)
+    n_mags_tested = 4   # CHANGE
+    unit_scale_range = np.geomspace(1e-6, 5e-3, n_mags_tested)
 
     # Common global seeds, one per correlation strength tested, 
     # used for all models to get exact same backgrounds
-    root_seed = 0xb0252ee13b06dca462794d94d32e333d
-    n_mags_tested = unit_scale_range.shape[0]
+    root_seed = 0xb0252ee13b08dca462794d94d32e333d
     seed_generator = np.random.default_rng(root_seed)
     common_seeds = [seed_from_gen(seed_generator, nbits=128) 
                     for _ in unit_scale_range]
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 96  # nb of habituation runs, each with a different background
+    n_runs = 64  # nb of habituation runs, each with a different background. CHANGE
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
-    w_alpha_beta = np.asarray([5e-5, 1e-5])  # ower to avoid numerical issues
+    w_alpha_beta = np.asarray([5e-5, 1e-5])  # lower to avoid numerical issues
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         "dimensions": dimensions_array,
         "repeats": repeats_array,
         # learnrate, tau_avg, eta, lambda, sat, ktheta, decay_relative
-        "m_rates": np.asarray([0.001, 1200.0, 0.6/n_i, 1.0, 50.0, 0.1, 0.005]),
+        "m_rates": np.asarray([0.00075, 1600.0, 0.7/n_i, 1.0, 50.0, 0.1, 0.005]),
         "w_rates": w_alpha_beta,
         "time_params": duration_dt,
         "back_params": turbulent_back_params,
@@ -160,9 +160,9 @@ if __name__ == "__main__":
         # scale the max_osn_amplitude to maintain a constant amplitude
         dummy_odors = generate_odor_tanhcdf((n_b, n_s), 
                             dummy_rgen, unit_scale=sc_i)
-        raw_osn_activ = combine_fct(np.full(n_b, avg_whiff_conc), 
-                                    dummy_odors, epsils_vec, fmax=1.0)
-        max_osn_ampli = 1.0 / (raw_osn_activ * np.sqrt(n_s)) 
+        raw_osn_activ = np.amax(combine_fct(np.full(n_b, avg_whiff_conc), 
+                                    dummy_odors, epsils_vec, fmax=1.0))
+        max_osn_ampli = 3.0 / (raw_osn_activ * np.sqrt(n_s)) 
         max_osn_amplitudes_scales.append(max_osn_ampli)
         turbulent_back_params[-2] = max_osn_ampli
         ibcm_params["back_params"] = turbulent_back_params

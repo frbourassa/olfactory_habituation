@@ -19,7 +19,7 @@ from modelfcts.backgrounds import (
 
 
 def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946, 
-        logb=-1.29460373, unit_scale=5e-4, k2range=1e3):
+        logb=-1.29460373, unit_scale=5e-4, k2range=5e2):
     """ Generate vectors of K and K^* for an odor, following 
     a fit on the data of Si et al., 2019 for K^* affinities and
     Kadakia and Emonet, eLife, 2019 to set all K = k1val = 0.01 default. 
@@ -66,7 +66,7 @@ def generate_odor_tanhcdf(n_rec, rgen, k1val=0.01, alpha=0.38751946,
     return np.stack([k1vec, k2vec], axis=-1)
 
 
-def combine_odors_affinities(concs, kmats, epsils, fmax=1.0):
+def combine_odors_affinities_non0baseline(concs, kmats, epsils, fmax=1.0):
     """ Combine odors coming in with concentrations conc and defined
     by active and inactive binding affinities kappa1, kappa2. 
     OSN types have free energy differences epsils. 
@@ -91,6 +91,68 @@ def combine_odors_affinities(concs, kmats, epsils, fmax=1.0):
     kc2 = concs.dot(k2mat)
     logterm = (1.0 + kc1) / (1.0 + kc2)
     activs = fmax / (1.0 + np.exp(epsils) * logterm)
+    return activs
+
+
+def combine_odors_affinities_0baseline(concs, kmats, epsils, fmax=1.0):
+    """ Combine odors coming in with concentrations conc and defined
+    by active and inactive binding affinities kappa1, kappa2. 
+    OSN types have free energy differences epsils. We subtract 1/(1+e^epsilon)
+    to ensure the baseline activation is zero when c=0, so the scaling
+    up-down of K^* scale with compensation by fmax controls the strength of
+    nonlinearity directly without changing the baseline. 
+
+    Args:
+        concs (np.ndarray): 1d array of odor concentrations, indexed [n_odors]
+        kmats (np.ndarray): shape [n_odors, n_osns, 2], 
+            affinities of inactive and active complexes, respectively
+        epsils (np.ndarray): shape [n_osns], free energy difference 
+            of each OSN type
+        fmax (float): maximum amplitude, default 1, but we usually scale
+            to 1/sqrt(n_dimensions) to maintain OSN activities in 
+            the magnitude of s for which IBCM, BioPCA rates have been 
+            chosen in other simulations. 
+
+    Returns:
+        activ (np.ndarray): 1d array of ORN activation, indexed [n_receptors]
+    """
+    k1mat, k2mat = kmats[:, :, 0], kmats[:, :, 1]
+    # Dot products over odors
+    kc1 = concs.dot(k1mat)
+    kc2 = concs.dot(k2mat)
+    logterm = (1.0 + kc1) / (1.0 + kc2)
+    expeps = np.exp(epsils)
+    activs = fmax / (1.0 + expeps * logterm) - fmax / (1.0 + expeps)
+    return activs
+
+
+def combine_odors_affinities(concs, kmats, epsils, fmax=1.0):
+    """ Combine odors coming in with concentrations conc and defined
+    by active and inactive binding affinities kappa1, kappa2. 
+    OSN types have free energy differences epsils. We subtract 1/(1+e^epsilon)
+    to ensure the baseline activation is zero when c=0, so the scaling
+    up-down of K^* scale with compensation by fmax controls the strength of
+    nonlinearity directly without changing the baseline. 
+
+    Args:
+        concs (np.ndarray): 1d array of odor concentrations, indexed [n_odors]
+        kmats (np.ndarray): shape [n_odors, n_osns, 2], 
+            affinities of inactive and active complexes, respectively
+        epsils (np.ndarray): shape [n_osns], free energy difference 
+            of each OSN type
+        fmax (float): maximum amplitude, default 1, but we usually scale
+            to 1/sqrt(n_dimensions) to maintain OSN activities in 
+            the magnitude of s for which IBCM, BioPCA rates have been 
+            chosen in other simulations. 
+
+    Returns:
+        activ (np.ndarray): 1d array of ORN activation, indexed [n_receptors]
+    """
+    k2mat = kmats[:, :, 1]
+    # Dot products over odors
+    kc2 = concs.dot(k2mat)
+    expeps = np.exp(epsils)
+    activs = fmax * kc2 / (expeps + kc2)
     return activs
 
 

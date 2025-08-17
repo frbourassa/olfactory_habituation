@@ -790,13 +790,6 @@ def optimal_recognition_one_sim_nl_osn(sim_id, filename_ref, lean=False):
             project_neural_tag(back_response, back_response,
                 projmat, **proj_kwargs)
         )
-    # Build unit-normed odor vectors corresponding to the small concentration 
-    # limit, to get the projector to the linear manifold
-    if bkname == "turbulent_nl_osn":
-        back_vecs = back_odors[:, :, 1] - back_odors[:, :, 0]
-        back_vecs /= l2_norm(back_vecs, axis=1)[:, None]
-    else:
-        raise NotImplementedError()
 
     # Compute optimal W matrix for all new odors possible
     dummy_rgen = np.random.default_rng(0x8807275f5575f550d0f161011f1e59cf)
