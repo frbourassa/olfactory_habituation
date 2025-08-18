@@ -61,14 +61,14 @@ if __name__ == "__main__":
 
     # Common global seeds, one per correlation strength tested, 
     # used for all models to get exact same backgrounds
-    root_seed = 0xb0252ee13b08dca462794d94d32e333d
+    root_seed = 0xb0252ee13b08dca462794d94d32e332d
     seed_generator = np.random.default_rng(root_seed)
     common_seeds = [seed_from_gen(seed_generator, nbits=128) 
                     for _ in epsils_range]
 
     # Global test parameters
     new_test_concs = np.asarray([0.5, 1.0])  # to multiply by average whiff c.
-    n_runs = 96  # nb of habituation runs, each with a different background. 
+    n_runs = 96  # nb of habituation runs, each with a different background.  CHANGE
     n_test_times = 5  # nb of late time points at which habituation is tested
     n_back_samples = 4  # nb background samples tested at every time
     n_new_odors = 100  # nb new odors at each test time
@@ -126,6 +126,13 @@ if __name__ == "__main__":
         np.mean((conc_samples - mean_conc)**3)
     ])
 
+    # To adjust the OSN amplitude with epsilon, scale the max. activation 
+    # at high whiff conc (1.5*average) to a standard value 5.0/sqrt(N_S)
+    # This amplitude of strong whiffs affects convergence and is better scaled
+    raw_conc_factor = 1.5
+    raw_ampli = 5.0
+    ampli_statistic = np.amax
+
 
     ### IBCM RUNS ###
     ibcm_attrs = {
@@ -161,9 +168,10 @@ if __name__ == "__main__":
         # scale the max_osn_amplitude to maintain a constant amplitude
         dummy_odors = generate_odor_tanhcdf((n_b, n_s), 
                             dummy_rgen, **odor_gen_arguments)
-        raw_osn_activ = np.amax(combine_fct(np.full(n_b, avg_whiff_conc), 
+        dummy_concs = np.full(n_b, raw_conc_factor * avg_whiff_conc)
+        raw_osn_activ = ampli_statistic(combine_fct(dummy_concs,
                                     dummy_odors, epsils_vec, fmax=1.0))
-        max_osn_ampli = 3.0 / (raw_osn_activ * np.sqrt(n_s)) 
+        max_osn_ampli = raw_ampli / (raw_osn_activ * np.sqrt(n_s)) 
         max_osn_amplitudes_scales.append(max_osn_ampli)
         turbulent_back_params[-2] = max_osn_ampli
         turbulent_back_params[-1] = epsils_vec

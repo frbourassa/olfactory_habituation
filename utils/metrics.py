@@ -18,6 +18,9 @@ def l2_norm(vecs, axis=-1):
     """
     return np.sqrt(np.sum(vecs**2, axis=axis))
 
+def rms_norm(vecs, axis=-1):
+    return np.sqrt(np.mean(vecs**2, axis=axis))
+
 def l1_norm(vecs, axis=-1):
     r""" |x| = \sum_i |x_i|"""
     return np.sum(np.abs(vecs), axis=axis)
