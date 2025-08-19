@@ -129,7 +129,7 @@ if __name__ == "__main__":
     # To adjust the OSN amplitude with epsilon, scale the max. activation 
     # at high whiff conc (1.5*average) to a standard value 5.0/sqrt(N_S)
     # This amplitude of strong whiffs affects convergence and is better scaled
-    raw_conc_factor = 2.0
+    raw_conc_factor = 2.5
     raw_ampli = 2.5
     ampli_statistic = np.mean
 
