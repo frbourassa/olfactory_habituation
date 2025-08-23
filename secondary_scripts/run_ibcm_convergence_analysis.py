@@ -258,7 +258,7 @@ def main_convergence_vs_ibcm_rates(orig_seedseq, n_seeds):
     # learnrate varies on axis 0 (y, rows), tautheta on axis 1 (x, columns)
 
     # Define simulation and model parameters
-    n_i_ibcm_sim = 24
+    n_i_ibcm_sim = 12
     n_dims_sim = 25
     n_comp_sim = 3
     dimensions_sim = [n_comp_sim, n_dims_sim, n_i_ibcm_sim]
@@ -316,22 +316,22 @@ def main_convergence_vs_ibcm_rates(orig_seedseq, n_seeds):
             ibcm_rates_sim[1] = tau
             # Launch multiple seeds for the current (mu, tau) combination
             all_procs_mutau = {}
-            res_seeds_mutau = {}
+            #res_seeds_mutau = {}
             for k in range(n_seeds):
                 apply_args = (run_analyze_ibcm_one_back_seed, n_threads, 
                               ibcm_rates_sim, back_rates_sim, inhib_rates_sim,  
                               ibcm_options_sim,dimensions_sim, simul_seeds[k])
                 apply_kwds = dict(duration_loc=duration_sim, dt_loc=deltat_sim, 
                                   skp_loc=skp_sim, full_returns=False)
-                #all_procs_mutau[k] = pool.apply_async(func_wrapper_threadpool, 
-                #                 args=apply_args, kwds=apply_kwds)
-                res_seeds_mutau[k] = func_wrapper_threadpool(
-                                        *apply_args, **apply_kwds)
+                all_procs_mutau[k] = pool.apply_async(func_wrapper_threadpool, 
+                                 args=apply_args, kwds=apply_kwds)
+                #res_seeds_mutau[k] = func_wrapper_threadpool(
+                #                        *apply_args, **apply_kwds)
 
 
             # Collect convergence analysis results for this mu, tau
-            #res_seeds_mutau = {k:all_procs_mutau[k].get() for k in 
-            # all_procs_mutau.keys()}. Stack them over seeds
+            res_seeds_mutau = {k:all_procs_mutau[k].get() for k in 
+                                all_procs_mutau.keys()}
             combined_seed_res = combine_seed_results(res_seeds_mutau, n_seeds)
             i_gaps.append(combined_seed_res[0])
             i_specifs.append(combined_seed_res[1])
