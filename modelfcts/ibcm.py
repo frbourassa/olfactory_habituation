@@ -649,7 +649,8 @@ def integrate_ibcm_adaptation(vari_inits, update_bk, bk_init,
         cbar2_avg += dt * (cbar*cbar / lambd - cbar2_avg)/tavg
 
         # Adapt OSNs in response to background at time t
-        epsvec += dt / tau_eps * (bkvec - osn_targets)
+        # Correct sign: if bk above target, increase epsilon to lower response
+        epsvec += dt / tau_eps * (bkvec - osn_targets)  
         epsvec = np.clip(epsvec, a_min=eps_min, a_max=eps_max)
 
         # Update background to time k+1, to be used in next time step

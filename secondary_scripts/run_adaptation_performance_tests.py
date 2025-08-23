@@ -17,6 +17,7 @@ if "../" not in sys.path:
     sys.path.insert(1, "../")
 
 from utils.cpu_affinity import count_parallel_cpu, count_threads_per_process
+from simulfcts.idealized_recognition import func_wrapper_threadpool
 from modelfcts.ibcm import (
     integrate_ibcm_adaptation,
     ibcm_respond_new_odors,  # Unchanged if we give inputs nonlinearized with correct epsilon
@@ -67,7 +68,7 @@ n_components = 6  # Number of background odors
 inhib_rates = [0.00005, 0.00001]  # alpha, beta  [0.00025, 0.00005]
 
 # Simulation duration
-duration = 36000.0
+duration = 360000.0
 deltat = 1.0
 
 # Simulation skipping, 50 is enough for plots
@@ -509,13 +510,6 @@ def stack_jaccards_per_model(all_jac_dicts):
     for m in models:
         stacked_jacs[m] = np.stack(stacked_jacs[m])
     return stacked_jacs
-    
-
-
-def func_wrapper_threadpool(func, threadlim, *args, **kwargs):
-    with threadpool_limits(limits=threadlim, user_api='blas'):
-        res = func(*args, **kwargs)
-    return res
 
 
 if __name__ == "__main__":
@@ -551,8 +545,13 @@ if __name__ == "__main__":
     all_simuls_jaccards = [p.get() for p in all_processes]
     all_jaccards = stack_jaccards_per_model(all_simuls_jaccards)
 
+    pool.close()
+    pool.join()
+
     # Save to disk as a npz archive
-    fname = "osn_adaptation_odor_recognition_results.npz"
+    fname = "osn_adaptation_odor_recognition_results_{}.npz".format(
+        str(new_od_rel_conc).replace(".", "-")
+    )
     np.savez_compressed(pj(outputs_folder, fname), **all_jaccards)
 
 
