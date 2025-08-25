@@ -433,7 +433,7 @@ def ibcm_respond_new_odors(odors, mmat, wmat, ibcm_rates, options={}):
     return yvec
 
 
-def compute_mbars_cgammas_cbargammas(ms, eta, backvecs):
+def compute_mbars_hgammas_hbargammas(ms, eta, backvecs):
     r"""
     Compute the time series of \bar{m} = m_i - \eta \sum_{j\neq i} m_j,
     of c_{\gamma} = \vec{m} \cdot \vec{x}_{\gamma},

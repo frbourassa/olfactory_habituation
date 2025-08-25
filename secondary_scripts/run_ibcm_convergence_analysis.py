@@ -25,7 +25,7 @@ import multiprocessing
 from simulfcts.idealized_recognition import func_wrapper_threadpool
 from modelfcts.ibcm import (
     integrate_inhib_ibcm_network_options,
-    compute_mbars_cgammas_cbargammas
+    compute_mbars_hgammas_hbargammas
 )
 from modelfcts.backgrounds import (
     update_powerlaw_times_concs, 
@@ -106,7 +106,7 @@ def analyze_ibcm_simulation(sim_results, ibcm_rates_loc, back_pms,
     basis = back_pms[-1]
 
     # Dot products \bar{c}_{\gamma} = \bar{\vec{m}} \cdot \vec{x}_{\gamma}
-    _, _, cbgam = compute_mbars_cgammas_cbargammas(mser_ibcm, coupling, basis)
+    _, _, cbgam = compute_mbars_hgammas_hbargammas(mser_ibcm, coupling, basis)
     cbgam_mean = np.mean(cbgam[transient:], axis=0)
     # Sorted odor indices, from min to max, of odor alignments for each neuron
     aligns_idx_sorted = np.argsort(cbgam_mean, axis=1) 
@@ -358,7 +358,7 @@ def main_convergence_vs_ibcm_rates(orig_seedseq, n_seeds):
 
 
 if __name__ == "__main__":
-
+    print("Starting simulation...")
     mutau_grid, align_gaps, specifs, varis = main_convergence_vs_ibcm_rates(
         np.random.SeedSequence(0xf44f62d0818452d631061e695b75c517), 32)
     

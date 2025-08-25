@@ -344,7 +344,7 @@ def plot_cbars_gammas_sums(ts, ser_sums_cbg, ser_sums_cbg2, skp=200, skp_lbl=1):
     return fig, axes
 
 
-def plot_cbars_gamma_series(ts, cbg_ser, skp=200, transient=None):
+def plot_hbars_gamma_series(ts, cbg_ser, skp=200, transient=None):
     """ Plotting the time course of dot products of mbar with odor components.
 
     Args:
