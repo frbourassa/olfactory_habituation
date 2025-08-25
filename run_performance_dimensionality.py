@@ -159,11 +159,11 @@ if __name__ == "__main__":
                             "ibcm_performance_results_ns_{}.h5".format(n_s_i))
         all_ibcm_file_names[n_s_i] = str(ibcm_file_name)
         print("Starting IBCM simulation for N_S = {}".format(n_s_i))
-        #main_habituation_runs(ibcm_file_name, ibcm_attrs,
-        #                    ibcm_params, ibcm_options, lean=True)
+        main_habituation_runs(ibcm_file_name, ibcm_attrs,
+                            ibcm_params, ibcm_options, lean=True)
         print("Starting IBCM recognition for N_S = {}".format(n_s_i))
-        #main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
-        #                    ibcm_options, projection_arguments, lean=True)
+        main_recognition_runs(ibcm_file_name, ibcm_attrs, ibcm_params,
+                            ibcm_options, projection_arguments, lean=True)
 
     ### BIOPCA RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -210,11 +210,11 @@ if __name__ == "__main__":
         pca_file_name = os.path.join(folder, 
             "biopca_performance_results_ns_{}.h5".format(n_s_i))
         print("Starting BioPCA recognition for N_S = {}".format(n_s_i))
-        #main_habituation_runs(pca_file_name, biopca_attrs,
-        #                  biopca_params, biopca_options, lean=True)
+        main_habituation_runs(pca_file_name, biopca_attrs,
+                          biopca_params, biopca_options, lean=True)
         print("Starting BioPCA recognition for N_S = {}".format(n_s_i))
-        #main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
-        #                  biopca_options, projection_arguments, lean=True)
+        main_recognition_runs(pca_file_name, biopca_attrs, biopca_params,
+                          biopca_options, projection_arguments, lean=True)
 
     ### AVERAGE INHIBITION RUNS ###
     # Change number of inhibitory neurons, need less with PCA
@@ -249,11 +249,11 @@ if __name__ == "__main__":
         avg_file_name = os.path.join(folder, 
             "avgsub_performance_results_ns_{}.h5".format(n_s_i))
         print("Starting average sub. simulation for N_S = {}".format(n_s_i))
-        #main_habituation_runs(avg_file_name, avg_attrs,
-        #                    avg_params, avg_options, lean=True)
+        main_habituation_runs(avg_file_name, avg_attrs,
+                            avg_params, avg_options, lean=True)
         print("Starting average sub. recognition for N_S = {}".format(n_s_i))
-        #main_recognition_runs(avg_file_name, avg_attrs, avg_params,
-        #                    avg_options, projection_arguments, lean=True)
+        main_recognition_runs(avg_file_name, avg_attrs, avg_params,
+                            avg_options, projection_arguments, lean=True)
 
     ### IDEAL AND NO INHIBITION ###
     for kind in ["orthogonal", "ideal", "optimal", "none"]:
@@ -263,8 +263,8 @@ if __name__ == "__main__":
             ideal_file_name = os.path.join(folder, 
                     kind+"_performance_results_ns_{}.h5".format(n_s_i))
             ibcm_fname = all_ibcm_file_names[n_s_i]
-            #idealized_recognition_from_runs(
-            #    ideal_file_name, ibcm_fname, kind, lean=True)
+            idealized_recognition_from_runs(
+                ideal_file_name, ibcm_fname, kind, lean=True)
 
     ### Jaccard between random odors ###
     for n_s_i in n_s_range:
