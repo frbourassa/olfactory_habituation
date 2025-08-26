@@ -8,6 +8,9 @@ September 2023
 import numpy as np
 import os
 import h5py
+import sys
+if not ".." in sys.path:
+    sys.path.insert(1, "..")
 
 from simulfcts.habituation_recognition import (
     main_habituation_runs,
@@ -24,7 +27,7 @@ from modelfcts.ibcm_analytics import (
 
 if __name__ == "__main__":
     # Results folder
-    folder = os.path.join("results", "performance_ReLU")
+    folder = os.path.join("..", "results", "performance_ReLU")
 
     # Global seed, used for all models to get exact same backgrounds
     common_seed = 0xbb5205484f2c0747fb23fc01b8813656
@@ -63,7 +66,7 @@ if __name__ == "__main__":
     snapshot_times = np.linspace(start_test_t, duration_dt[0], n_test_times)
     # Avoid going to exactly the total time, it is not available
     snapshot_times -= duration_dt[1]*skip_steps
-    w_alpha_beta = np.asarray([5e-5, 2e-5])  # Lower alpha 
+    w_alpha_beta = np.asarray([2.5e-4, 1e-4])  # Higher regularization
     projection_arguments = {
         "kc_sparsity": 0.05,
         "adapt_kc": True,

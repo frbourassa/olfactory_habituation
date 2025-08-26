@@ -1,48 +1,66 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import h5py
-from simulfcts.habituation_recognition import id_to_simkey
+import os, sys, json
+from os.path import join as pj
+if not ".." in sys.path:
+    sys.path.insert(1, "..")
+
 from simulfcts.plotting import hist_outline
 from modelfcts.ideal import find_projector, find_parallel_component
 from utils.metrics import l2_norm
-import os
-
 from simulfcts.analysis import (
     concat_jaccards, 
     concat_mixtures, 
-    concat_ystats, 
-    concat_wmats, 
-    concat_mmats, 
-    concat_lmats
 )
+
+do_save_plots = True
+
+root_dir = pj("..")
+params_folder = pj(root_dir, "results", "common_params")
+
+# rcParams
+plt.rcParams["figure.figsize"] = (4.5, 3.0)
+with open(pj(params_folder, "olfaction_rcparams.json"), "r") as f:
+    new_rcParams = json.load(f)
+plt.rcParams.update(new_rcParams)
+
+# color maps
+with open(pj(params_folder, "back_colors.json"), "r") as f:
+    all_back_colors = json.load(f)
+back_color = all_back_colors["back_color"]
+back_color_samples = all_back_colors["back_color_samples"]
+back_palette = all_back_colors["back_palette"]
+
+with open(pj(params_folder, "orn_colors.json"), "r") as f:
+    orn_colors = json.load(f)
+    
+with open(pj(params_folder, "inhibitory_neuron_two_colors.json"), "r") as f:
+    neuron_colors = np.asarray(json.load(f))
+with open(pj(params_folder, "inhibitory_neuron_full_colors.json"), "r") as f:
+    neuron_colors_full24 = np.asarray(json.load(f))
+# Here, 32 neurons, need to make a new palette with same parameters
+neuron_colors_full = np.asarray(sns.husl_palette(n_colors=32, h=0.01, s=0.9, l=0.4, as_cmap=False))
+
+with open(pj(params_folder, "model_colors.json"), "r") as f:
+    model_colors = json.load(f)
+with open(pj(params_folder, "model_nice_names.json"), "r") as f:
+    model_nice_names = json.load(f)
+
+models = list(model_colors.keys())
 
 
 def main_plot_histograms():
     # Compare all algorithms
-    folder = os.path.join("results", "performance_ReLU")
-    models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
-    model_nice_names = {
-        "ibcm": "IBCM",
-        "biopca": "BioPCA",
-        "avgsub": "Average",
-        "ideal": "Ideal",
-        "optimal": "Manifold W",
-        "orthogonal": "Orthogonal",
-        "none": "None"
-    }
+    folder = os.path.join("..", "results", "performance_ReLU")
+    models = ["ibcm", "biopca", "avgsub", "optimal", "orthogonal", "none"]
+
     model_file_choices = {
         a:os.path.join(folder, a+"_performance_results_relu.h5")
         for a in models
     }
-    model_colors = {
-        "ibcm": "xkcd:turquoise",
-        "biopca": "xkcd:orangey brown",
-        "avgsub": "xkcd:navy blue",
-        "ideal": "xkcd:powder blue",
-        "optimal": "xkcd:light green",
-        "orthogonal": "xkcd:pale rose",
-        "none": "grey"
-    }
+
     # Get new odor concentrations
     # Assume it's the same for all models: it should!
     with h5py.File(model_file_choices["ibcm"], "r") as f:
@@ -51,7 +69,8 @@ def main_plot_histograms():
         activ_fct = f.get("parameters").attrs.get("activ_fct")
     # One plot per new odor concentration
     fig, axes = plt.subplots(1, n_new_concs, sharex=True)
-    fig.set_size_inches(9.5, 4)
+    fig.set_size_inches(plt.rcParams["figure.figsize"][0]*n_new_concs*0.9, 
+                        plt.rcParams["figure.figsize"][1])
     axes = axes.flatten()
     for m in models[::-1]:  # Plot IBCM last
         f = h5py.File(model_file_choices[m], "r")
@@ -63,20 +82,24 @@ def main_plot_histograms():
                 bins="doane", density=True, label=model_nice_names.get(m, m),
                 color=model_colors.get(m), alpha=1.0
             )
-            #axes[i].axvline(
-            #    np.median(all_jacs[:, :, :, i, :]), ls="--",
-            #    color=model_colors.get(m)
-            #)
+            axes[i].axvline(
+                np.median(all_jacs[:, :, :, i, :]), ls="--",
+                color=model_colors.get(m)
+            )
     # Labeling the graphs, etc.
     for i in range(n_new_concs):
         ax = axes[i]
         axes[i].set_title("New conc. = {:.1f}".format(new_concs[i]))
         axes[i].set_xlabel("Jaccard similarity (higher is better)")
         axes[i].set_ylabel("Probability density")
-    axes[1].legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
-    fig.tight_layout()
-    fig.savefig("figures/detection/compare_models_{}.pdf".format(activ_fct),
-                transparent=True, bbox_inches="tight")
+    
+    fig.tight_layout()    
+    leg = axes[-1].legend(loc="upper left", bbox_to_anchor=(0.75, 1.0), 
+                   frameon=False)
+    fig_name = "compare_models_{}.pdf".format(activ_fct)
+    fig.savefig(pj(root_dir, "figures", "detection", fig_name),
+                transparent=True, bbox_inches="tight", 
+                bbox_extra_artists=(leg,))
 
     plt.show()
     plt.close()
@@ -85,7 +108,7 @@ def main_plot_histograms():
 
 def main_export_jaccards(dest_name, k='jaccard_scores'):
     # Compare all algorithms
-    folder = os.path.join("results", "performance_ReLU")
+    folder = os.path.join("..", "results", "performance_ReLU")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
     model_file_choices = {
         a:os.path.join(folder, a+"_performance_results_relu.h5")
@@ -116,7 +139,7 @@ def main_export_jaccards(dest_name, k='jaccard_scores'):
 
 def main_export_new_back_distances(dest_name):
     # Compare all algorithms
-    folder = os.path.join("results", "performance_ReLU")
+    folder = os.path.join("..", "results", "performance_ReLU")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
     model_file_choices = {
         a:os.path.join(folder, a+"_performance_results_relu.h5")
@@ -152,7 +175,7 @@ def main_export_new_back_distances(dest_name):
 
 def main_export_new_mix_distances(dest_name):
     # Compare all algorithms
-    folder = os.path.join("results", "performance_ReLU")
+    folder = os.path.join("..", "results", "performance_ReLU")
     models = ["ibcm", "biopca", "avgsub", "ideal", "optimal", "orthogonal", "none"]
     model_file_choices = {
         a:os.path.join(folder, a+"_performance_results_relu.h5")
@@ -197,16 +220,16 @@ def main_export_new_mix_distances(dest_name):
 if __name__ == "__main__":
     main_plot_histograms()
     main_export_jaccards(
-        os.path.join("results", "for_plots", "jaccard_similarities")
+        os.path.join("..", "results", "for_plots", "jaccard_similarities")
     )
     # Also export Jaccard similarities to background
     #main_export_jaccards(
-    #    os.path.join("results", "for_plots", "jaccard_similarities_back"),
+    #    os.path.join("..", "results", "for_plots", "jaccard_similarities_back"),
     #    k='jaccard_scores_back'
     #)
     #main_export_new_back_distances(
-    #    os.path.join("results", "for_plots", "new_back_distances")
+    #    os.path.join("..", "results", "for_plots", "new_back_distances")
     #)
     #main_export_new_mix_distances(
-    #    os.path.join("results", "for_plots", "new_mix_distances")
+    #    os.path.join("..", "results", "for_plots", "new_mix_distances")
     #)
