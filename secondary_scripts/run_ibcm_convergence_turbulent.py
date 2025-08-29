@@ -24,6 +24,7 @@ from modelfcts.ibcm import (
     integrate_inhib_ibcm_network_options,
     compute_mbars_hgammas_hbargammas
 )
+from modelfcts.ibcm_analytics import fixedpoint_thirdmoment_exact
 from modelfcts.backgrounds import (
     update_powerlaw_times_concs, 
     sample_ss_conc_powerlaw, 
@@ -106,14 +107,18 @@ def analyze_ibcm_simulation(sim_results, ibcm_rates_loc, back_pms,
     # Dot products \bar{c}_{\gamma} = \bar{\vec{m}} \cdot \vec{x}_{\gamma}
     _, _, hbgam = compute_mbars_hgammas_hbargammas(mser_ibcm, coupling, basis)
     hbgam_mean = np.mean(hbgam[transient:], axis=0)
+    n_i = hbgam_mean.shape[0]
     # Sorted odor indices, from min to max, of odor alignments for each neuron
     aligns_idx_sorted = np.argsort(hbgam_mean, axis=1) 
     specif_gammas = np.argmax(hbgam_mean, axis=1)
-    assert np.all(specif_gammas == aligns_idx_sorted[:, -1])
+    # If argmax and last argsort indices differ, must be because some
+    # elements are equal; check that specif and argsort max are equal
+    if not np.all(specif_gammas == aligns_idx_sorted[:, -1]):
+        assert np.allclose(hbgam_mean[np.arange(n_i), aligns_idx_sorted[:, -1]], 
+                           hbgam_mean[np.arange(n_i), specif_gammas])
 
 
     # Gap between first and second largest alignments for each neuron
-    n_i = hbgam_mean.shape[0]
     alignment_gaps = (hbgam_mean[np.arange(n_i), specif_gammas]
                      - hbgam_mean[np.arange(n_i), aligns_idx_sorted[:, -2]])
 
@@ -127,7 +132,7 @@ def analyze_ibcm_simulation(sim_results, ibcm_rates_loc, back_pms,
 
 def run_analyze_ibcm_one_back_seed(
         ibcm_rates_loc, back_rates, inhib_rates_loc, 
-        options_loc, dimensions, seedseq, 
+        options_loc, dimensions, seedseq, minit_scale=0.2,
         duration_loc=360000.0, dt_loc=1.0, skp_loc=20, full_returns=False
     ):
     """ Given IBCM model rates and background parameters except
@@ -175,7 +180,7 @@ def run_analyze_ibcm_one_back_seed(
 
     # Initial synaptic weights: small positive noise
     lambd_loc = ibcm_rates_loc[3]
-    init_synapses_ibcm = 0.2*rgen_init.standard_normal(
+    init_synapses_ibcm = minit_scale*rgen_init.standard_normal(
                                     size=[n_i, n_dim])*lambd_loc
 
     # Run the IBCM simulation
@@ -187,7 +192,6 @@ def run_analyze_ibcm_one_back_seed(
     )
 
     # Now analyze IBCM simul for convergence
-
     analysis_res = analyze_ibcm_simulation(sim_results, ibcm_rates_loc, 
                     back_pms_loc, skp_loc=skp_loc, duration_loc=duration_loc)
     hgammas_ser, gaps, specifs, hgamvari = analysis_res
@@ -323,8 +327,6 @@ def main_convergence_vs_ibcm_rates(orig_seedseq, n_seeds, n_comp_sim=3):
                                   skp_loc=skp_sim, full_returns=False)
                 all_procs_mutau[k] = pool.apply_async(func_wrapper_threadpool, 
                                  args=apply_args, kwds=apply_kwds)
-                #res_seeds_mutau[k] = func_wrapper_threadpool(
-                #                        *apply_args, **apply_kwds)
 
 
             # Collect convergence analysis results for this mu, tau
@@ -351,6 +353,53 @@ def main_convergence_vs_ibcm_rates(orig_seedseq, n_seeds, n_comp_sim=3):
     pool.join()
 
     return learnrate_tautheta_grid, all_gaps, all_specifs, all_varis
+
+
+def adjust_alpha(back_pms, back_pms_ref, alpha_ref):
+    r""" The magnitude of h scales as 1/c_0 where c_0 is the concentration
+    scale, so we need to adjust $\alpha$ in the $W$ equation to prevent
+    numerical instabilities: keep $\alpha/c_0$ constant. """
+    c0ref = back_pms_ref[4].mean()
+    c0 = back_pms[4].mean()
+    alpha = alpha_ref * c0 / c0ref
+    return alpha
+
+
+# This does not seem necessary in the end. 
+def adjust_minit_scale(back_pms, back_pms_ref, mscale_ref=0.2):
+    c0ref = back_pms_ref[4].mean()
+    c0 = back_pms[4].mean()
+    mscale = mscale_ref * (c0 / c0ref)**2
+    return mscale
+
+
+def compute_preds_from_seeds(res_dict, n_seeds):
+    """ Combine concentration series from seeds in res_dict and
+    use them to compute analytical predictions for h_sp, h_ns, h_d, u2.
+    """
+    # Collect all concentration time series.
+    combi_conc_sers = []
+    for i in range(n_seeds):
+        sim_res = res_dict[i][4]
+        conc_ser = sim_res[1][:, :, 1]  # tc_ser: [all times, all odors, conc]
+        combi_conc_sers.append(conc_ser)
+    combi_conc_sers = np.stack(combi_conc_sers)  # indexed [seed, time, odor]
+    
+    # All samples are iid, can average over all
+    mean_conc = np.mean(combi_conc_sers)
+    moments_conc = [
+        mean_conc,
+        np.var(combi_conc_sers),
+        np.mean((combi_conc_sers - mean_conc)**3.0)
+    ]
+    n_components = combi_conc_sers.shape[2]
+
+    # Compute analytical predictions for alignments
+    try:
+        preds = fixedpoint_thirdmoment_exact(moments_conc, 1, n_components-1)
+    except:  # some issue with simulations, no convergence possible, align=0
+        preds = np.full((4,), np.nan)
+    return preds
 
 
 def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
@@ -380,7 +429,7 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     # Grid of c0, explore a linear range as this affects convergence as c0**2
     c0range = np.geomspace(0.6/3, 0.6*9, 7)
     c0_default = 0.6
-    mu_default = 7.5e-4
+    mu_default = 1.25e-3
     # For mu range, use constant mu*c0**2. 
     learnrate_range = mu_default * (c0_default/c0range)**2
     learnrate_c0_grid = np.stack(
@@ -394,7 +443,7 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
 
     # Default IBCM model rates
     learnrate_ibcm_sim = mu_default  # will vary
-    tau_avg_ibcm_sim = 1600
+    tau_avg_ibcm_sim = 2000
     coupling_eta_ibcm_sim = 0.6/n_i_ibcm_sim
     ssat_ibcm_sim = 50.0
     k_c2bar_avg_sim = 0.1
@@ -412,14 +461,21 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     ibcm_options_sim = {
         "activ_fct": "identity",
         "saturation": "tanh", 
-        "variant": "law",   # maybe we will want to test "intrator" later?
+        "variant": "law",
         "decay": True
     }
     # default turbulent background parameters
     back_rates_sim = default_background_params(n_comp_sim)
     # Will vary c0, which is the element at index 4 of this param list
-    # Default alpha, beta
-    inhib_rates_sim = [0.00005, 0.00001]  # alpha, beta
+    # Initial M scale
+    mscale_def = 0.2
+    mscale_sim = mscale_def  # will be updated
+    
+    # Default alpha, beta. 
+    # Need lower alpha for larger c0, to prevent numerical instabilities.
+    back_rates_ref = default_background_params(n_comp_sim)  # reference
+    alpha_def = 5e-5  # needs to be adjusted to h scaling as 1/c_0
+    inhib_rates_sim = [alpha_def, 1e-5]  # alpha, beta
 
     # Time parameters
     duration_sim = 360000.0
@@ -429,6 +485,7 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     # Containers for alignment gaps, specificities, and hgammas variances
     # that will be stacked arrays indexed [mu, c0, seed, ...]
     all_gaps, all_specifs, all_varis = [], [], []
+    all_gaps_th = []  # theoretical gaps, analytical prediction for h_sp - h_ns
 
     # Spawn simulation seeds, reused at each combination on the IBCM rates grid
     simul_seeds = orig_seedseq.spawn(n_seeds)
@@ -439,11 +496,18 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     # Treat one rate combination at a time
     for i in range(learnrate_range.shape[0]):
         mu = learnrate_range[i]
-        i_gaps, i_specifs, i_varis = [], [], []
-        for j in range(learnrate_c0_grid.shape[0]):
+        i_gaps, i_specifs, i_varis, i_gaps_th = [], [], [], []
+        for j in range(c0range.shape[0]):
             c0 = c0range[j]
             ibcm_rates_sim[0] = mu
             back_rates_sim[4][:] = c0
+            # Adjust alpha to h magnitude scaling as 1/c_0
+            alpha_sim = adjust_alpha(back_rates_sim, back_rates_ref, alpha_def)
+            inhib_rates_sim[0] = alpha_sim
+            # Adjust m initial scale? Not necessary
+            #mscale_sim = adjust_minit_scale(
+            #    back_rates_sim, back_rates_ref, mscale_def)
+            mscale_sim = mscale_def
             # Launch multiple seeds for the current (mu, c0) combination
             all_procs_muc0 = {}
             for k in range(n_seeds):
@@ -451,7 +515,8 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
                               ibcm_rates_sim, back_rates_sim, inhib_rates_sim,  
                               ibcm_options_sim,dimensions_sim, simul_seeds[k])
                 apply_kwds = dict(duration_loc=duration_sim, dt_loc=deltat_sim, 
-                                  skp_loc=skp_sim, full_returns=False)
+                                    minit_scale=mscale_sim, skp_loc=skp_sim, 
+                                    full_returns=True)
                 all_procs_muc0[k] = pool.apply_async(func_wrapper_threadpool, 
                                  args=apply_args, kwds=apply_kwds)
 
@@ -462,23 +527,31 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
             i_gaps.append(combined_seed_res[0])
             i_specifs.append(combined_seed_res[1])
             i_varis.append(combined_seed_res[2])
+
+            # Theoretical gap for this c0, use seeds to estimate conc. moments
+            hs_hn_hd_u2 = compute_preds_from_seeds(res_seeds_muc0, n_seeds)
+            gap_th = hs_hn_hd_u2[0] - hs_hn_hd_u2[1]
+            i_gaps_th.append(gap_th)
+
             print("Finished mu i = {}, c0 j = {}".format(i, j))
 
         # Stack arrays over j (c0) for the current i value (mu)
         all_gaps.append(np.stack(i_gaps))
         all_specifs.append(np.stack(i_specifs))
         all_varis.append(np.stack(i_varis))
+        all_gaps_th.append(np.stack(i_gaps_th))
 
     # Stack arrays over i (mu)
     all_gaps = np.stack(all_gaps)
     all_specifs = np.stack(all_specifs)
     all_varis = np.stack(all_varis)
+    all_gaps_th = np.stack(all_gaps_th)
 
     # Reuse pool for each (mu, c0) but close them at the end
     pool.close()
     pool.join()
 
-    return learnrate_c0_grid, all_gaps, all_specifs, all_varis
+    return learnrate_c0_grid, all_gaps, all_specifs, all_varis, all_gaps_th
 
 
 def adjust_learnrate(back_pms, back_pms_ref, mu_ref):
@@ -491,7 +564,7 @@ def adjust_learnrate(back_pms, back_pms_ref, mu_ref):
 
 
 def main_convergence_vs_turbulence_strength(
-        orig_seedseq, n_seeds, n_comp_sim=3, do_adjust_mu=True):
+        orig_seedseq, n_seeds, n_comp_sim=3, do_adjust_mu=False):
     """ Run n_seeds IBCM simulations for each combination of whiff and
     blank max duration. Optionally adjust the learning rate mu to compensate
     for the change in background magnitude, keeping mu * <c>**2 constant. 
@@ -520,8 +593,8 @@ def main_convergence_vs_turbulence_strength(
         all_varis (np.ndarray): indexed [tw, tb, seed, neuron, component]
     """
     # Grid of tw and tb durations
-    tw_range = 2.0 * np.logspace(0, 4, 4) # From 0.02 s to 20 s
-    tb_range = 2.0 * np.logspace(0, 4, 4) # From 0.02 s to 20 s
+    tw_range = 2.0 * np.logspace(1, 4, 4) # From 0.2 s to 200 s
+    tb_range = 2.0 * np.logspace(1, 4, 4) # From 0.2 s to 200 s
     tw_tb_grid = np.stack(
         np.meshgrid(tw_range, tb_range, indexing="ij"), axis=0)
     # tw varies on axis 0 (y, rows), tb on axis 1 (x, columns)
@@ -532,9 +605,9 @@ def main_convergence_vs_turbulence_strength(
     dimensions_sim = [n_comp_sim, n_dims_sim, n_i_ibcm_sim]
 
     # Default IBCM model rates
-    mu_ref = 7.5e-4  # reference
+    mu_ref = 1.25e-3  # reference
     mu = mu_ref  # will be adjusted if do_adjust_mu
-    tau_avg_ibcm_sim = 1600
+    tau_avg_ibcm_sim = 2000
     coupling_eta_ibcm_sim = 0.6/n_i_ibcm_sim
     ssat_ibcm_sim = 50.0
     k_c2bar_avg_sim = 0.1
@@ -558,8 +631,10 @@ def main_convergence_vs_turbulence_strength(
     # default turbulent background parameters
     back_rates_ref = default_background_params(n_comp_sim)  # reference
     back_rates_sim = default_background_params(n_comp_sim)
-    # Default alpha, beta
-    inhib_rates_sim = [0.00005, 0.00001]  # alpha, beta
+    
+    # Need lower alpha for larger c0, to prevent numerical instabilities.
+    alpha_def = 5e-5  # needs to be adjusted to h scaling as 1/c_0
+    inhib_rates_sim = [alpha_def, 1e-5]  # alpha, beta
 
     # Time parameters
     duration_sim = 360000.0
@@ -569,6 +644,7 @@ def main_convergence_vs_turbulence_strength(
     # Containers for alignment gaps, specificities, and hgammas variances
     # that will be stacked arrays indexed [mu, tau, seed, ...]
     all_gaps, all_specifs, all_varis = [], [], []
+    all_gaps_th = []  # theoretical gaps, analytical prediction for h_sp - h_ns
 
     # Spawn simulation seeds, reused at each combination on the IBCM rates grid
     simul_seeds = orig_seedseq.spawn(n_seeds)
@@ -579,13 +655,16 @@ def main_convergence_vs_turbulence_strength(
     # Treat one rate combination at a time
     for i in range(tw_range.shape[0]):
         tw = tw_range[i]
-        i_gaps, i_specifs, i_varis = [], [], []
+        i_gaps, i_specifs, i_varis, i_gaps_th = [], [], [], []
         for j in range(tb_range.shape[0]):
             tb = tb_range[j]
             back_rates_sim[1][:] = tw  # max whiff durations
             back_rates_sim[3][:] = tb  # max back durations
+            # Adjust alpha to h magnitude scaling as 1/c_0
+            alpha_sim = adjust_alpha(back_rates_sim, back_rates_ref, alpha_def)
+            inhib_rates_sim[0] = alpha_sim
             if do_adjust_mu:
-                mu = adjust_learnrate(back_rates_ref, back_rates_sim, mu_ref)
+                mu = adjust_learnrate(back_rates_sim, back_rates_ref, mu_ref)
             else:
                 mu = mu_ref
             ibcm_rates_sim[0] = mu
@@ -596,41 +675,48 @@ def main_convergence_vs_turbulence_strength(
                               ibcm_rates_sim, back_rates_sim, inhib_rates_sim,  
                               ibcm_options_sim,dimensions_sim, simul_seeds[k])
                 apply_kwds = dict(duration_loc=duration_sim, dt_loc=deltat_sim, 
-                                  skp_loc=skp_sim, full_returns=False)
+                                  skp_loc=skp_sim, full_returns=True)
                 all_procs_twtb[k] = pool.apply_async(func_wrapper_threadpool, 
                                  args=apply_args, kwds=apply_kwds)
 
-
             # Collect convergence analysis results for this tw, tb
-            res_seeds_twtb = {k:all_procs_twtb[k].get() for k in 
-                                all_procs_twtb.keys()}
+            res_seeds_twtb = {k:all_procs_twtb[k].get() 
+                              for k in all_procs_twtb.keys()}
             combined_seed_res = combine_seed_results(res_seeds_twtb, n_seeds)
             i_gaps.append(combined_seed_res[0])
             i_specifs.append(combined_seed_res[1])
             i_varis.append(combined_seed_res[2])
+
+            # Theoretical gap for this c0, use seeds to estimate conc. moments
+            hs_hn_hd_u2 = compute_preds_from_seeds(res_seeds_twtb, n_seeds)
+            gap_th = hs_hn_hd_u2[0] - hs_hn_hd_u2[1]
+            i_gaps_th.append(gap_th)
+
             print("Finished tw i = {}, tb j = {}".format(i, j))
 
         # Stack arrays over j (tb) for the current i value (mu)
         all_gaps.append(np.stack(i_gaps))
         all_specifs.append(np.stack(i_specifs))
         all_varis.append(np.stack(i_varis))
+        all_gaps_th.append(np.stack(i_gaps_th))
 
     # Stack arrays over i (tw)
     all_gaps = np.stack(all_gaps)
     all_specifs = np.stack(all_specifs)
     all_varis = np.stack(all_varis)
+    all_gaps_th = np.stack(all_gaps_th)
 
     # Reuse pool for each (tw, tb) but close them at the end
     pool.close()
     pool.join()
 
-    return tw_tb_grid, all_gaps, all_specifs, all_varis
+    return tw_tb_grid, all_gaps, all_specifs, all_varis, all_gaps_th
 
 
 
 if __name__ == "__main__":
     do_nodors_rates = False
-    do_conc_scale = True  # vs c0, compensate with mu, mu * c0**2 = cst
+    do_conc_scale = False  # vs c0, compensate with mu, mu * c0**2 = cst
     do_turbulence_strength = True
     n_simuls = 32
 
@@ -640,21 +726,22 @@ if __name__ == "__main__":
     root_dir = pj("..")
     outputs_folder = pj(root_dir, "results", "for_plots", "convergence")
     topseed = np.random.SeedSequence(0xf44f62d0818452d631061e695b75c517)
-    nrange = [3, 4, 5, 6, 8] if do_nodors_rates else []
-    spawned_seeds = [topseed, *topseed.spawn(len(nrange)-1)]
-    for n in nrange:
-        print("Starting simulation for N_B = {}...".format(n))
-        res = main_convergence_vs_ibcm_rates(
-            spawned_seeds.pop(0), n_simuls, n_comp_sim=n)
-        mutau_grid, align_gaps, specifs, varis = res
-        fname = "convergence_vs_ibcm_rates_results_{}odors.npz".format(n)
-        fname = pj(outputs_folder, fname)
-        np.savez_compressed(fname, 
-            mutau_grid=mutau_grid, 
-            align_gaps=align_gaps,
-            gamma_specifs=specifs,
-            hgamma_varis=varis
-        )
+    nrange = [3, 4, 5, 6, 8]
+    if do_nodors_rates:
+        spawned_seeds = [topseed, *topseed.spawn(len(nrange)-1)]
+        for n in nrange:
+            print("Starting simulation for N_B = {}...".format(n))
+            res = main_convergence_vs_ibcm_rates(
+                spawned_seeds.pop(0), n_simuls, n_comp_sim=n)
+            mutau_grid, align_gaps, specifs, varis = res
+            fname = "convergence_vs_ibcm_rates_results_{}odors.npz".format(n)
+            fname = pj(outputs_folder, fname)
+            np.savez_compressed(fname, 
+                mutau_grid=mutau_grid, 
+                align_gaps=align_gaps,
+                gamma_specifs=specifs,
+                hgamma_varis=varis
+            )
     
     # Simulations as a function of background amplitude c0 and mu compensation
     root_dir = pj("..")
@@ -662,37 +749,39 @@ if __name__ == "__main__":
     topseed2 = np.random.SeedSequence(0x8f380db086f6b8c843bd7b9969a7a2c0)
     n_odors = 3
     if do_conc_scale:
-        print("Starting simulation for N_B = {}...".format(n))
+        print("Starting simulations vs mu and c0 conc. scale...")
         res = main_convergence_vs_background_ampli(
             topseed2, n_simuls, n_comp_sim=n_odors)
-        mutau_grid, align_gaps, specifs, varis = res
-        fname = "convergence_vs_background_ampli_results_{}odors.npz".format(n)
+        muc0_grid, align_gaps, specifs, varis, gaps_th = res
+        fname = f"convergence_vs_background_ampli_results_{n_odors}odors.npz"
         fname = pj(outputs_folder, fname)
         np.savez_compressed(fname, 
-            mutau_grid=mutau_grid, 
+            muc0_grid=muc0_grid, 
             align_gaps=align_gaps,
             gamma_specifs=specifs,
-            hgamma_varis=varis
+            hgamma_varis=varis, 
+            gaps_th=gaps_th
         )
 
 
     # Simulations as a function of turbulence strength
     root_dir = pj("..")
     outputs_folder = pj(root_dir, "results", "for_plots", "convergence")
-    topseed2 = np.random.SeedSequence(0xa41cb5e74887125e2281840c8d1a6b12)
+    topseed3 = np.random.SeedSequence(0xa41cb5e74887125e2281840c8d1a6b12)
     n_odors = 3
     if do_turbulence_strength:
-        print("Starting simulation for N_B = {}...".format(n))
+        print("Starting simulations vs whiff and blank durations...")
         res = main_convergence_vs_turbulence_strength(
-            topseed2, n_simuls, n_comp_sim=n_odors)
-        mutau_grid, align_gaps, specifs, varis = res
-        fname = f"convergence_vs_turbulence_strength_results_{n}odors.npz"
+            topseed3, n_simuls, n_comp_sim=n_odors, do_adjust_mu=True)
+        twtb_grid, align_gaps, specifs, varis, gaps_th = res
+        fname = f"convergence_vs_turbulence_strength_results_{n_odors}odors.npz"
         fname = pj(outputs_folder, fname)
         np.savez_compressed(fname, 
-            mutau_grid=mutau_grid, 
+            twtb_grid=twtb_grid, 
             align_gaps=align_gaps,
             gamma_specifs=specifs,
-            hgamma_varis=varis
+            hgamma_varis=varis,
+            gaps_th=gaps_th
         )
 
         
