@@ -223,7 +223,11 @@ def fixedpoint_thirdmoment_exact(moments_nu, k1, k2, verbose=False, lambd=1.0):
         rhs = (avgnu * (cd**2 + sigma2*u2)*(1 - cd)
                - sigma2*(cd**2 - 2*cd + sigma2*u2)*val
                + m3*val**2)
-        assert abs(rhs/avgnu) < 1e-12, "Wrong root"
+        # Tolerate small numerical error, large cancellations can occur
+        # in extreme regimes. 
+        msg = ("Wrong root, absolute residual is "
+            + "{:.4e} vs avgnu {:.4e}".format(rhs, avgnu))
+        assert abs(rhs/avgnu) < 1e-10, msg
 
     # The other quadratic root (with a plus in alpha) gives y2 > y1, and is in
     # fact the fixed point one would find with k1 and k2 swapped.
