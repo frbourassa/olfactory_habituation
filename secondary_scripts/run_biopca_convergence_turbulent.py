@@ -268,8 +268,6 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     # Grid of c0, this only affects convergence logarithmically, 
     # so vary both c_0 and the learning rate a lot and independently. 
     c0range = np.geomspace(0.6/16, 0.6*16, 5)
-    c0_default = 0.6
-    mu_default = 1e-4
     # For mu range, use constant mu*c0**2. 
     learnrate_range = np.geomspace(1e-4/25, 1e-4*25, 9)
     learnrate_c0_grid = np.stack(
@@ -290,8 +288,6 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     lambda_max_pca = 9.0
     # Learning rate of L, relative to learnrate. Adjusted to Lambda in the integration function
     rel_lrate_pca = 3.0
-    lambda_mat_diag = build_lambda_matrix(lambda_max_pca, 
-                            lambda_range_pca, n_i_pca_sim)
 
     xavg_rate_pca = learnrate_pca_ref  # will not change
     pca_options_sim = {
@@ -313,7 +309,7 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     inhib_rates_sim = [alpha_def, 1e-5]  # alpha, beta
 
     # Time parameters
-    duration_sim = 36000.0
+    duration_sim = 360000.0
     deltat_sim = 1.0
     skp_sim = 20
 
@@ -380,8 +376,7 @@ def main_convergence_vs_background_ampli(orig_seedseq, n_seeds, n_comp_sim=3):
     return learnrate_c0_grid, all_true, all_learn, all_varis, all_err
 
 
-def main_convergence_vs_turbulence_strength(
-        orig_seedseq, n_seeds, n_comp_sim=3, do_adjust_mu=False):
+def main_convergence_vs_turb_strength(orig_seedseq, n_seeds, n_comp_sim=3):
     """ Run n_seeds IBCM simulations for each combination of whiff and
     blank max duration. Optionally adjust the learning rate mu to compensate
     for the change in background magnitude, keeping mu * <c>**2 constant. 
@@ -409,7 +404,6 @@ def main_convergence_vs_turbulence_strength(
         all_specifs (np.ndarray): indexed [tw, tb, seed, neuron]
         all_varis (np.ndarray): indexed [tw, tb, seed, neuron, component]
     """
-    raise NotImplementedError()
     # Grid of tw and tb durations
     tw_range = 2.0 * np.logspace(1, 4, 7) # From 0.2 s to 200 s
     tb_range = 2.0 * np.logspace(1, 4, 7) # From 0.2 s to 200 s
@@ -418,34 +412,29 @@ def main_convergence_vs_turbulence_strength(
     # tw varies on axis 0 (y, rows), tb on axis 1 (x, columns)
 
     # Define simulation and model parameters
-    n_i_ibcm_sim = 24
+    # For simplicity, let number of neurons = number of components
+    n_i_pca_sim = n_comp_sim
     n_dims_sim = 25
-    dimensions_sim = [n_comp_sim, n_dims_sim, n_i_ibcm_sim]
+    dimensions_sim = [n_comp_sim, n_dims_sim, n_i_pca_sim]
 
-    # Default IBCM model rates
-    mu_ref = 1.25e-3  # reference
-    mu = mu_ref  # will be adjusted if do_adjust_mu
-    tau_avg_ibcm_sim = 2000
-    coupling_eta_ibcm_sim = 0.6/n_i_ibcm_sim
-    ssat_ibcm_sim = 50.0
-    k_c2bar_avg_sim = 0.1
-    decay_relative_ibcm_sim = 0.005
-    lambd_ibcm_sim = 1.0
-    ibcm_rates_sim = [
-        mu, 
-        tau_avg_ibcm_sim, 
-        coupling_eta_ibcm_sim, 
-        lambd_ibcm_sim,
-        ssat_ibcm_sim, 
-        k_c2bar_avg_sim,
-        decay_relative_ibcm_sim
-    ]
-    ibcm_options_sim = {
-        "activ_fct": "identity",
-        "saturation": "tanh", 
-        "variant": "law",   # maybe we will want to test "intrator" later?
-        "decay": True
+    # Default model rates
+    learnrate_pca_ref = 1e-4
+    learnrate_pca_sim = learnrate_pca_ref  # Learning rate of M, will change
+    # Choose Lambda diagonal matrix as advised in Minden et al., 2018
+    lambda_range_pca = 0.3
+    lambda_max_pca = 9.0
+    # Learning rate of L, relative to learnrate. Adjusted to Lambda in the integration function
+    rel_lrate_pca = 3.0
+
+    xavg_rate_pca = learnrate_pca_ref  # will not change
+    pca_options_sim = {
+        "activ_fct": "identity", 
+        "remove_lambda": False, 
+        "remove_mean": True
     }
+    biopca_rates_sim = [learnrate_pca_sim, rel_lrate_pca, 
+                lambda_max_pca, lambda_range_pca, xavg_rate_pca]
+    
     # default turbulent background parameters
     back_rates_ref = default_background_params(n_comp_sim)  # reference
     back_rates_sim = default_background_params(n_comp_sim)
@@ -459,10 +448,9 @@ def main_convergence_vs_turbulence_strength(
     deltat_sim = 1.0
     skp_sim = 20
 
-    # Containers for alignment gaps, specificities, and hgammas variances
-    # that will be stacked arrays indexed [mu, tau, seed, ...]
-    all_gaps, all_specifs, all_varis = [], [], []
-    all_gaps_th = []  # theoretical gaps, analytical prediction for h_sp - h_ns
+    # Containers for true PVs, learned PVs, PV variance, and align error
+    # that will be stacked arrays indexed [mu, c0, seed, ...]
+    all_true, all_learn, all_varis, all_err = [], [], [], []
 
     # Spawn simulation seeds, reused at each combination on the IBCM rates grid
     simul_seeds = orig_seedseq.spawn(n_seeds)
@@ -473,7 +461,7 @@ def main_convergence_vs_turbulence_strength(
     # Treat one rate combination at a time
     for i in range(tw_range.shape[0]):
         tw = tw_range[i]
-        i_gaps, i_specifs, i_varis, i_gaps_th = [], [], [], []
+        i_true, i_learn, i_varis, i_err = [], [], [], []
         for j in range(tb_range.shape[0]):
             tb = tb_range[j]
             back_rates_sim[1][:] = tw  # max whiff durations
@@ -481,19 +469,15 @@ def main_convergence_vs_turbulence_strength(
             # Adjust alpha to h magnitude scaling as 1/c_0
             alpha_sim = adjust_alpha(back_rates_sim, back_rates_ref, alpha_def)
             inhib_rates_sim[0] = alpha_sim
-            if do_adjust_mu:
-                mu = adjust_learnrate(back_rates_sim, back_rates_ref, mu_ref)
-            else:
-                mu = mu_ref
-            ibcm_rates_sim[0] = mu
+
             # Launch multiple seeds for the current (tw, tb) combination
             all_procs_twtb = {}
             for k in range(n_seeds):
-                apply_args = (run_analyze_ibcm_one_back_seed, n_threads, 
-                              ibcm_rates_sim, back_rates_sim, inhib_rates_sim,  
-                              ibcm_options_sim,dimensions_sim, simul_seeds[k])
+                apply_args = (run_analyze_biopca_one_back_seed, n_threads, 
+                              biopca_rates_sim, back_rates_sim, inhib_rates_sim,  
+                              pca_options_sim, dimensions_sim, simul_seeds[k])
                 apply_kwds = dict(duration_loc=duration_sim, dt_loc=deltat_sim, 
-                                  skp_loc=skp_sim, full_returns=True)
+                                    skp_loc=skp_sim, full_returns=False)
                 all_procs_twtb[k] = pool.apply_async(func_wrapper_threadpool, 
                                  args=apply_args, kwds=apply_kwds)
 
@@ -501,41 +485,37 @@ def main_convergence_vs_turbulence_strength(
             res_seeds_twtb = {k:all_procs_twtb[k].get() 
                               for k in all_procs_twtb.keys()}
             combined_seed_res = combine_seed_results(res_seeds_twtb, n_seeds)
-            i_gaps.append(combined_seed_res[0])
-            i_specifs.append(combined_seed_res[1])
+            i_true.append(combined_seed_res[0])
+            i_learn.append(combined_seed_res[1])
             i_varis.append(combined_seed_res[2])
-
-            # Theoretical gap for this c0, use seeds to estimate conc. moments
-            hs_hn_hd_u2 = compute_preds_from_seeds(res_seeds_twtb, n_seeds)
-            gap_th = hs_hn_hd_u2[0] - hs_hn_hd_u2[1]
-            i_gaps_th.append(gap_th)
+            i_err.append(combined_seed_res[3])  # alignment error
 
             print("Finished tw i = {}, tb j = {}".format(i, j))
 
         # Stack arrays over j (tb) for the current i value (mu)
-        all_gaps.append(np.stack(i_gaps))
-        all_specifs.append(np.stack(i_specifs))
+        all_true.append(np.stack(i_true))
+        all_learn.append(np.stack(i_learn))
         all_varis.append(np.stack(i_varis))
-        all_gaps_th.append(np.stack(i_gaps_th))
+        all_err.append(np.stack(i_err))
 
     # Stack arrays over i (tw)
-    all_gaps = np.stack(all_gaps)
-    all_specifs = np.stack(all_specifs)
+    all_true = np.stack(all_true)
+    all_learn = np.stack(all_learn)
     all_varis = np.stack(all_varis)
-    all_gaps_th = np.stack(all_gaps_th)
+    all_err = np.stack(all_err)
 
     # Reuse pool for each (tw, tb) but close them at the end
     pool.close()
     pool.join()
 
-    return tw_tb_grid, all_gaps, all_specifs, all_varis, all_gaps_th
+    return tw_tb_grid, all_true, all_learn, all_varis, all_err
 
 
 
 if __name__ == "__main__":
-    do_nodors_scale = True
-    do_turbulence_strength = False
-    n_simuls = 2
+    do_nodors_scale = False
+    do_turbulence_strength = True
+    n_simuls = 32
 
     # Simulations as a function of the number of odors, 
     # # background amplitude c0 and mu
@@ -562,10 +542,6 @@ if __name__ == "__main__":
                 vari_pvs=vari_pvs,
                 align_errs=align_errs
             )
-    # End here for the moment
-    exit()
-    raise NotImplementedError()
-    
     
     # Simulations as a function of turbulence strength
     root_dir = pj("..")
@@ -574,17 +550,17 @@ if __name__ == "__main__":
     n_odors = 3
     if do_turbulence_strength:
         print("Starting simulations vs whiff and blank durations...")
-        res = main_convergence_vs_turbulence_strength(
-            topseed3, n_simuls, n_comp_sim=n_odors, do_adjust_mu=True)
-        twtb_grid, align_gaps, specifs, varis, gaps_th = res
+        res = main_convergence_vs_turb_strength(
+            topseed3, n_simuls, n_comp_sim=n_odors)
+        twtb_grid, true_pvs, learn_pvs, vari_pvs, align_errs = res
         fname = f"biopca_convergence_vs_turbulence_strength_{n_odors}odors.npz"
         fname = pj(outputs_folder, fname)
         np.savez_compressed(fname, 
             twtb_grid=twtb_grid, 
-            align_gaps=align_gaps,
-            gamma_specifs=specifs,
-            hgamma_varis=varis,
-            gaps_th=gaps_th
+                true_pvs=true_pvs,
+                learn_pvs=learn_pvs,
+                vari_pvs=vari_pvs,
+                align_errs=align_errs
         )
 
         
