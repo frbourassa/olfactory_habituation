@@ -92,7 +92,7 @@ def analytical_convergence_times_2d(init_c_ds, norms2_x_ds, mu, sigm2, alph=0.9,
     """ Predict times for c_d and c_s to converge to fixed points.
     Valid for small sigma^2, when we expect c_d to converge before c_s
     If sigma^2 or the initial value of c_s are too large, the prediction
-    for td is still good probably, but for ts it will be bad,
+    for td is still good probably, but for ts it will be less accurate,
     because we assumed that c_d reaches its steady-state value of 1
     to compute the time ts.
     Args:
@@ -358,8 +358,8 @@ def jacobian_fixedpoint_thirdmoment(
     else:
         raise ValueError("Variant option" + variant + "unknown")
 
-    # Add effect of the Law IBCM modification? Because this changes stability
-    # when learning rate would be pushed too far for the regular IBCM model
+    # Ignore effect of the Law IBCM modification, does not change stability
+    # unless learning rate would be pushed too far for the regular IBCM model
 
     # Build the complete matrix
     return jac

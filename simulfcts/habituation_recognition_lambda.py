@@ -227,7 +227,6 @@ def main_habituation_runs_lambda(filename, attributes, parameters, model_options
         # Get the group created at launch time for this simulation id
         sim_gp = results_file.get(id_to_simkey(sim_id))
         # Save results, depending on model type the structure changes a bit
-        # TODO: Save statistics of inhibition in yser as well
         save_simul_results_lambda(sim_id, sim_results, attributes, 
                                   sim_gp, snap_idx)
         print("Habituation run {} saved".format(sim_id))

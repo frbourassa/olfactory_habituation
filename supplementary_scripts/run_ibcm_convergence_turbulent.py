@@ -285,7 +285,7 @@ def main_convergence_vs_ibcm_rates(orig_seedseq, n_seeds, n_comp_sim=3):
     ibcm_options_sim = {
         "activ_fct": "identity",
         "saturation": "tanh", 
-        "variant": "law",   # maybe we will want to test "intrator" later?
+        "variant": "law",
         "decay": True
     }
     # default turbulent background parameters
@@ -613,7 +613,7 @@ def main_convergence_vs_turbulence_strength(
     ibcm_options_sim = {
         "activ_fct": "identity",
         "saturation": "tanh", 
-        "variant": "law",   # maybe we will want to test "intrator" later?
+        "variant": "law",
         "decay": True
     }
     # default turbulent background parameters

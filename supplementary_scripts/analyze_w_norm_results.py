@@ -232,7 +232,7 @@ def main_plot_w_norms(df_ibcm, df_pca):
     plt.close()
 
     # Make a clearer plot now. Take the best (alpha, beta) combination
-    # for each p, q and make barplots both models? and annotate
+    # for each p, q and make barplots both models and annotate
     # optimal alpha, beta for each bar.
     fig, axes = plt.subplots(2, 3)
     size_inches = fig.get_size_inches()
@@ -351,8 +351,9 @@ def main_plot_m_w_magnitudes(df_ibcm, df_pca):
     ]
     # 2D scatter plot of M vs W mean magnitudes, all points of each model
     ax = axes[0]
-    # TODO: adding jitter is stupid, realize that all M are identical
+    # Note: adding jitter is stupid, realize that all M are identical
     # in these simulations and playing with Lambda would make more sense.
+    # Final plots will focus on metrics vs Lambda only. 
     jit1 = 0.05*np.random.normal(size=df_ibcm.shape[0])
     jit2 = 0.05*np.random.normal(size=df_ibcm.shape[0])
     ax.plot(

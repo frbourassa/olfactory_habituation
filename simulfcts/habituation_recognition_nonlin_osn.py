@@ -39,13 +39,15 @@ from modelfcts.tagging import (
 )
 from simulfcts.habituation_recognition import (
     select_sampling_functions,
-    appropriate_response,  # TODO: will need new version to add OSN adaptation
+    appropriate_response,  # will need new version to add OSN adaptation
+    # for adaptation, see stand-alone 
+    # supplementary_scripts/run_adaptation_performance_tests.py
     get_data,
     new_rng_from_old_seed,
     func_wrapper_with_id_threadpool,
     find_snap_index,
     id_to_simkey,
-    save_simul_results,  # TODO: will need new version to add OSN adaptation
+    save_simul_results,  # will need new version to add OSN adaptation
     error_callback,
     initialize_integration
 )
@@ -240,7 +242,7 @@ def test_new_odor_recognition_nl_osn(
     _, vec_sampling = select_sampling_functions(attrs)
     response_fct = select_osn_response(attrs)
     
-    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    # Note: for adaptation, epsilons will be dynamical variables in snapshots
     epsils_vec = params["back_params"][-1]  
     max_osn_ampli = params["back_params"][-2]
     
@@ -384,7 +386,7 @@ def initialize_recognition_nl_osn(id, nwork, gp, odors_gp,
         "w": get_data(gp, "w_snaps"),
         "l": get_data(gp, "l_snaps"),
         "x": get_data(gp, "x_snaps"),
-        # TODO: add epsilons snaps here later for adaptation
+        # Note: add epsilons snaps here later for adaptation
         "conc": get_data(gp, "back_conc_snaps"),
         "back": get_data(gp, "back_vec_snaps"),
     }
@@ -515,7 +517,7 @@ def no_habituation_one_sim_nl_osn(sim_id, filename_ref, lean=True):
     new_concs = ref_file.get("parameters").get("new_concs")[()]
     bkname = ref_file.attrs["background"]
     response_fct = select_osn_response(ref_file.attrs)
-    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    # Note: for adaptation, epsilons will be dynamical variables in snapshots
     back_params = load_params_individually(
         ref_file.get("parameters"), "back_params")
     epsils_vec = back_params[-1]  
@@ -619,7 +621,7 @@ def orthogonal_recognition_one_sim_nl_osn(sim_id, filename_ref, lean=True):
     new_concs = ref_file.get("parameters").get("new_concs")[()]
     bkname = ref_file.attrs["background"]
     response_fct = select_osn_response(ref_file.attrs)
-    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    # Note: for adaptation, epsilons will be dynamical variables in snapshots
     back_params = load_params_individually(
         ref_file.get("parameters"), "back_params")
     epsils_vec = back_params[-1]  
@@ -748,7 +750,7 @@ def optimal_recognition_one_sim_nl_osn(sim_id, filename_ref, lean=False):
     new_concs = ref_file.get("parameters").get("new_concs")[()]
     bkname = ref_file.attrs["background"]
     response_fct = select_osn_response(ref_file.attrs)
-    # TODO: for adaptation, epsilons will be dynamical variables in snapshots
+    # NOte: for adaptation, epsilons will be dynamical variables in snapshots
     back_params = load_params_individually(
         ref_file.get("parameters"), "back_params")
     epsils_vec = back_params[-1]  

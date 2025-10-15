@@ -1,8 +1,6 @@
 """
 Scripts to check how the performance of each model (IBCM, BioPCA) changes
 as we increase the magnitude of correlation (Pearson, rho) between odors. 
-To further test robustness against asymmetry between odors, 
-we put unequal variance on the different odors?
 
 This requires running multiple simulations for each correlation value, 
 hence we use multiprocessing. Launch one  "run_performance_recognition.py"-like

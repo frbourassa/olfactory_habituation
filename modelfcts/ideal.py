@@ -138,7 +138,6 @@ def compute_ideal_factor_toy(nu_new, sigma2, n_s, odor_gen_fct, gen_args):
     $x_B = x_d + \nu x_s$.
     """
     # Compute the average vector. Use 10^5 samples
-    # TODO: fix with an estimate of x_n^2 norm
     vec_samples = odor_gen_fct([n_s, int(1e5)], *gen_args)
     vec_samples = vec_samples / l2_norm(vec_samples, axis=0)
     mean_vec_element = np.mean(vec_samples)  # All elements equal

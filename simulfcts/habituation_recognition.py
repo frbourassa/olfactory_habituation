@@ -424,7 +424,7 @@ def id_to_simkey(id):
 
 def select_model_functions(attrs):
     # Select integration function
-    # TODO: will need to add options for OSN adaptation
+    # Note: will need to add options for OSN adaptation
     if attrs["model"] == "IBCM":
         integrate = integrate_inhib_ibcm_network_options
     elif attrs["model"] == 'PCA':
@@ -455,7 +455,7 @@ def select_model_functions(attrs):
 
 
 def save_simul_results(id, res, attrs, gp, snap_i, full_file=None, lean=False):
-    # TODO: will need extra snapshots for epsilons for OSN adaptation
+    # Note: will need extra snapshots for epsilons for OSN adaptation
     result_items = {
         "IBCM": ["tser", "back_conc_snaps", "back_vec_snaps", "m_snaps",
                  "hbar_snaps", "theta_snaps", "w_snaps", "y_snaps"],
@@ -543,7 +543,7 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
         i_times = powerlaw_cutoff_inverse_transform(
                 rng.random(size=dimensions[1]), *back_params[2:4])
         back_tc = np.stack([i_times, i_concs.squeeze()], axis=1)
-        # TODO: this will need adjustment for epsils with OSN adaptation
+        # Note: this will need adjustment for epsils with OSN adaptation
         epsils_vec = back_params[-1]
         max_osn_ampli = back_params[-2]
         # Combine odors non-linearly with the tc_init concentrations
@@ -556,7 +556,7 @@ def initialize_background(attrs, dimensions, back_params, back_vecs, rng):
     return back_init
 
 
-# TODO: will need to initialize epsils maybe
+# Note: will need to initialize epsils for simulations with adaptation later on
 def initialize_weights(attrs, dims, rgen, params):
     # IBCM: only m_init
     if attrs["model"] == "IBCM":
@@ -610,7 +610,7 @@ def initialize_integration(
                     init_weights,
                     back_update,
                     back_init_sim,
-                    params["m_rates"],  # TODO: OSN adaptation rate within m_rates?
+                    params["m_rates"],
                     params["w_rates"],
                     back_params_sim,
                     *params["time_params"]
