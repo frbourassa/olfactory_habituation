@@ -29,7 +29,7 @@ Numerical simulations of olfactory habituation models for the manuscript
 - `idealize_recognition`: functions to compute ideal/optimal habituation model outputs, especially those that would have occured in existing (saved) simulations. 
 - `plotting`: auxiliary plotting functions.  
 
-**Code in the `secondary_scripts` folder**: main simulation code for supplementary results. 
+**Code in the `supplementary_scripts` folder**: main simulation code for supplementary results. 
 - `run_performance_lambda.py`, `run_performance_noise.py`, `run_performance_w_norm_choice.py`: scripts to launch the simulations and new odor recognition tests of figures S11 (as a function of $\Lambda$), S8 (robustness against OSN noise), and S9 (W norm choice), respectively. 
 - `analyze_lambda_results.py`, `analyze_noise_results.py`, `analyze_w_norm_results.py`: scripts to analyze these simulation results and generate the summary statistics shown in the figures. 
 - `autocorrelation_turbulent.py`: to compute the autocorrelation function of the turbulent odor concentration process, shown in figure S1C. 

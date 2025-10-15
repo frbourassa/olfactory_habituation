@@ -1,7 +1,7 @@
 """ Analyze and save to disk a summary of the simulations results
 for correlated odors. Similar script to analyze_dimensionality_results. 
 Run from main folder as 
->>> python secondary_scripts/analyze_correlation_results.py
+>>> python supplementary_scripts/analyze_correlation_results.py
 
 @author: frbourassa
 July 2025

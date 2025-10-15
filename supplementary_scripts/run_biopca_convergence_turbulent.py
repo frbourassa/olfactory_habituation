@@ -513,7 +513,7 @@ def main_convergence_vs_turb_strength(orig_seedseq, n_seeds, n_comp_sim=3):
 
 
 if __name__ == "__main__":
-    do_nodors_scale = False
+    do_nodors_scale = True
     do_turbulence_strength = True
     n_simuls = 32
 

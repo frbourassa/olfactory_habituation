@@ -703,8 +703,8 @@ def main_convergence_vs_turbulence_strength(
 
 
 if __name__ == "__main__":
-    do_nodors_rates = False
-    do_conc_scale = False  # vs c0, compensate with mu, mu * c0**2 = cst
+    do_nodors_rates = True
+    do_conc_scale = True  # vs c0, compensate with mu, mu * c0**2 = cst
     do_turbulence_strength = True
     n_simuls = 32
 

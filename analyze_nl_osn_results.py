@@ -12,8 +12,6 @@ import matplotlib.pyplot as plt
 import h5py
 import os, sys
 pj = os.path.join
-if ".." not in sys.path:
-    sys.path.insert(1, "..")
 
 from simulfcts.analysis import (
     concat_jaccards, 

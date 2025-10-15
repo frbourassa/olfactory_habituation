@@ -4,7 +4,7 @@ according to the nonlinear OSN activation function from
 Kadakia and Emonet, eLife, 2019. 
 
 See more explanations in the notebook 
-supplementary_tests/nonlinear_osn_turbulent.ipynb
+supplementary_scripts/nonlinear_osn_turbulent.ipynb
 
 @author: frbourassa
 August 2025

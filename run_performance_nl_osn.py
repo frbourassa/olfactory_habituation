@@ -16,8 +16,6 @@ August 2025
 """
 import numpy as np
 import os, sys
-if ".." not in sys.path:
-    sys.path.insert(1, "..")
 
 from simulfcts.habituation_recognition_nonlin_osn import (
     main_habituation_runs_nl_osn,
@@ -46,7 +44,7 @@ if __name__ == "__main__":
     # So make sure spawn is default everywhere, I multiprocess at a high
     # level so child processes do not get started often. 
     multiprocessing.set_start_method('spawn')
-    folder = os.path.join("..", "results", "performance_nl_osn")
+    folder = os.path.join("results", "performance_nl_osn")
     do_main_runs = True
 
     # Dimensionalities -- fixed
