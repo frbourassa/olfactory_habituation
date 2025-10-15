@@ -24,7 +24,6 @@ results/for_plots/*/*.json
 results/for_plots/*.txt
 results/for_plots/backups/*.json
 results/performance_w/*.json
-results/common_params
 *.h5
 *.hdf
 *.xlsx
