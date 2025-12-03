@@ -184,8 +184,11 @@ def integrate_inhib_biopca_network_skip(ml_inits, update_bk, bk_init,
     newax = np.newaxis
     dflt = np.diagflat
 
+    # Background vector with mean subtracted
+    bkvec0 = bkvec - xmean
+
     # Initialize neuron activity with m and background at time zero
-    c = inv_l_diag * (mmat.dot(bkvec - xmean))
+    c = inv_l_diag * (mmat.dot(bkvec0))
     cbar = c - inv_l_diag*np.dot(lmat-dflt(1.0 / inv_l_diag), c)
     if remove_lambda:
         cbar = cbar / lambda_diag
@@ -255,6 +258,12 @@ def integrate_inhib_biopca_network_skip(ml_inits, update_bk, bk_init,
 
         ### Online PCA weights
         # Synaptic plasticity: update mmat, lmat to k+1 based on cbar at k
+        # Technically, should use bkvec0 = bkvec - xmean in the dot, but the
+        # average of the difference is zero on the slow M learning time scales,
+        # since cbar is computed with bkvec0 and thus has average 0: 
+        # <c(s - <s>)> = <cs> - <c><s> = <cs>
+        # since <c> = 0 due to c = LM(s - <s>). 
+        # So we can just leave bkvec in the equation below, makes no difference.
         mmat += dt * mrate * (cbar[:, newax].dot(bkvec[newax, :]) - mmat)
         lmat += dt * mrate * lrate_l * (cbar[:, newax].dot(cbar[newax, :])
                         - lambda_diag[:, newax] * lmat * lambda_diag)
@@ -265,9 +274,10 @@ def integrate_inhib_biopca_network_skip(ml_inits, update_bk, bk_init,
 
         # Update background to time k+1, to be used in next time step (k+1)
         bkvec, bk_vari = update_bk(bk_vari, bk_params, noises[k % kchunk], dt)
+        bkvec0 = bkvec - xmean
 
         # Neural dynamics (two-step) at time k+1, to be used in next step
-        c = inv_l_diag * (mmat.dot(bkvec - xmean))  # L_d^(-1) M^T x
+        c = inv_l_diag * mmat.dot(bkvec0)  # L_d^(-1) M^T x
         # Lateral inhibition between neurons
         cbar = c - inv_l_diag*np.dot(lmat - dflt(1.0/inv_l_diag), c)
         if remove_lambda:
@@ -278,7 +288,7 @@ def integrate_inhib_biopca_network_skip(ml_inits, update_bk, bk_init,
 
         # Lastly, projection neurons at time step k+1.
         # xmean is 0 if we don't remove the mean
-        yvec = bkvec - xmean - wmat.dot(cbar)
+        yvec = bkvec0 - wmat.dot(cbar)
         if activ_fct == "relu":
             relu_inplace(yvec)
 
