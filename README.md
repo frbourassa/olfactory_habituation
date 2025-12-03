@@ -2,7 +2,7 @@
 
 Numerical simulations of olfactory habituation models for the manuscript
 
-> François X. P. Bourassa, Paul François, Gautam Reddy, Massimo Vergassola. "Manifold learning for olfactory habituation to strongly fluctuating backgrounds", [submitted], 2025. 
+> François X. P. Bourassa, Paul François, Gautam Reddy, Massimo Vergassola. "Manifold learning for olfactory habituation to strongly fluctuating backgrounds", [accepted, *PRX Life*], 2025. 
 
 bioRxiv preprint: [https://doi.org/10.1101/2025.05.26.656161](https://doi.org/10.1101/2025.05.26.656161)
 
